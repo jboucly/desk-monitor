@@ -6,3 +6,6 @@
 .offloader_pairings.json
 .DS_Store
 secrets.yaml
+
+
+esphome-modular-lvgl-buttons/
