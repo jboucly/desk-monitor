@@ -7,7 +7,6 @@
 .DS_Store
 secrets.yaml
 
-
 esphome-modular-lvgl-buttons/
 docs-screen
 ha-entities.json
