@@ -111,7 +111,12 @@
         "name": { "type": "string" },
         "icon": { "$ref": "#/$defs/icon" },
         "unit": { "type": "string", "description": "Overrides unit_of_measurement." },
-        "decimals": { "type": "integer", "minimum": 0, "maximum": 3, "default": 1 }
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 3, "default": 1 },
+        "format": {
+          "enum": ["auto", "number", "duration"],
+          "default": "auto",
+          "description": "duration: a timestamp shows the time elapsed since (\"12 j 4 h\"), a number is a duration in its unit. auto: duration when HA's device_class is timestamp or duration."
+        }
       }
     },
     "props_gauge": {

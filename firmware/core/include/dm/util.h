@@ -51,6 +51,18 @@ const char *month_name(int month);
 std::string format_number(double value, int decimals);
 
 /**
+ * @description Seconds since the epoch of an ISO 8601 time ("2026-10-01T08:12:33+02:00", "…Z"),
+ * the UTC offset applied. Returns -1 when the text is not such a time.
+ */
+double parse_iso8601(const char *text);
+
+/**
+ * @description Long duration in French, two units at most: "12 j 4 h", "3 h 25 min", "8 min".
+ * Negative or NaN gives "—".
+ */
+std::string format_elapsed(double seconds);
+
+/**
  * @description Formats a duration in seconds as "m:ss" or "h:mm:ss". NaN or negative gives "–:––".
  */
 std::string format_duration(double seconds);

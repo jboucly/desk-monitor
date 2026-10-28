@@ -117,9 +117,13 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
           <span class="muted small ellipsis">
             <Icon name={p.icon || entityIcon(p.entity || 'sensor.x')} size={14} color={theme.accent} /> {p.name || p.entity || 'Capteur'}
           </span>
-          <span class="value">
-            21,5 <span class="muted small">{p.unit || ''}</span>
-          </span>
+          {p.format === 'duration' || (p.format !== 'number' && /uptime|fonctionnement|boot/.test(p.entity ?? '')) ? (
+            <span class="value">12 j 4 h</span>
+          ) : (
+            <span class="value">
+              21,5 <span class="muted small">{p.unit || ''}</span>
+            </span>
+          )}
         </div>
       );
     case 'ha_light':

@@ -177,7 +177,23 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
         </Field>
       )}
 
-      {(widget.type === 'ha_sensor' || widget.type === 'ha_gauge') && (
+      {widget.type === 'ha_sensor' && (
+        <>
+          <Field label="Affichage">
+            <select value={p.format ?? 'auto'} onChange={(e) => set({ format: e.currentTarget.value === 'auto' ? undefined : e.currentTarget.value })}>
+              <option value="auto">Automatique</option>
+              <option value="number">Nombre</option>
+              <option value="duration">Durée (ex. 12 j 4 h)</option>
+            </select>
+          </Field>
+          <small class="hint">
+            Automatique : les capteurs « date » de Home Assistant (comme le temps de fonctionnement de Proxmox) et les durées
+            s’affichent en jours et heures.
+          </small>
+        </>
+      )}
+
+      {(widget.type === 'ha_gauge' || (widget.type === 'ha_sensor' && p.format !== 'duration')) && (
         <div class="row">
           <Field label="Unité (vide = HA)">
             <input value={p.unit ?? ''} onInput={(e) => set({ unit: e.currentTarget.value || undefined })} />

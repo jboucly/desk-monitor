@@ -99,6 +99,13 @@ cJSON *initial_state(const std::string &id) {
     strftime(now, sizeof now, "%Y-%m-%dT%H:%M:%S+00:00", gmtime(&t));
     cJSON_AddStringToObject(attrs, "media_position_updated_at", now);
     cJSON_AddStringToObject(attrs, "entity_picture", "/mock/cover.jpg");
+  } else if (domain == "sensor" && id.find("fonctionnement") != std::string::npos) {
+    // Like Proxmox VE's uptime: the boot time, as a timestamp
+    char boot[32];
+    const time_t at = time(nullptr) - 12 * 86400 - 4 * 3600 - 1500;
+    strftime(boot, sizeof boot, "%Y-%m-%dT%H:%M:%S+00:00", gmtime(&at));
+    cJSON_AddStringToObject(state, "s", boot);
+    cJSON_AddStringToObject(attrs, "device_class", "timestamp");
   } else if (domain == "sensor") {
     char value[16];
     snprintf(value, sizeof value, "%.1f", 15 + r * 75);

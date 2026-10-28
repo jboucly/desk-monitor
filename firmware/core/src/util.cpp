@@ -148,4 +148,36 @@ std::string base64_encode(const uint8_t *data, size_t len) {
   return out;
 }
 
+double parse_iso8601(const char *text) {
+  int year, month, day, hour, minute, used = 0;
+  double second;
+  if (!text || sscanf(text, "%d-%d-%dT%d:%d:%lf%n", &year, &month, &day, &hour, &minute, &second, &used) != 6) return -1;
+  // Days since the epoch (civil calendar), avoiding timegm() which newlib lacks
+  const int y = year - (month <= 2);
+  const int era = (y >= 0 ? y : y - 399) / 400;
+  const int yoe = y - era * 400;
+  const int doy = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+  const int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+  double epoch = (era * 146097.0 + doe - 719468) * 86400 + hour * 3600 + minute * 60 + second;
+  // "+02:00" / "-05:00" after the seconds: local time ahead of UTC by that much
+  const char *tz = text + used;
+  int oh = 0, om = 0;
+  if ((*tz == '+' || *tz == '-') && sscanf(tz + 1, "%d:%d", &oh, &om) >= 1) {
+    const double offset = oh * 3600.0 + om * 60.0;
+    epoch += *tz == '+' ? -offset : offset;
+  }
+  return epoch;
+}
+
+std::string format_elapsed(double seconds) {
+  if (std::isnan(seconds) || seconds < 0) return "—";
+  const long total = static_cast<long>(seconds);
+  const long days = total / 86400, hours = total % 86400 / 3600, minutes = total % 3600 / 60;
+  char buf[32];
+  if (days > 0) snprintf(buf, sizeof buf, "%ld j %ld h", days, hours);
+  else if (hours > 0) snprintf(buf, sizeof buf, "%ld h %02ld min", hours, minutes);
+  else snprintf(buf, sizeof buf, "%ld min", minutes);
+  return buf;
+}
+
 }  // namespace dm::util

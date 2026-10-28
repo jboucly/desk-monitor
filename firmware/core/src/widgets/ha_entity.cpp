@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 
 #include "common.h"
 #include "dm/util.h"
@@ -154,6 +155,7 @@ class SensorTile : public Widget {
   SensorTile(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx) : spec_(spec) {
     entity_ = json::str(spec.props, "entity");
     decimals_ = static_cast<int>(json::num(spec.props, "decimals", 1));
+    format_ = json::str(spec.props, "format", "auto");
     const bool big = spec.h >= 2 && spec.w >= 2;
 
     root = theme::make_card(parent);
@@ -180,7 +182,10 @@ class SensorTile : public Widget {
     unit_ = theme::make_label(row, &dm_font_16, theme::text2());
     lv_obj_set_style_pad_bottom(unit_, big ? 6 : 3, 0);
 
-    ctx.bus.subscribe("ha/" + entity_, [this](const cJSON *state) { render(state); });
+    ctx.bus.subscribe("ha/" + entity_, [this](const cJSON *state) {
+      last_ = json::own(cJSON_Duplicate(state, true));
+      render(state);
+    });
     lv_label_set_text(name_, entity_name(spec.props, nullptr, entity_).c_str());
   }
 
@@ -194,6 +199,13 @@ class SensorTile : public Widget {
       lv_label_set_text(unit_, "");
       return;
     }
+    const double elapsed = duration_seconds(state);
+    if (!std::isnan(elapsed)) {
+      // "12 j 4 h" carries its own units
+      lv_label_set_text(value_, util::format_elapsed(elapsed).c_str());
+      lv_label_set_text(unit_, "");
+      return;
+    }
     char *end = nullptr;
     const double number = strtod(raw, &end);
     if (end != raw && *end == '\0') lv_label_set_text(value_, util::format_number(number, decimals_).c_str());
@@ -201,9 +213,42 @@ class SensorTile : public Widget {
     lv_label_set_text(unit_, unit);
   }
 
+  /**
+   * @description Seconds to show as a duration, or NaN for a plain value. A timestamp (e.g. Proxmox's
+   * "Temps de fonctionnement", the boot time) gives the time elapsed since; a duration sensor is converted
+   * from its unit. "auto" decides from HA's device_class, "duration" forces it, "number" disables it.
+   */
+  double duration_seconds(const cJSON *state) const {
+    if (format_ == "number") return NAN;
+    const char *raw = json::str(state, "s");
+    const cJSON *attrs = json::get(state, "a");
+    const std::string device_class = json::str(attrs, "device_class");
+    if (format_ != "duration" && device_class != "timestamp" && device_class != "duration") return NAN;
+
+    const double since = util::parse_iso8601(raw);
+    if (since > 0) {
+      const double now = static_cast<double>(time(nullptr));
+      return now > 1.6e9 ? now - since : NAN;  // clock not set yet (no SNTP answer)
+    }
+    char *end = nullptr;
+    const double value = strtod(raw, &end);
+    if (end == raw) return NAN;
+    const std::string unit = json::str(attrs, "unit_of_measurement", "s");
+    const double scale = unit == "d" ? 86400 : unit == "h" ? 3600 : unit == "min" ? 60 : unit == "ms" ? 0.001 : 1;
+    return value * scale;
+  }
+
+  void tick() override {
+    // A time elapsed since boot moves on without any new state from HA: refresh once a minute
+    if (++ticks_ % 60 == 0 && last_) render(last_.get());
+  }
+
   WidgetSpec spec_;
   std::string entity_;
   int decimals_ = 1;
+  std::string format_;
+  json::Ptr last_;
+  unsigned ticks_ = 0;
   lv_obj_t *name_ = nullptr, *value_ = nullptr, *unit_ = nullptr;
 };
 

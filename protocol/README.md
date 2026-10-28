@@ -18,7 +18,7 @@ Widgets cannot overlap or leave the grid. The firmware validates every layout ag
 | `weather` | `mode` (`current` / `forecast`), `days` | Open-Meteo, over Wi-Fi |
 | `ha_toggle` | `entity`, `name`, `icon` | Home Assistant |
 | `ha_light` | `entity`, `name`, `icon` | Home Assistant. A long press opens the color/white/brightness popup |
-| `ha_sensor` | `entity`, `name`, `icon`, `unit`, `decimals` | Home Assistant |
+| `ha_sensor` | `entity`, `name`, `icon`, `unit`, `decimals`, `format` (`auto`, `number`, `duration`: e.g. a Proxmox uptime shown as "12 j 4 h") | Home Assistant |
 | `ha_gauge` | `entity`, `name`, `min`, `max`, `unit`, `decimals`, `warn`, `crit` | Home Assistant |
 | `shortcut` | `name`, `icon`, `color`, `action` | `ha` action over Wi-Fi, other kinds via the PC |
 | `pc_metrics` | `name` (default: the PC's name) | PC companion |

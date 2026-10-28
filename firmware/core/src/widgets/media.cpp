@@ -29,23 +29,6 @@ struct NowPlaying {
   bool has_color = false;
 };
 
-/**
- * @description Seconds since the epoch of an ISO 8601 UTC time ("2026-10-28T15:56:35.12+00:00"), or -1.
- */
-double parse_iso_utc(const char *text) {
-  int year, month, day, hour, minute;
-  double second;
-  if (sscanf(text, "%d-%d-%dT%d:%d:%lf", &year, &month, &day, &hour, &minute, &second) != 6) return -1;
-  // Days since the epoch (civil calendar), avoiding timegm() which newlib lacks
-  const int y = year - (month <= 2);
-  const int era = (y >= 0 ? y : y - 399) / 400;
-  const int yoe = y - era * 400;
-  const int doy = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
-  const int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-  const double days = era * 146097.0 + doe - 719468;
-  return days * 86400 + hour * 3600 + minute * 60 + second;
-}
-
 class Media : public Widget {
  public:
   Media(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx) : ctx_(ctx) {
@@ -240,7 +223,7 @@ class Media : public Widget {
       out.elapsed = json::num(a, "media_position", NAN);
       out.since = lv_tick_get();
       // HA reports the position at media_position_updated_at: catch up to now
-      const double updated = parse_iso_utc(json::str(a, "media_position_updated_at"));
+      const double updated = util::parse_iso8601(json::str(a, "media_position_updated_at"));
       const double now = static_cast<double>(time(nullptr));
       if (out.playing && updated > 0 && now > 1.6e9 && now > updated) out.elapsed += now - updated;
       return Source::Ha;
