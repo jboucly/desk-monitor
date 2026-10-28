@@ -1,12 +1,27 @@
-# Managed by ESPHome Device Builder — created because this directory
-# was not already a git repository. Edit freely; it won't be regenerated.
-.esphome/
-.device-builder*
-.receiver_peers.json
-.offloader_pairings.json
+# macOS
 .DS_Store
-secrets.yaml
 
-esphome-modular-lvgl-buttons/
-docs-screen
-ha-entities.json
+# Vendor hardware docs (PDFs, tools; too large for git)
+docs/hardware/
+
+# Firmware (ESP-IDF): build output, generated sdkconfig, components fetched by the component manager
+firmware/build/
+firmware/sdkconfig
+firmware/sdkconfig.old
+firmware/managed_components/
+firmware/dependencies.lock
+
+# Simulator build (also holds its layout.json / settings.json)
+firmware/sim/build/
+
+# Web editor
+web/node_modules/
+web/dist/
+
+# Companion (Rust / Tauri)
+companion/node_modules/
+companion/src-tauri/target/
+companion/src-tauri/gen/
+
+# Built by companion/src-tauri/build.rs
+companion/src-tauri/resources/

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Desk Monitor</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="icon.svg" alt="" width="40" height="40" />
+        <div>
+          <h1>Desk Monitor</h1>
+          <p class="muted" id="host">desk-monitor.local</p>
+        </div>
+      </header>
+
+      <section class="card" id="status-card">
+        <div class="status">
+          <span class="dot" id="dot"></span>
+          <strong id="status">Connexion…</strong>
+        </div>
+        <p class="muted" id="message"></p>
+
+        <div id="pair-start" hidden>
+          <p>Cet ordinateur n’est pas encore appairé avec l’écran.</p>
+          <button class="primary" id="pair-button">Appairer cet ordinateur</button>
+        </div>
+
+        <form id="pair-form" hidden>
+          <p>Saisis le code affiché sur l’écran.</p>
+          <div class="row">
+            <input id="code" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="123456" />
+            <button class="primary" type="submit">Valider</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Adresse de l’écran</h2>
+        <form class="row" id="host-form">
+          <input id="host-input" placeholder="Automatique (desk-monitor.local)" autocomplete="off" />
+          <button type="submit">Appliquer</button>
+        </form>
+        <p class="hint">Vide = automatique. Une adresse IP marche aussi, et <code>localhost:8081</code> pour le simulateur.</p>
+      </section>
+
+      <section class="card" id="accessibility-card" hidden>
+        <h2>Raccourcis clavier</h2>
+        <p class="muted">macOS doit autoriser Desk Monitor à simuler des touches.</p>
+        <button id="accessibility-button">Ouvrir l’autorisation Accessibilité</button>
+      </section>
+
+      <section class="card">
+        <label class="check">
+          <input type="checkbox" id="autostart" />
+          Lancer au démarrage de l’ordinateur
+        </label>
+        <button class="ghost" id="forget-button" hidden>Oublier l’appairage</button>
+      </section>
+    </main>
+    <script src="main.js"></script>
+  </body>
+</html>

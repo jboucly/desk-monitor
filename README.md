@@ -1,92 +1,105 @@
 # Desk Monitor
 
-Écran tactile de bureau 480×480 piloté par [ESPHome](https://esphome.io) et [LVGL](https://lvgl.io), branché sur Home Assistant. Il affiche l'état du serveur Proxmox, commande les lumières pièce par pièce et donne la météo.
+Écran tactile de bureau 480×480 (Guition ESP32-S3-4848S040) qui sert d'**extension de l'ordinateur**. Il fonctionne seul en Wi-Fi : Home Assistant, météo, horloge. Une application compagnon sur l'ordinateur s'y connecte par le réseau local pour afficher les métriques du PC et exécuter des raccourcis façon Stream Deck et afficher la musique en cours de lecture.
 
-L'interface tourne à l'identique sur l'écran physique (Guition ESP32-S3-4848S040) et dans un simulateur sur ordinateur (SDL), pratique pour tester sans flasher.
+Les pages se configurent **à la volée** depuis un éditeur web servi par l'écran lui-même (`http://desk-monitor.local`), sans recompiler ni reflasher.
 
-## Fonctionnalités
+> La v1 (configuration ESPHome) est archivée dans [`legacy/esphome/`](legacy/esphome/) et reste flashable.
 
-| Page | Contenu |
-|---|---|
-| **Tableau de bord** | Proxmox VE : statut, uptime, jauges CPU / RAM / disque, stockage des VM. Les jauges passent à l'orange au-delà de 75 % et au rouge au-delà de 90 %. |
-| **Bureau** | Lumière principale et lumière du bureau, sur de grandes cartes. |
-| **Salon** | Mur, lampe d'appoint et LED du plan de travail. |
-| **Météo** | Conditions actuelles, humidité, vent, pression et prévisions sur 5 jours (Met.no). |
+## État d'avancement
 
-Chaque carte lumière affiche la couleur réelle de l'ampoule (pastille, interrupteur et curseur), son état et sa luminosité.
+| Phase | Contenu | État |
+| --- | --- | --- |
+| 1 | Firmware natif (ESP-IDF + LVGL 9), design « glass », Wi-Fi, Home Assistant, météo Open-Meteo, layout JSON, éditeur web, OTA | ✅ |
+| 2 | Application compagnon (Rust/Tauri, macOS et Windows) reliée par le réseau local : métriques PC, raccourcis clavier, lancement d'applications et d'URL | ✅ (testée sur macOS) |
+| 3 | Musique en cours de lecture (toutes les apps du Mac, navigateur compris) avec pochette et commandes ; repli sur un lecteur Home Assistant | ✅ (macOS ; Windows à venir) |
 
-### Gestes
+## Widgets
 
-| Geste | Effet |
-|---|---|
-| Glisser à gauche / droite | Page suivante / précédente (la dernière page revient à la première). |
-| Tap sur une carte lumière | Allume / éteint. |
-| Glisser le curseur d'une carte | Règle la luminosité. |
-| **Appui long sur une carte lumière** | Ouvre le popup couleur : roue des teintes et saturation (onglet « Couleur »), température de blanc en Kelvin (onglet « Blanc »), luminosité, et marche / arrêt au centre. L'appui long est sans effet sur une lumière qui ne gère ni la couleur ni la température de blanc. |
-| Appui long sur la barre du haut | Passe du thème sombre au thème clair, et inversement. |
+| Widget | Rôle |
+| --- | --- |
+| Horloge | Heure et date en français, directement sur le fond d'écran |
+| Météo | Conditions actuelles ou prévisions jusqu'à 7 jours (Open-Meteo, sans clé d'API) |
+| Lumière HA | Tap pour allumer/éteindre ; **appui long** pour ouvrir la popup avec la roue chromatique, la température de blanc et la luminosité |
+| Interrupteur HA | Prise, ventilateur, scène, script, volet… (le service adapté au domaine est appelé) |
+| Capteur HA | Valeur et unité |
+| Jauge HA | Arc à 270°, seuils orange/rouge configurables |
+| Raccourci | Action Home Assistant, ou action sur le PC (raccourci clavier, application, URL) |
+| Métriques PC | CPU, RAM, GPU (avec températures) et débit réseau de l'ordinateur appairé |
+| Jauge PC | Une mesure du PC : CPU, RAM, GPU, mémoire GPU, disque ou température |
+| Musique | Ce que joue l'ordinateur (Musique, Spotify, Chrome, Safari…) avec pochette, progression et commandes ; sinon le lecteur Home Assistant choisi |
 
-Le thème est aussi exposé dans Home Assistant (select « Current Theme »), ce qui permet de l'automatiser, par exemple « Light » au lever du soleil et « Dark » au coucher.
 
-## Prérequis
+## Démarrage rapide
 
-- ESPHome **2026.7.0 ou plus récent**. La version 2026.9.1 est testée.
-- La librairie [esphome-modular-lvgl-buttons](https://github.com/agillis/esphome-modular-lvgl-buttons), clonée à la racine du dépôt :
-  ```sh
-  git clone https://github.com/agillis/esphome-modular-lvgl-buttons.git
-  ```
-- Pour le simulateur : SDL2 (`brew install sdl2` sur macOS).
-- Un fichier `secrets.yaml` à la racine (non versionné) :
-  ```yaml
-  wifi_ssid: "..."
-  wifi_password: "..."
-  ap_password: "..."
-  ```
+### Prérequis
 
-## Utilisation
+- **ESP-IDF 5.5**. Celui qu'installe ESPHome est réutilisé : `. firmware/tools/idf_env.sh`.
+- **SDL2** et **libcurl** pour le simulateur : `brew install sdl2 curl`.
+- **Node.js 20+** pour l'éditeur web.
+
+### Simulateur (sans matériel)
 
 ```sh
-# Simulateur (fenêtre 480×480, la souris remplace le doigt)
-esphome run esphome-desk-monitor-sdl.yaml
-
-# Écran physique : compile puis flashe (USB la première fois, OTA ensuite)
-esphome run esphome-desk-monitor.yaml
-
-# Vérifier la configuration sans compiler
-esphome config esphome-desk-monitor.yaml
+cd web && npm install && npm run build && cd ..          # éditeur web (servi par le simulateur)
+cmake -S firmware/sim -B firmware/sim/build -G Ninja    # cmake/ninja : ceux d'ESP-IDF après idf_env.sh
+cmake --build firmware/sim/build
+firmware/sim/build/desk_monitor_sim                      # fenêtre 480×480 + éditeur sur http://localhost:8080
 ```
 
-Une fois l'appareil ajouté dans Home Assistant, autorise-le à **effectuer des actions Home Assistant** (Paramètres → Appareils et services → ESPHome → l'appareil → Configurer). Sans cette autorisation, l'écran ne peut ni commander les lumières ni récupérer les prévisions météo.
+Dans le simulateur, Home Assistant et le PC sont simulés : les lumières réagissent comme dans HA. La météo, elle, est bien réelle.
 
-## Personnalisation
+### Écran physique
 
-| Pour… | Modifier |
-|---|---|
-| Changer une entité HA (lumière, capteur, météo) | les substitutions en haut de [`desk-monitor/ui.yaml`](desk-monitor/ui.yaml) |
-| Changer l'ordre des pages | l'ordre des `packages:` dans [`desk-monitor/ui.yaml`](desk-monitor/ui.yaml) |
-| Ajouter une lumière | un bloc `widgets/light_card.yaml` dans la page voulue (voir [`pages/salon.yaml`](desk-monitor/pages/salon.yaml)) |
-| Changer les couleurs des thèmes | la palette de [`desk-monitor/dm_theme.h`](desk-monitor/dm_theme.h) |
-| Utiliser une nouvelle icône | ajouter son `$mdi_xxx` dans la police de la bonne taille, dans [`desk-monitor/core.yaml`](desk-monitor/core.yaml) (sinon la compilation échoue) |
-| Rétroéclairage, mise en veille, rotation | les substitutions de [`esphome-desk-monitor.yaml`](esphome-desk-monitor.yaml) |
+```sh
+cd web && npm run build && cd ..        # l'éditeur est embarqué dans le firmware
+. firmware/tools/idf_env.sh
+cd firmware && idf.py build flash monitor
+```
 
-La liste des entités disponibles se trouve dans `ha-entities.json`, un export du registre d'entités de Home Assistant.
+Au premier démarrage, l'écran ouvre le Wi-Fi **DeskMonitor-setup**. Connecte-toi à ce réseau, ouvre `http://192.168.4.1` puis, dans *Réglages* :
+
+1. **Wi-Fi** : renseigne le réseau de la maison.
+2. **Home Assistant** : saisis l'adresse (`http://homeassistant.local:8123`) et un jeton d'accès longue durée (Profil → Sécurité → Jetons d'accès longue durée).
+3. **Météo** : cherche ta ville.
+
+Une fois l'écran connecté, l'éditeur est accessible depuis n'importe quel navigateur du réseau : **http://desk-monitor.local**. Les mises à jour suivantes se font depuis l'onglet *Système*, en envoyant `firmware/build/desk_monitor.bin`.
+
+### Application compagnon (ordinateur)
+
+```sh
+cd companion && npm install
+npm run dev                                              # lance l'app en mode développement
+npm run build                                            # .app / .dmg (macOS) ou .msi (Windows) dans src-tauri/target/release/bundle/
+```
+
+L'app vit dans la barre des menus. Au premier lancement, elle trouve l'écran (`desk-monitor.local`) et propose l'appairage : l'écran affiche un code à 6 chiffres à saisir dans l'app. Pour tester avec le simulateur, mets l'adresse `localhost:8081`. Sur macOS, les raccourcis clavier demandent l'autorisation *Accessibilité* (bouton dans l'app). Le PC appairé se gère dans l'éditeur, *Réglages → Ordinateur*.
+
+### Développer l'éditeur web
+
+```sh
+cd web && npm run dev                                    # API proxifiée vers le simulateur (localhost:8080)
+DM_DEVICE=http://desk-monitor.local npm run dev          # … ou vers l'écran réel
+```
 
 ## Structure
 
 ```
-esphome-desk-monitor.yaml       écran physique : Wi-Fi, OTA, rétroéclairage, tactile
-esphome-desk-monitor-sdl.yaml   simulateur sur ordinateur
-desk-monitor/                   interface commune aux deux
-  ui.yaml                       entités Home Assistant + ordre des pages
-  core.yaml                     thème, styles, polices d'icônes, popups, scripts communs
-  dm_theme.h                    palette sombre / clair et helpers C++
-  pages/                        une page par fichier
-  widgets/                      briques réutilisables (en-tête, carte lumière, popup couleur, jauge…)
-esphome-modular-lvgl-buttons/   librairie externe (matériel, polices, thème de base)
+firmware/
+  core/        C++ portable : bus de données, layout, thème glass, widgets, session HA, météo, API REST
+  main/        couche ESP32 : écran ST7701S + tactile GT911, LittleFS, Wi-Fi, WebSocket HA, HTTP, OTA
+  sim/         simulateur SDL2 (même code core/, HA et PC simulés, captures PNG scriptables)
+  data/        layout par défaut
+  tools/       génération des polices et icônes, environnement ESP-IDF
+web/           éditeur (Vite + Preact + TypeScript), compilé en une page gzippée embarquée dans le firmware
+companion/     application compagnon (Rust + Tauri) : métriques, raccourcis
+protocol/      contrats partagés : schéma du layout, liste d'icônes, API, lien PC
+docs/hardware/ documentation constructeur de l'écran (non versionnée)
+legacy/esphome/ version 1 (ESPHome)
 ```
-
-Les deux fichiers d'appareil ne contiennent que ce qui est propre au matériel. Toute modification dans `desk-monitor/` s'applique donc à la fois à l'écran et au simulateur.
 
 ## Crédits
 
-- [esphome-modular-lvgl-buttons](https://github.com/agillis/esphome-modular-lvgl-buttons) : support du matériel, thème de base et anneaux de couleur du popup lumière.
-- Icônes [Material Design Icons](https://pictogrammers.com/library/mdi/), police [Nunito](https://fonts.google.com/specimen/Nunito).
+- [LVGL](https://lvgl.io), [ESP-IDF](https://github.com/espressif/esp-idf) et ses composants (`esp_lcd_st7701`, `esp_lcd_touch_gt911`, `esp_lvgl_port`).
+- Séquence d'initialisation de l'écran reprise du modèle `GUITION-4848S040` d'[ESPHome](https://esphome.io).
+- Police [Inter](https://rsms.me/inter/), icônes [Material Design Icons](https://pictogrammers.com/library/mdi/), météo [Open-Meteo](https://open-meteo.com).

@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "theme": { "accent": "#7C9CFF", "accent2": "#C084FC", "wallpaper": "aurora", "style": "flat" },
+  "pages": [
+    {
+      "id": "home",
+      "title": "Accueil",
+      "widgets": [
+        { "id": "clock", "type": "clock", "x": 0, "y": 0, "w": 4, "h": 2, "props": { "show_date": true } },
+        { "id": "weather", "type": "weather", "x": 0, "y": 2, "w": 2, "h": 2, "props": { "mode": "current" } },
+        { "id": "bureau", "type": "ha_light", "x": 2, "y": 2, "w": 1, "h": 1, "props": { "entity": "light.ampoule_bureau", "name": "Bureau", "icon": "ceiling-light" } },
+        { "id": "desk", "type": "ha_light", "x": 3, "y": 2, "w": 1, "h": 1, "props": { "entity": "light.lumiere_bureau", "name": "Lampes", "icon": "desk-lamp" } },
+        { "id": "spotify", "type": "shortcut", "x": 2, "y": 3, "w": 1, "h": 1, "props": { "name": "Spotify", "icon": "spotify", "color": "#1DB954", "action": { "kind": "launch", "target": "Spotify" } } },
+        { "id": "capture", "type": "shortcut", "x": 3, "y": 3, "w": 1, "h": 1, "props": { "name": "Capture", "icon": "camera", "color": "#F472B6", "action": { "kind": "keys", "keys": "cmd+shift+4" } } }
+      ]
+    },
+    {
+      "id": "pc",
+      "title": "Ordinateur",
+      "widgets": [
+        { "id": "pc_dash", "type": "pc_metrics", "x": 0, "y": 0, "w": 4, "h": 2, "props": {} },
+        { "id": "pc_cpu", "type": "pc_gauge", "x": 0, "y": 2, "w": 2, "h": 2, "props": { "metric": "cpu" } },
+        { "id": "pc_gpu", "type": "pc_gauge", "x": 2, "y": 2, "w": 2, "h": 2, "props": { "metric": "gpu" } }
+      ]
+    },
+    {
+      "id": "music",
+      "title": "Musique",
+      "widgets": [
+        { "id": "now_playing", "type": "media", "x": 0, "y": 0, "w": 4, "h": 3, "props": {} },
+        { "id": "m_spotify", "type": "shortcut", "x": 0, "y": 3, "w": 1, "h": 1, "props": { "name": "Spotify", "icon": "spotify", "color": "#1DB954", "action": { "kind": "launch", "target": "Spotify" } } },
+        { "id": "m_music", "type": "shortcut", "x": 1, "y": 3, "w": 1, "h": 1, "props": { "name": "Musique", "icon": "music", "color": "#FA2D48", "action": { "kind": "launch", "target": "Music" } } },
+        { "id": "m_vol_down", "type": "shortcut", "x": 2, "y": 3, "w": 1, "h": 1, "props": { "name": "Volume -", "icon": "volume-minus", "color": "#334155", "action": { "kind": "keys", "keys": "volumedown" } } },
+        { "id": "m_vol_up", "type": "shortcut", "x": 3, "y": 3, "w": 1, "h": 1, "props": { "name": "Volume +", "icon": "volume-plus", "color": "#334155", "action": { "kind": "keys", "keys": "volumeup" } } }
+      ]
+    },
+    {
+      "id": "server",
+      "title": "Serveur",
+      "widgets": [
+        { "id": "cpu", "type": "ha_gauge", "x": 0, "y": 0, "w": 2, "h": 2, "props": { "entity": "sensor.server_cpu", "name": "Processeur", "unit": "%", "warn": 75, "crit": 90 } },
+        { "id": "ram", "type": "ha_gauge", "x": 2, "y": 0, "w": 2, "h": 2, "props": { "entity": "sensor.server_memory", "name": "Mémoire", "unit": "%", "warn": 75, "crit": 90 } },
+        { "id": "disk", "type": "ha_gauge", "x": 0, "y": 2, "w": 2, "h": 2, "props": { "entity": "sensor.server_disk", "name": "Disque système", "unit": "%", "warn": 75, "crit": 90 } },
+        { "id": "vm", "type": "ha_gauge", "x": 2, "y": 2, "w": 2, "h": 2, "props": { "entity": "sensor.server_vm_storage", "name": "Stockage VM", "unit": "%", "warn": 75, "crit": 90 } }
+      ]
+    },
+    {
+      "id": "lights",
+      "title": "Lumières",
+      "widgets": [
+        { "id": "bureau", "type": "ha_light", "x": 0, "y": 0, "w": 2, "h": 2, "props": { "entity": "light.ampoule_bureau", "name": "Bureau", "icon": "ceiling-light" } },
+        { "id": "desk", "type": "ha_light", "x": 2, "y": 0, "w": 2, "h": 2, "props": { "entity": "light.lumiere_bureau", "name": "Lampes du bureau", "icon": "desk-lamp" } },
+        { "id": "wall", "type": "ha_light", "x": 0, "y": 2, "w": 2, "h": 1, "props": { "entity": "light.mur_salon", "name": "Mur du salon", "icon": "string-lights" } },
+        { "id": "floor", "type": "ha_light", "x": 2, "y": 2, "w": 2, "h": 1, "props": { "entity": "light.lampe_dappoint", "name": "Lampe d'appoint", "icon": "floor-lamp" } },
+        { "id": "worktop", "type": "ha_light", "x": 0, "y": 3, "w": 4, "h": 1, "props": { "entity": "light.led_plan_de_travail", "name": "Plan de travail", "icon": "led-strip-variant" } }
+      ]
+    },
+    {
+      "id": "weather",
+      "title": "Météo",
+      "widgets": [
+        { "id": "now", "type": "weather", "x": 0, "y": 0, "w": 4, "h": 2, "props": { "mode": "current" } },
+        { "id": "forecast", "type": "weather", "x": 0, "y": 2, "w": 4, "h": 2, "props": { "mode": "forecast", "days": 5 } }
+      ]
+    },
+    {
+      "id": "deck",
+      "title": "Raccourcis",
+      "widgets": [
+        { "id": "s1", "type": "shortcut", "x": 0, "y": 0, "w": 1, "h": 1, "props": { "name": "VS Code", "icon": "microsoft-visual-studio-code", "color": "#2F80ED", "action": { "kind": "launch", "target": "Visual Studio Code" } } },
+        { "id": "s2", "type": "shortcut", "x": 1, "y": 0, "w": 1, "h": 1, "props": { "name": "Terminal", "icon": "console", "color": "#334155", "action": { "kind": "launch", "target": "Terminal" } } },
+        { "id": "s3", "type": "shortcut", "x": 2, "y": 0, "w": 1, "h": 1, "props": { "name": "Navigateur", "icon": "google-chrome", "color": "#F59E0B", "action": { "kind": "launch", "target": "Google Chrome" } } },
+        { "id": "s4", "type": "shortcut", "x": 3, "y": 0, "w": 1, "h": 1, "props": { "name": "Spotify", "icon": "spotify", "color": "#1DB954", "action": { "kind": "launch", "target": "Spotify" } } },
+        { "id": "s5", "type": "shortcut", "x": 0, "y": 1, "w": 1, "h": 1, "props": { "name": "GitHub", "icon": "github", "color": "#6E40C9", "action": { "kind": "url", "url": "https://github.com/jboucly/desk-monitor" } } },
+        { "id": "s6", "type": "shortcut", "x": 1, "y": 1, "w": 1, "h": 1, "props": { "name": "Home Assistant", "icon": "home-assistant", "color": "#18BCF2", "action": { "kind": "url", "url": "http://homeassistant.local:8123" } } },
+        { "id": "s7", "type": "shortcut", "x": 2, "y": 1, "w": 1, "h": 1, "props": { "name": "Capture", "icon": "camera", "color": "#F472B6", "action": { "kind": "keys", "keys": "cmd+shift+4" } } },
+        { "id": "s8", "type": "shortcut", "x": 3, "y": 1, "w": 1, "h": 1, "props": { "name": "Verrouiller", "icon": "lock", "color": "#EF4444", "action": { "kind": "keys", "keys": "ctrl+cmd+q" } } },
+        { "id": "s9", "type": "shortcut", "x": 0, "y": 2, "w": 2, "h": 1, "props": { "name": "Tout éteindre", "icon": "power", "color": "#64748B", "action": { "kind": "ha", "domain": "light", "service": "turn_off", "entity_id": "light.lumiere_bureau" } } },
+        { "id": "s10", "type": "shortcut", "x": 2, "y": 2, "w": 2, "h": 1, "props": { "name": "Mode film", "icon": "movie", "color": "#8B5CF6", "action": { "kind": "ha", "domain": "light", "service": "turn_on", "entity_id": "light.mur_salon", "data": { "brightness_pct": 20 } } } }
+      ]
+    }
+  ]
+}

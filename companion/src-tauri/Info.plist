@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- macOS 15+ asks for the Local Network permission with this text; without it the app cannot reach the screen -->
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Desk Monitor se connecte à ton écran de bureau sur le réseau local.</string>
+  <key>NSBonjourServices</key>
+  <array>
+    <string>_desk-monitor._tcp</string>
+    <string>_http._tcp</string>
+  </array>
+</dict>
+</plist>

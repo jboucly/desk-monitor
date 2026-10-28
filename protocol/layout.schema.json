@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jboucly/desk-monitor/protocol/layout.schema.json",
+  "title": "Desk Monitor layout",
+  "description": "Pages and widgets shown on the screen. Stored on the device (/storage/layout.json), edited by the web editor, validated again by the firmware (firmware/core/src/layout.cpp).",
+  "type": "object",
+  "required": ["version", "pages"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": 1 },
+    "theme": { "$ref": "#/$defs/theme" },
+    "pages": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": { "$ref": "#/$defs/page" }
+    }
+  },
+  "$defs": {
+    "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "icon": {
+      "type": "string",
+      "description": "MDI icon name without the mdi: prefix. Must be listed in protocol/icons.json.",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "entity_id": { "type": "string", "pattern": "^[a-z_]+\\.[a-z0-9_]+$" },
+    "theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "accent": { "$ref": "#/$defs/color", "default": "#7C9CFF" },
+        "accent2": { "$ref": "#/$defs/color", "default": "#C084FC" },
+        "wallpaper": { "enum": ["aurora", "nebula", "ocean", "sunset", "midnight"], "default": "aurora" },
+        "style": {
+          "enum": ["flat", "frozen", "glass"],
+          "default": "flat",
+          "description": "flat: opaque cards, no wallpaper (fastest). frozen: opaque cards tinted like glass. glass: translucent cards (slowest)."
+        }
+      }
+    },
+    "page": {
+      "type": "object",
+      "required": ["id", "title", "widgets"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9_-]{1,24}$" },
+        "title": { "type": "string", "maxLength": 32 },
+        "widgets": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/widget" }
+        }
+      }
+    },
+    "widget": {
+      "type": "object",
+      "description": "A widget placed on the 4x4 grid. Cells may not overlap.",
+      "required": ["type", "x", "y", "w", "h"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "type": {
+          "enum": ["clock", "weather", "ha_toggle", "ha_light", "ha_sensor", "ha_gauge", "shortcut", "pc_metrics", "pc_gauge", "media"]
+        },
+        "x": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "y": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "w": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "h": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "props": { "type": "object" }
+      },
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "clock" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_clock" } } } },
+        { "if": { "properties": { "type": { "const": "weather" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_weather" } } } },
+        { "if": { "properties": { "type": { "enum": ["ha_toggle", "ha_light"] } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_entity" } }, "required": ["props"] } },
+        { "if": { "properties": { "type": { "const": "ha_sensor" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_sensor" } }, "required": ["props"] } },
+        { "if": { "properties": { "type": { "const": "ha_gauge" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_gauge" } }, "required": ["props"] } },
+        { "if": { "properties": { "type": { "const": "shortcut" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_shortcut" } }, "required": ["props"] } },
+        { "if": { "properties": { "type": { "const": "pc_metrics" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_pc_metrics" } } } },
+        { "if": { "properties": { "type": { "const": "pc_gauge" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_pc_gauge" } } } },
+        { "if": { "properties": { "type": { "const": "media" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_media" } } } }
+      ]
+    },
+    "props_clock": {
+      "type": "object",
+      "properties": {
+        "show_date": { "type": "boolean", "default": true },
+        "show_seconds": { "type": "boolean", "default": false }
+      }
+    },
+    "props_weather": {
+      "type": "object",
+      "properties": {
+        "mode": { "enum": ["current", "forecast"], "default": "current" },
+        "days": { "type": "integer", "minimum": 1, "maximum": 7, "default": 4 }
+      }
+    },
+    "props_entity": {
+      "type": "object",
+      "required": ["entity"],
+      "properties": {
+        "entity": { "$ref": "#/$defs/entity_id" },
+        "name": { "type": "string" },
+        "icon": { "$ref": "#/$defs/icon" }
+      }
+    },
+    "props_sensor": {
+      "type": "object",
+      "required": ["entity"],
+      "properties": {
+        "entity": { "$ref": "#/$defs/entity_id" },
+        "name": { "type": "string" },
+        "icon": { "$ref": "#/$defs/icon" },
+        "unit": { "type": "string", "description": "Overrides unit_of_measurement." },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 3, "default": 1 }
+      }
+    },
+    "props_gauge": {
+      "type": "object",
+      "required": ["entity"],
+      "properties": {
+        "entity": { "$ref": "#/$defs/entity_id" },
+        "name": { "type": "string" },
+        "min": { "type": "number", "default": 0 },
+        "max": { "type": "number", "default": 100 },
+        "unit": { "type": "string" },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 3, "default": 0 },
+        "warn": { "type": "number", "description": "Value from which the arc turns orange." },
+        "crit": { "type": "number", "description": "Value from which the arc turns red." }
+      }
+    },
+    "props_pc_metrics": {
+      "type": "object",
+      "properties": { "name": { "type": "string", "description": "Card title; default: the PC's name" } }
+    },
+    "props_pc_gauge": {
+      "type": "object",
+      "properties": {
+        "metric": { "enum": ["cpu", "ram", "gpu", "vram", "disk", "cpu_temp", "gpu_temp"], "default": "cpu" },
+        "name": { "type": "string" },
+        "warn": { "type": "number" },
+        "crit": { "type": "number" }
+      }
+    },
+    "props_media": {
+      "type": "object",
+      "properties": {
+        "entity": { "type": "string", "pattern": "^media_player\\.", "description": "Home Assistant player shown when the PC plays nothing" }
+      }
+    },
+    "props_shortcut": {
+      "type": "object",
+      "required": ["name", "action"],
+      "properties": {
+        "name": { "type": "string" },
+        "icon": { "$ref": "#/$defs/icon" },
+        "color": { "$ref": "#/$defs/color" },
+        "action": { "$ref": "#/$defs/action" }
+      }
+    },
+    "action": {
+      "description": "What a shortcut does. 'ha' runs through Wi-Fi; the others are sent to the paired PC companion over the local network (PC link). The kind list is meant to grow (e.g. a whitelisted 'shell' kind).",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "domain", "service"],
+          "properties": {
+            "kind": { "const": "ha" },
+            "domain": { "type": "string" },
+            "service": { "type": "string" },
+            "entity_id": { "type": "string" },
+            "data": { "type": "object" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "keys"],
+          "properties": {
+            "kind": { "const": "keys" },
+            "keys": { "type": "string", "description": "Chord such as 'cmd+shift+4', or several separated by spaces." }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "target"],
+          "properties": {
+            "kind": { "const": "launch" },
+            "target": { "type": "string", "description": "Application name or path." }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "url"],
+          "properties": {
+            "kind": { "const": "url" },
+            "url": { "type": "string" }
+          }
+        }
+      ]
+    }
+  }
+}
