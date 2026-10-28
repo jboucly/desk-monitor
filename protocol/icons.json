@@ -1,0 +1,18 @@
+{
+  "$comment": "Material Design Icons compiled into the firmware fonts and offered by the web editor. Run firmware/tools/gen_assets.mjs after editing this list.",
+  "icons": [
+    "home", "home-assistant", "home-lightning-bolt", "sofa", "bed", "desk", "door", "garage", "blinds", "curtains",
+    "lightbulb", "lightbulb-outline", "lightbulb-group", "ceiling-light", "floor-lamp", "desk-lamp", "lamp", "led-strip-variant", "string-lights",
+    "power", "power-plug", "power-socket-eu", "toggle-switch", "fan", "air-conditioner", "radiator", "thermometer", "water-percent", "robot-vacuum",
+    "television", "speaker", "lock", "lock-open-variant", "bell", "camera", "palette", "brightness-6", "white-balance-sunny", "coffee", "sleep", "movie", "gamepad-variant",
+    "gauge", "server", "server-network", "cpu-64-bit", "memory", "harddisk", "expansion-card", "chip", "lan", "fire",
+    "wifi", "wifi-off", "wifi-strength-1", "wifi-strength-2", "wifi-strength-3", "wifi-strength-4",
+    "bluetooth", "bluetooth-off", "bluetooth-connect", "monitor", "laptop", "desktop-tower", "keyboard", "console",
+    "music", "play", "pause", "play-pause", "skip-next", "skip-previous", "volume-high", "volume-off", "microphone", "microphone-off", "video", "video-off",
+    "spotify", "apple", "microsoft-windows", "web", "google-chrome", "firefox", "folder", "email", "calendar", "github", "slack", "microsoft-visual-studio-code", "application", "open-in-new", "link", "rocket-launch", "star", "heart",
+    "clock-outline", "timer-outline", "cog", "plus", "close", "check", "chevron-left", "chevron-right", "chevron-up", "chevron-down", "alert-circle-outline",
+    "weather-sunny", "weather-night", "weather-partly-cloudy", "weather-night-partly-cloudy", "weather-cloudy", "weather-fog",
+    "weather-rainy", "weather-pouring", "weather-snowy", "weather-snowy-rainy", "weather-snowy-heavy", "weather-lightning", "weather-lightning-rainy",
+    "weather-hail", "weather-windy", "weather-sunset-up", "weather-sunset-down", "water", "umbrella-outline"
+  ]
+}
