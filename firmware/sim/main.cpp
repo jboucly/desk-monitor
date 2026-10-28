@@ -97,7 +97,8 @@ void run_for(uint32_t ms) {
 }
 
 /**
- * @description Executes one scripted command: page=N, tap=X,Y, long=X,Y, wait=MS, shot=FILE.png, bench=N.
+ * @description Executes one scripted command: page=N, tap=X,Y, long=X,Y, swipe=X1,Y1,X2,Y2, wait=MS,
+ * shot=FILE.png, bench=N.
  */
 bool run_command(dm::App &app, const std::string &command) {
   const auto eq = command.find('=');
@@ -113,6 +114,17 @@ bool run_command(dm::App &app, const std::string &command) {
     run_for(verb == "tap" ? 80 : 900);
     g_pressed = false;
     run_for(100);
+  } else if (verb == "swipe") {
+    // Finger moved over 150 ms in 10 steps, then lifted
+    int x2 = 0, y2 = 0;
+    if (sscanf(arg.c_str(), "%d,%d,%d,%d", &x, &y, &x2, &y2) != 4) return false;
+    g_pressed = true;
+    for (int i = 0; i <= 10; i++) {
+      g_point = {x + (x2 - x) * i / 10, y + (y2 - y) * i / 10};
+      run_for(15);
+    }
+    g_pressed = false;
+    run_for(600);
   } else if (verb == "wait") {
     run_for(static_cast<uint32_t>(std::stoi(arg)));
   } else if (verb == "shot") {
@@ -214,7 +226,7 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[i], "--no-window")) no_window = true;
     else if (!strcmp(argv[i], "--mock-pc")) mock_pc = true;
     else {
-      fprintf(stderr, "usage: %s [--port N] [--no-window] [--mock-pc] [--do page=N|tap=X,Y|long=X,Y|wait=MS|shot=FILE.png|bench=N]...\n",
+      fprintf(stderr, "usage: %s [--port N] [--no-window] [--mock-pc] [--do page=N|tap=X,Y|long=X,Y|swipe=X1,Y1,X2,Y2|wait=MS|shot=FILE.png|bench=N]...\n",
               argv[0]);
       return 2;
     }

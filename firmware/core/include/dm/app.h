@@ -95,6 +95,7 @@ class App {
   void update_page_indicator();
   void update_setup_banner(const cJSON *wifi);
   void show_pairing_code(const char *code, const char *pc_name);
+  void on_pointer(lv_event_t *e);
   void tick();
 
   Bus &bus_;
@@ -123,6 +124,9 @@ class App {
   lv_obj_t *sheet_ = nullptr;
   std::function<void()> sheet_on_close_;
   bool pairing_sheet_ = false;
+  // Swipe being watched for the page loop (see on_pointer)
+  int swipe_page_ = -1;
+  lv_point_t swipe_start_ = {0, 0};
   lv_obj_t *toast_ = nullptr;
   lv_obj_t *setup_ = nullptr;
 };

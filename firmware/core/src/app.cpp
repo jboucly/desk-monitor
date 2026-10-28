@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
 
@@ -197,6 +198,15 @@ void App::build_shell() {
         app->update_page_indicator();
       },
       LV_EVENT_VALUE_CHANGED, this);
+  // The pages loop: a swipe past the last page goes to the first one, and back. LVGL gestures cannot
+  // be used (the tileview claims every horizontal drag, even at its ends), so the pointer itself is
+  // watched: a press on a page and a release far to the side, on the same page, wraps around.
+  lv_obj_remove_flag(tileview_, LV_OBJ_FLAG_SCROLL_ELASTIC);
+  for (lv_indev_t *indev = lv_indev_get_next(nullptr); indev; indev = lv_indev_get_next(indev)) {
+    if (lv_indev_get_type(indev) != LV_INDEV_TYPE_POINTER) continue;
+    lv_indev_add_event_cb(indev, [](lv_event_t *e) { static_cast<App *>(lv_event_get_user_data(e))->on_pointer(e); },
+                          LV_EVENT_ALL, this);
+  }
 
   // Page indicator: dots, the active one stretched into a pill
   dots_ = lv_obj_create(screen);
@@ -354,6 +364,38 @@ void App::update_page_indicator() {
     lv_obj_set_style_bg_color(dot, on ? theme::accent() : lv_color_white(), 0);
     lv_obj_set_style_bg_opa(dot, on ? LV_OPA_COVER : LV_OPA_40, 0);
   }
+}
+
+void App::on_pointer(lv_event_t *e) {
+  const lv_event_code_t code = lv_event_get_code(e);
+  if (code != LV_EVENT_PRESSED && code != LV_EVENT_RELEASED) return;
+  auto *indev = static_cast<lv_indev_t *>(lv_event_get_current_target(e));
+  lv_point_t point;
+  lv_indev_get_point(indev, &point);
+  lv_obj_t *active = tileview_ ? lv_tileview_get_tile_active(tileview_) : nullptr;
+  const int index = active ? static_cast<int>(lv_obj_get_index(active)) : -1;
+
+  if (code == LV_EVENT_PRESSED) {
+    // Only presses on a page count (not on a popup, which lives on the top layer)
+    auto *target = static_cast<lv_obj_t *>(lv_event_get_param(e));
+    swipe_page_ = -1;
+    for (lv_obj_t *obj = target; obj; obj = lv_obj_get_parent(obj)) {
+      if (obj == tileview_) {
+        swipe_page_ = index;
+        swipe_start_ = point;
+        break;
+      }
+    }
+    return;
+  }
+
+  const int count = page_count();
+  if (swipe_page_ < 0 || index != swipe_page_ || count < 2) return;
+  const int dx = point.x - swipe_start_.x, dy = point.y - swipe_start_.y;
+  swipe_page_ = -1;
+  if (std::abs(dx) < 80 || std::abs(dy) > std::abs(dx)) return;
+  if (dx < 0 && index == count - 1) show_page(0, true);
+  else if (dx > 0 && index == 0) show_page(count - 1, true);
 }
 
 void App::show_page(int index, bool animate) {
