@@ -136,7 +136,7 @@
       }
     },
     "action": {
-      "description": "What a shortcut does. 'ha' runs through Wi-Fi; the others are sent to the PC companion over BLE. The kind list is meant to grow (e.g. a whitelisted 'shell' kind).",
+      "description": "What a shortcut does. 'ha' runs through Wi-Fi; the others are sent to the paired PC companion over the local network (PC link). The kind list is meant to grow (e.g. a whitelisted 'shell' kind).",
       "oneOf": [
         {
           "type": "object",

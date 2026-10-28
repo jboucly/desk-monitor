@@ -126,6 +126,9 @@ import {
   mdiWeatherSunsetDown,
   mdiWater,
   mdiUmbrellaOutline,
+  mdiDownload,
+  mdiUpload,
+  mdiLanDisconnect,
 } from '@mdi/js';
 
 /**
@@ -258,4 +261,7 @@ export const ICONS: Record<string, string> = {
   'weather-sunset-down': mdiWeatherSunsetDown,
   'water': mdiWater,
   'umbrella-outline': mdiUmbrellaOutline,
+  'download': mdiDownload,
+  'upload': mdiUpload,
+  'lan-disconnect': mdiLanDisconnect,
 };

@@ -1,6 +1,6 @@
 # Desk Monitor
 
-Écran tactile de bureau 480×480 (Guition ESP32-S3-4848S040) qui sert d'**extension de l'ordinateur**. Il fonctionne seul en Wi-Fi : Home Assistant, météo, horloge. Il se connecte aussi au PC en Bluetooth pour les métriques, les raccourcis façon Stream Deck et la musique.
+Écran tactile de bureau 480×480 (Guition ESP32-S3-4848S040) qui sert d'**extension de l'ordinateur**. Il fonctionne seul en Wi-Fi : Home Assistant, météo, horloge. Une application compagnon sur l'ordinateur s'y connecte par le réseau local pour afficher les métriques du PC et exécuter des raccourcis façon Stream Deck (la musique arrive en phase 3).
 
 Les pages se configurent **à la volée** depuis un éditeur web servi par l'écran lui-même (`http://desk-monitor.local`), sans recompiler ni reflasher.
 
@@ -11,7 +11,7 @@ Les pages se configurent **à la volée** depuis un éditeur web servi par l'éc
 | Phase | Contenu | État |
 | --- | --- | --- |
 | 1 | Firmware natif (ESP-IDF + LVGL 9), design « glass », Wi-Fi, Home Assistant, météo Open-Meteo, layout JSON, éditeur web, OTA | ✅ |
-| 2 | Bluetooth + application compagnon (Rust/Tauri, macOS et Windows) : métriques PC, raccourcis clavier, lancement d'applications et d'URL | à venir |
+| 2 | Application compagnon (Rust/Tauri, macOS et Windows) reliée par le réseau local : métriques PC, raccourcis clavier, lancement d'applications et d'URL | ✅ (testée sur macOS) |
 | 3 | Contrôle de la musique et pochette de l'album en cours | à venir |
 
 ## Widgets
@@ -25,8 +25,10 @@ Les pages se configurent **à la volée** depuis un éditeur web servi par l'éc
 | Capteur HA | Valeur et unité |
 | Jauge HA | Arc à 270°, seuils orange/rouge configurables |
 | Raccourci | Action Home Assistant, ou action sur le PC (raccourci clavier, application, URL) |
+| Métriques PC | CPU, RAM, GPU (avec températures) et débit réseau de l'ordinateur appairé |
+| Jauge PC | Une mesure du PC : CPU, RAM, GPU, mémoire GPU, disque ou température |
 
-Les widgets PC (métriques, jauges, musique) s'affichent « Bientôt » jusqu'aux phases 2 et 3.
+Le widget musique s'affiche « Bientôt » jusqu'à la phase 3.
 
 ## Démarrage rapide
 
@@ -63,6 +65,16 @@ Au premier démarrage, l'écran ouvre le Wi-Fi **DeskMonitor-setup**. Connecte-t
 
 Une fois l'écran connecté, l'éditeur est accessible depuis n'importe quel navigateur du réseau : **http://desk-monitor.local**. Les mises à jour suivantes se font depuis l'onglet *Système*, en envoyant `firmware/build/desk_monitor.bin`.
 
+### Application compagnon (ordinateur)
+
+```sh
+cd companion && npm install
+npm run dev                                              # lance l'app en mode développement
+npm run build                                            # .app / .dmg (macOS) ou .msi (Windows) dans src-tauri/target/release/bundle/
+```
+
+L'app vit dans la barre des menus. Au premier lancement, elle trouve l'écran (`desk-monitor.local`) et propose l'appairage : l'écran affiche un code à 6 chiffres à saisir dans l'app. Pour tester avec le simulateur, mets l'adresse `localhost:8081`. Sur macOS, les raccourcis clavier demandent l'autorisation *Accessibilité* (bouton dans l'app). Le PC appairé se gère dans l'éditeur, *Réglages → Ordinateur*.
+
 ### Développer l'éditeur web
 
 ```sh
@@ -80,7 +92,8 @@ firmware/
   data/        layout par défaut
   tools/       génération des polices et icônes, environnement ESP-IDF
 web/           éditeur (Vite + Preact + TypeScript), compilé en une page gzippée embarquée dans le firmware
-protocol/      contrats partagés : schéma du layout, liste d'icônes, API, protocole BLE
+companion/     application compagnon (Rust + Tauri) : métriques, raccourcis
+protocol/      contrats partagés : schéma du layout, liste d'icônes, API, lien PC
 docs/hardware/ documentation constructeur de l'écran (non versionnée)
 legacy/esphome/ version 1 (ESPHome)
 ```

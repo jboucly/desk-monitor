@@ -92,6 +92,7 @@ export interface Settings {
   time: { timezone: string };
   display: { brightness: number; sleep_minutes: number };
   security: { pin?: string; has_pin?: boolean; clear_pin?: boolean };
+  pc: { name: string; paired?: boolean; forget?: boolean };
 }
 
 /**

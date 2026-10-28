@@ -6,11 +6,13 @@
 #include "dm/app.h"
 #include "dm/bus.h"
 #include "dm/ha.h"
+#include "dm/pc.h"
 #include "dm/settings.h"
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_lvgl_port.h"
+#include "esp_random.h"
 #include "esp_timer.h"
 #include "ha_client.h"
 #include "http_server.h"
@@ -67,7 +69,8 @@ extern "C" void app_main(void) {
   static dm::Services services;
   services.ha_call = [](const std::string &domain, const std::string &service, const std::string &entity_id,
                         cJSON *data) { ha.call_service(domain, service, entity_id, data); };
-  // services.pc_action arrives with the BLE companion (phase 2)
+  static dm::PcSession pc(bus, settings, [] { return esp_random(); });
+  services.pc_action = [](const cJSON *action) { return pc.send_action(action); };
 
   dm::esp32::display_init();
   dm::esp32::display_configure(initial.brightness, initial.sleep_minutes);
@@ -89,7 +92,15 @@ extern "C" void app_main(void) {
   static dm::Api api(app, settings);
   api.status = status_json;
   api.ha_entities = dm::esp32::ha_client_entities;
-  dm::esp32::http_start(api, settings);
+  dm::esp32::http_start(api, settings, pc);
+
+  // Drops a silent PC and expires pairing codes
+  esp_timer_create_args_t pc_poll = {};
+  pc_poll.callback = [](void *) { pc.poll(); };
+  pc_poll.name = "pc_poll";
+  esp_timer_handle_t pc_timer = nullptr;
+  esp_timer_create(&pc_poll, &pc_timer);
+  esp_timer_start_periodic(pc_timer, 1000 * 1000);
 
   // Settings saved from the editor take effect without a reboot
   settings.on_change = [](unsigned changes) {
@@ -97,6 +108,7 @@ extern "C" void app_main(void) {
     dm::esp32::network_reconfigure(s, changes);
     if (changes & dm::Settings::HA) dm::esp32::ha_client_start(ha, s);
     if (changes & dm::Settings::WEATHER) dm::esp32::weather_refresh();
+    if (changes & dm::Settings::PC) pc.forget();
     if (changes & dm::Settings::DISPLAY) dm::esp32::display_configure(s.brightness, s.sleep_minutes);
   };
 

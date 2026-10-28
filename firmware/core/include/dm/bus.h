@@ -1,4 +1,4 @@
-// Data bus: the only channel between data sources (HA, weather, BLE…) and widgets.
+// Data bus: the only channel between data sources (HA, weather, PC link…) and widgets.
 //
 // Keys in use (see protocol/README.md):
 //   ha/<entity_id>  {"s": state, "a": {attributes}}

@@ -20,9 +20,12 @@ namespace {
 const char *TAG = "http";
 constexpr size_t MAX_BODY = 64 * 1024;
 
+constexpr size_t MAX_WS_FRAME = 8 * 1024;
+
 struct Context {
   Api *api;
   Settings *settings;
+  PcSession *pc;
 };
 Context g_ctx;
 
@@ -120,6 +123,48 @@ esp_err_t reboot_handler(httpd_req_t *req) {
 }
 
 /**
+ * @description PC companion link: every text frame goes to dm::PcSession. ESP-IDF answers the handshake
+ * itself without calling this handler, so the session opens on the first frame of a socket. Its id is
+ * kept as the socket's session context, whose free callback closes the session with the socket.
+ */
+esp_err_t pc_ws_handler(httpd_req_t *req) {
+  // Older ESP-IDF versions call the handler for the handshake: nothing to do yet
+  if (req->method == HTTP_GET) return ESP_OK;
+
+  httpd_handle_t server = req->handle;
+  const int fd = httpd_req_to_sockfd(req);
+  auto *connection = static_cast<uint32_t *>(httpd_sess_get_ctx(server, fd));
+  if (!connection) {
+    auto send = [server, fd](const std::string &text) {
+      httpd_ws_frame_t frame = {};
+      frame.type = HTTPD_WS_TYPE_TEXT;
+      frame.payload = reinterpret_cast<uint8_t *>(const_cast<char *>(text.data()));
+      frame.len = text.size();
+      httpd_ws_send_frame_async(server, fd, &frame);
+    };
+    auto close = [server, fd] { httpd_sess_trigger_close(server, fd); };
+    connection = new uint32_t(g_ctx.pc->on_open(send, close));
+    httpd_sess_set_ctx(server, fd, connection, [](void *ctx) {
+      auto *id = static_cast<uint32_t *>(ctx);
+      g_ctx.pc->on_close(*id);
+      delete id;
+    });
+    ESP_LOGI(TAG, "PC link opened (socket %d)", fd);
+  }
+
+  httpd_ws_frame_t frame = {};
+  if (httpd_ws_recv_frame(req, &frame, 0) != ESP_OK) return ESP_FAIL;
+  if (frame.len > MAX_WS_FRAME) return ESP_FAIL;
+  std::string text(frame.len, '\0');
+  if (frame.len) {
+    frame.payload = reinterpret_cast<uint8_t *>(text.data());
+    if (httpd_ws_recv_frame(req, &frame, frame.len) != ESP_OK) return ESP_FAIL;
+  }
+  if (frame.type == HTTPD_WS_TYPE_TEXT && !text.empty()) g_ctx.pc->on_message(*connection, text);
+  return ESP_OK;
+}
+
+/**
  * @description Single-page editor: every non-API path returns the same page.
  */
 esp_err_t web_handler(httpd_req_t *req) {
@@ -131,18 +176,20 @@ esp_err_t web_handler(httpd_req_t *req) {
   return httpd_resp_send(req, reinterpret_cast<const char *>(WEB_START), WEB_END - WEB_START);
 }
 
-void route(httpd_handle_t server, const char *uri, httpd_method_t method, esp_err_t (*handler)(httpd_req_t *)) {
+void route(httpd_handle_t server, const char *uri, httpd_method_t method, esp_err_t (*handler)(httpd_req_t *),
+           bool websocket = false) {
   httpd_uri_t def = {};
   def.uri = uri;
   def.method = method;
   def.handler = handler;
+  def.is_websocket = websocket;
   httpd_register_uri_handler(server, &def);
 }
 
 }  // namespace
 
-void http_start(Api &api, Settings &settings) {
-  g_ctx = {&api, &settings};
+void http_start(Api &api, Settings &settings, PcSession &pc) {
+  g_ctx = {&api, &settings, &pc};
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.stack_size = 10 * 1024;
   config.max_uri_handlers = 12;
@@ -156,6 +203,7 @@ void http_start(Api &api, Settings &settings) {
     return;
   }
   // Specific routes first: the wildcard matcher keeps the registration order
+  route(server, "/api/pc", HTTP_GET, pc_ws_handler, true);
   route(server, "/api/ota", HTTP_POST, ota_handler);
   route(server, "/api/reboot", HTTP_POST, reboot_handler);
   route(server, "/api/*", HTTP_GET, api_handler);

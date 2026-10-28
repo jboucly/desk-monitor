@@ -19,16 +19,15 @@ const int32_t GRID_COL_DSC[] = {LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_
 const int32_t GRID_ROW_DSC[] = {LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
 
 /**
- * @description Card shown for widget types that have no implementation yet (phase 2/3 features).
+ * @description Card shown for widget types that have no implementation yet (media, phase 3).
  */
 class Placeholder : public Widget {
  public:
-  Placeholder(lv_obj_t *parent, const WidgetSpec &spec) {
+  Placeholder(lv_obj_t *parent, const WidgetSpec &) {
     root = theme::make_card(parent);
     lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(root, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    const char *icon = spec.type == "media" ? "music" : "desktop-tower";
-    theme::make_icon(root, &dm_icons_24, icon, theme::text3());
+    theme::make_icon(root, &dm_icons_24, "music", theme::text3());
     theme::make_label(root, &dm_font_14, theme::text3(), "Bientôt");
   }
 };
@@ -279,6 +278,31 @@ void App::build_header_status() {
     const bool connected = !strcmp(json::str(v, "state"), "connected");
     lv_obj_set_style_text_color(status_pc_, connected ? theme::accent() : theme::text3(), 0);
   });
+  // Pairing code of a new PC companion; an empty object closes the sheet
+  bus_.subscribe("sys/pc_pair", [this](const cJSON *v) {
+    const char *code = json::str(v, "code");
+    if (*code) show_pairing_code(code, json::str(v, "name"));
+    else if (pairing_sheet_) close_sheet();
+  });
+  bus_.subscribe("sys/toast", [this](const cJSON *v) { toast(json::str(v, "text")); });
+}
+
+void App::show_pairing_code(const char *code, const char *pc_name) {
+  lv_obj_t *panel = open_sheet(380, 250, [this] { pairing_sheet_ = false; });
+  pairing_sheet_ = true;
+  lv_obj_set_flex_flow(panel, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(panel, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_row(panel, 6, 0);
+
+  theme::make_icon(panel, &dm_icons_32, "laptop", theme::accent());
+  theme::make_label(panel, &dm_font_20, theme::text(), "Appairage du PC");
+  lv_obj_t *who = theme::make_label(panel, &dm_font_14, theme::text2(), *pc_name ? pc_name : "PC");
+  lv_obj_set_width(who, lv_pct(100));
+  lv_obj_set_style_text_align(who, LV_TEXT_ALIGN_CENTER, 0);
+  theme::single_line(who);
+  lv_obj_t *digits = theme::make_label(panel, &dm_font_72, theme::text(), code);
+  lv_obj_set_style_text_letter_space(digits, 4, 0);
+  theme::make_label(panel, &dm_font_14, theme::text2(), "Saisis ce code dans l'app Desk Monitor");
 }
 
 void App::update_setup_banner(const cJSON *wifi) {
@@ -398,7 +422,12 @@ void App::toast(const std::string &text) {
     lv_obj_set_style_border_color(toast_, lv_color_white(), 0);
     lv_obj_set_style_border_opa(toast_, 50, 0);
     lv_obj_set_style_border_width(toast_, 1, 0);
-    lv_obj_set_style_radius(toast_, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_radius(toast_, 20, 0);
+    // Long messages (e.g. an error from the PC) wrap on two lines instead of overflowing
+    lv_obj_set_width(toast_, LV_SIZE_CONTENT);
+    lv_obj_set_style_max_width(toast_, 420, 0);
+    lv_label_set_long_mode(toast_, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(toast_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_pad_hor(toast_, 18, 0);
     lv_obj_set_style_pad_ver(toast_, 10, 0);
     lv_obj_align(toast_, LV_ALIGN_BOTTOM_MID, 0, -30);
@@ -414,6 +443,7 @@ void App::toast(const std::string &text) {
         },
         2500, toast_);
   }
+  lv_timer_set_period(hide_timer, text.size() > 40 ? 4500 : 2500);
   lv_timer_reset(hide_timer);
   lv_timer_resume(hide_timer);
 }

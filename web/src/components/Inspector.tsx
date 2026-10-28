@@ -1,5 +1,5 @@
 // Properties panel of the selected widget.
-import { CATALOG, ENTITY_DOMAINS, entityIcon, fits } from '../catalog';
+import { CATALOG, PC_METRICS, ENTITY_DOMAINS, entityIcon, fits } from '../catalog';
 import type { Action, HaEntity, Page, Props, Widget } from '../types';
 import { GRID } from '../types';
 import { EntityPicker, IconPicker } from './Pickers';
@@ -131,7 +131,10 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
   return (
     <div class="inspector">
       <h3>{info.label}</h3>
-      {!info.available && <p class="hint">Ce widget arrive avec l’application compagnon (phase 2/3) : il s’affiche « Bientôt » sur l’écran.</p>}
+      {!info.available && <p class="hint">Ce widget arrive avec la phase 3 : il s’affiche « Bientôt » sur l’écran.</p>}
+      {(widget.type === 'pc_metrics' || widget.type === 'pc_gauge') && (
+        <p class="hint">Données envoyées par l’app Desk Monitor de l’ordinateur appairé (Réglages → Ordinateur).</p>
+      )}
 
       <div class="row">
         <Field label="Largeur">
@@ -200,6 +203,38 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
               <NumberInput value={p.crit} onChange={(v) => set({ crit: v })} />
             </Field>
           </div>
+        </>
+      )}
+
+      {widget.type === 'pc_metrics' && (
+        <Field label="Titre (vide = nom du PC)">
+          <input value={p.name ?? ''} onInput={(e) => set({ name: e.currentTarget.value || undefined })} />
+        </Field>
+      )}
+
+      {widget.type === 'pc_gauge' && (
+        <>
+          <Field label="Mesure">
+            <select value={p.metric ?? 'cpu'} onChange={(e) => set({ metric: e.currentTarget.value })}>
+              {Object.entries(PC_METRICS).map(([key, m]) => (
+                <option key={key} value={key}>
+                  {m.label} ({m.unit})
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Nom (vide = nom de la mesure)">
+            <input value={p.name ?? ''} onInput={(e) => set({ name: e.currentTarget.value || undefined })} />
+          </Field>
+          <div class="row">
+            <Field label="Seuil orange">
+              <NumberInput value={p.warn} onChange={(v) => set({ warn: v })} />
+            </Field>
+            <Field label="Seuil rouge">
+              <NumberInput value={p.crit} onChange={(v) => set({ crit: v })} />
+            </Field>
+          </div>
+          <small class="hint">Seuils vides : valeurs par défaut de la mesure.</small>
         </>
       )}
 

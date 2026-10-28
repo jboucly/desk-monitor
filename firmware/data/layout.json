@@ -15,6 +15,15 @@
       ]
     },
     {
+      "id": "pc",
+      "title": "Ordinateur",
+      "widgets": [
+        { "id": "pc_dash", "type": "pc_metrics", "x": 0, "y": 0, "w": 4, "h": 2, "props": {} },
+        { "id": "pc_cpu", "type": "pc_gauge", "x": 0, "y": 2, "w": 2, "h": 2, "props": { "metric": "cpu" } },
+        { "id": "pc_gpu", "type": "pc_gauge", "x": 2, "y": 2, "w": 2, "h": 2, "props": { "metric": "gpu" } }
+      ]
+    },
+    {
       "id": "server",
       "title": "Serveur",
       "widgets": [

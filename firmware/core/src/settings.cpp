@@ -56,7 +56,10 @@ cJSON *to_json(const SettingsData &d, bool with_secrets) {
   cJSON_AddNumberToObject(display, "brightness", d.brightness);
   cJSON_AddNumberToObject(display, "sleep_minutes", d.sleep_minutes);
   cJSON *security = cJSON_AddObjectToObject(root, "security");
+  cJSON *pc = cJSON_AddObjectToObject(root, "pc");
+  cJSON_AddStringToObject(pc, "name", d.pc_name.c_str());
   if (with_secrets) {
+    cJSON_AddStringToObject(pc, "token", d.pc_token.c_str());
     cJSON_AddStringToObject(wifi, "password", d.wifi_password.c_str());
     cJSON_AddStringToObject(ha, "token", d.ha_token.c_str());
     cJSON_AddStringToObject(security, "pin", d.pin.c_str());
@@ -64,6 +67,7 @@ cJSON *to_json(const SettingsData &d, bool with_secrets) {
     cJSON_AddBoolToObject(wifi, "has_password", !d.wifi_password.empty());
     cJSON_AddBoolToObject(ha, "has_token", !d.ha_token.empty());
     cJSON_AddBoolToObject(security, "has_pin", !d.pin.empty());
+    cJSON_AddBoolToObject(pc, "paired", !d.pc_token.empty());
   }
   return root;
 }
@@ -96,6 +100,16 @@ unsigned merge(const cJSON *root, SettingsData &d, bool from_file) {
     d.pin.clear();
   } else {
     merge_secret(security, "pin", d.pin);
+  }
+  // The PC is set by pairing (set_pc), never by the API; the API can only forget it
+  const cJSON *pc = json::get(root, "pc");
+  if (from_file) {
+    merge_str(pc, "name", d.pc_name);
+    merge_str(pc, "token", d.pc_token);
+  } else if (json::boolean(pc, "forget") && !d.pc_token.empty()) {
+    d.pc_name.clear();
+    d.pc_token.clear();
+    changes |= Settings::PC;
   }
   return changes;
 }
@@ -143,6 +157,16 @@ bool Settings::update(const std::string &body, std::string &error) {
   }
   if (changes && on_change) on_change(changes);
   return true;
+}
+
+void Settings::set_pc(const std::string &name, const std::string &token) {
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    data_.pc_name = name;
+    data_.pc_token = token;
+    save_locked();
+  }
+  if (on_change) on_change(PC);
 }
 
 void Settings::save_locked() { storage_.write(FILE_NAME, json::print(json::own(to_json(data_, true)).get())); }

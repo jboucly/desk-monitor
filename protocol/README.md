@@ -1,6 +1,6 @@
 # Desk Monitor protocol
 
-Contracts shared by the firmware (`firmware/`), the web editor (`web/`) and the PC companion (`companion/`, phase 2).
+Contracts shared by the firmware (`firmware/`), the web editor (`web/`) and the PC companion (`companion/`).
 
 | File | Content |
 | --- | --- |
@@ -21,7 +21,9 @@ Widgets cannot overlap or leave the grid. The firmware validates every layout ag
 | `ha_sensor` | `entity`, `name`, `icon`, `unit`, `decimals` | Home Assistant |
 | `ha_gauge` | `entity`, `name`, `min`, `max`, `unit`, `decimals`, `warn`, `crit` | Home Assistant |
 | `shortcut` | `name`, `icon`, `color`, `action` | `ha` action over Wi-Fi, other kinds via the PC |
-| `pc_metrics`, `pc_gauge`, `media` | (phase 2/3) | PC companion over BLE. Shown as "Bientôt" for now |
+| `pc_metrics` | `name` (default: the PC's name) | PC companion |
+| `pc_gauge` | `metric` (`cpu`, `ram`, `gpu`, `vram`, `disk`, `cpu_temp`, `gpu_temp`), `name`, `warn`, `crit` | PC companion |
+| `media` | (phase 3) | Shown as "Bientôt" for now |
 
 Shortcut actions (`action.kind`):
 
@@ -72,18 +74,50 @@ Data sources publish on the bus, and widgets subscribe to it (`firmware/core/inc
 | `weather` | `{"name", "current": {"t", "feel", "code", "day", "rh", "wind"}, "daily": [{"wday", "code", "tmin", "tmax", "pp"}]}` | Open-Meteo fetch |
 | `sys/wifi` | `{"rssi", "ip"}`, plus `{"ap", "ap_ip"}` in setup mode | network |
 | `sys/ha` | `{"state": "off" \| "connecting" \| "ok" \| "auth_error"}` | `HaSession` |
-| `sys/pc` | `{"state": "connected" \| "off", "name"}` | BLE (phase 2) |
-| `pc` | metrics (phase 2) | BLE |
-| `media` | now playing (phase 3) | BLE or `media_player` |
+| `sys/pc` | `{"state": "connected" \| "pairing" \| "off", "name"}` | `PcSession` |
+| `sys/pc_pair` | `{"code", "name"}` while a pairing code is shown, `{}` to hide it | `PcSession` |
+| `sys/toast` | `{"text"}` | anything (e.g. a failed PC action) |
+| `pc` | `metrics` fields (see PC link), `{}` when the PC is gone | `PcSession` |
+| `media` | now playing (phase 3) | PC link or `media_player` |
 
-## BLE protocol (phase 2, planned)
+## PC link (WebSocket)
 
-- A custom GATT service with two characteristics: `rx` (write without response, PC → screen) and `tx` (notify, screen → PC).
-- Framed messages `{type, seq, len, payload}`, chunked to the negotiated MTU (DLE + 2M PHY).
-- Pairing is mandatory, with LE Secure Connections and a passkey shown on the screen. Only a bonded PC is accepted, because shortcuts run on it.
-- Messages:
-  - `hello`: version, OS.
-  - `metrics`: sent every second. CPU, RAM, GPU, VRAM, temperatures, network, disk.
-  - `action`: screen → PC, the `action` object of a shortcut.
-  - `media_state`, `media_art` (JPEG of about 200×200, sent in chunks with a hash) and `media_cmd`.
-  - `ack`, `error`.
+The PC companion (`companion/`) talks to the screen over the local network. The screen is the server.
+
+- **Endpoint:** `ws://<screen>/api/pc` on port 80 (`desk-monitor.local`). The simulator listens on its HTTP port + 1, i.e. `ws://localhost:8081/api/pc`.
+- **Discovery:** the screen announces the mDNS service `_desk-monitor._tcp` (TXT `path=/api/pc`).
+- **Frames:** text frames, one JSON object each, with a `type` field.
+- **One PC at a time:** a new connection replaces the previous one.
+- **Liveness:** the companion sends `metrics` every second. After 6 s of silence, the screen drops the connection.
+
+Pairing happens once. The screen shows a 6-digit code, the user types it in the companion, and the screen returns a token. The companion stores the token and presents it on every connection. Only a paired PC receives shortcut actions. The editor can forget the paired PC (`PUT /api/settings` with `{"pc": {"forget": true}}`).
+
+```
+PC                                  screen
+hello {name, os, version, token} →
+                                  ← welcome {name}            (valid token)
+                                  ← pair_required             (no or unknown token)
+pair_start                       →                            (the screen shows a code, valid 2 min)
+                                  ← pair_pending
+pair {code}                      →
+                                  ← error {code: "bad_code"}  (5 tries at most)
+                                  ← paired {token}, welcome {name}
+metrics {…}                      →                            (every second, once welcomed)
+                                  ← action {id, action}       (a shortcut was tapped)
+action_result {id, ok, error?}   →                            (an error shows as a toast)
+ping                             →
+                                  ← pong
+```
+
+Errors look like `{"type": "error", "code": "bad_code" | "pair_expired", "message": "…"}`.
+
+`metrics` fields. All are optional; send the ones the PC can read:
+
+| Field | Unit |
+| --- | --- |
+| `cpu`, `ram`, `gpu`, `vram`, `disk` | percent (0-100) |
+| `cpu_temp`, `gpu_temp` | °C |
+| `ram_used`, `ram_total` | bytes |
+| `net_rx`, `net_tx` | bytes per second |
+
+`action` carries the shortcut's `action` object from the layout (`keys`, `launch`, `url`). The companion runs it and answers with `action_result`.

@@ -24,6 +24,8 @@ struct SettingsData {
   int brightness = 100;   // backlight, percent
   int sleep_minutes = 5;  // backlight off after inactivity, 0 = never
   std::string pin;        // protects write API calls when not empty
+  std::string pc_name;    // paired PC companion (one at a time)
+  std::string pc_token;   // secret the paired PC presents in its "hello"
 };
 
 /**
@@ -32,7 +34,7 @@ struct SettingsData {
 class Settings {
  public:
   // Which group of settings changed in an update (bit mask)
-  enum Change : unsigned { WIFI = 1, HA = 2, WEATHER = 4, DISPLAY = 8, TIME = 16 };
+  enum Change : unsigned { WIFI = 1, HA = 2, WEATHER = 4, DISPLAY = 8, TIME = 16, PC = 32 };
 
   explicit Settings(Storage &storage) : storage_(storage) {}
 
@@ -64,6 +66,11 @@ class Settings {
    * @description Called after a successful update with the mask of changed groups.
    */
   std::function<void(unsigned changes)> on_change;
+
+  /**
+   * @description Stores the PC companion that just paired, replacing the previous one.
+   */
+  void set_pc(const std::string &name, const std::string &token);
 
  private:
   void save_locked();

@@ -1,7 +1,7 @@
 // Interactive 480x480 preview of a page: select, drag to move, drag the corner to resize, click an empty cell to add.
 import { useRef, useState } from 'preact/hooks';
 
-import { CATALOG, FLAT_BACKGROUND, WALLPAPERS, entityIcon, fits } from '../catalog';
+import { CATALOG, FLAT_BACKGROUND, PC_METRICS, WALLPAPERS, entityIcon, fits } from '../catalog';
 import type { Page, Theme, Widget } from '../types';
 import { GRID } from '../types';
 import { Icon } from './Icon';
@@ -57,6 +57,24 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
           <span class={big ? 'value-big' : 'value'}>13°</span>
         </div>
       );
+    case 'pc_metrics':
+      return (
+        <div class="face face-metrics">
+          <span class="small ellipsis">
+            <Icon name="desktop-tower" size={14} color={theme.accent} /> {p.name || 'Mon PC'}
+          </span>
+          {[['CPU', 34], ['RAM', 61], ['GPU', 12]].slice(0, widget.h >= 2 ? 3 : 1).map(([label, value]) => (
+            <div class="metric-row" key={label}>
+              <span class="muted small">{label}</span>
+              <span class="metric-bar">
+                <span style={{ width: `${value}%`, background: theme.accent }} />
+              </span>
+              <span class="small">{value} %</span>
+            </div>
+          ))}
+        </div>
+      );
+    case 'pc_gauge':
     case 'ha_gauge':
       return (
         <div class="face face-gauge">
@@ -64,7 +82,9 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
             <path d="M 22 78 A 40 40 0 1 1 78 78" class="gauge-track" />
             <path d="M 22 78 A 40 40 0 1 1 90 45" class="gauge-value" style={{ stroke: theme.accent }} />
           </svg>
-          <span class="muted small ellipsis">{p.name || p.entity || 'Jauge'}</span>
+          <span class="muted small ellipsis">
+            {p.name || (widget.type === 'pc_gauge' ? PC_METRICS[p.metric ?? 'cpu']?.label : p.entity) || 'Jauge'}
+          </span>
         </div>
       );
     case 'shortcut':

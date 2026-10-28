@@ -19,6 +19,8 @@ std::unique_ptr<Widget> create_ha_light(lv_obj_t *parent, const WidgetSpec &spec
 std::unique_ptr<Widget> create_ha_sensor(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_ha_gauge(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_shortcut(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
+std::unique_ptr<Widget> create_pc_metrics(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
+std::unique_ptr<Widget> create_pc_gauge(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 
 // ── Home Assistant helpers ───────────────────────────────────────────────────
 

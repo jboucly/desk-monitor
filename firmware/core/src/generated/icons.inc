@@ -125,3 +125,6 @@
 {"weather-sunset-down", "\xF3\xB0\x96\x9B"},
 {"water", "\xF3\xB0\x96\x8C"},
 {"umbrella-outline", "\xF3\xB0\x95\x8B"},
+{"download", "\xF3\xB0\x87\x9A"},
+{"upload", "\xF3\xB0\x95\x92"},
+{"lan-disconnect", "\xF3\xB0\x8C\x99"},

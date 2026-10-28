@@ -32,9 +32,22 @@ export const CATALOG: Record<WidgetType, WidgetInfo> = {
     available: true,
     defaults: () => ({ name: 'Raccourci', icon: 'application', action: { kind: 'launch', target: '' } }),
   },
-  pc_metrics: { label: 'Métriques PC', icon: 'desktop-tower', w: 4, h: 2, available: false, defaults: () => ({}) },
-  pc_gauge: { label: 'Jauge PC', icon: 'cpu-64-bit', w: 2, h: 2, available: false, defaults: () => ({ metric: 'cpu' }) },
+  pc_metrics: { label: 'Métriques PC', icon: 'desktop-tower', w: 4, h: 2, available: true, defaults: () => ({}) },
+  pc_gauge: { label: 'Jauge PC', icon: 'cpu-64-bit', w: 2, h: 2, available: true, defaults: () => ({ metric: 'cpu' }) },
   media: { label: 'Musique', icon: 'music', w: 4, h: 2, available: false, defaults: () => ({}) },
+};
+
+/**
+ * @description Metrics of the PC companion a pc_gauge can show (same list as the firmware).
+ */
+export const PC_METRICS: Record<string, { label: string; unit: string }> = {
+  cpu: { label: 'Processeur', unit: '%' },
+  ram: { label: 'Mémoire', unit: '%' },
+  gpu: { label: 'GPU', unit: '%' },
+  vram: { label: 'Mémoire GPU', unit: '%' },
+  disk: { label: 'Disque', unit: '%' },
+  cpu_temp: { label: 'Temp. CPU', unit: '°C' },
+  gpu_temp: { label: 'Temp. GPU', unit: '°C' },
 };
 
 /**

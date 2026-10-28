@@ -1,4 +1,4 @@
-// Device settings: Wi-Fi, Home Assistant, weather location, time zone, display, PIN.
+// Device settings: Wi-Fi, Home Assistant, weather location, time zone, display, PIN, paired PC.
 import { useEffect, useState } from 'preact/hooks';
 
 import { api, searchPlace, type Place } from '../api';
@@ -41,6 +41,18 @@ export function SettingsView({ onError, onSaved }: { onError: (message: string) 
       setSettings(saved);
       setDraft(structuredClone(saved));
       onSaved('Réglages enregistrés');
+    } catch (e) {
+      onError((e as Error).message);
+    }
+  };
+
+  const forgetPc = async () => {
+    if (!confirm(`Oublier « ${settings.pc.name || 'ce PC'} » ? Il faudra l’appairer à nouveau.`)) return;
+    try {
+      const saved = await api.putSettings({ pc: { name: '', forget: true } });
+      setSettings(saved);
+      setDraft(structuredClone(saved));
+      onSaved('PC oublié');
     } catch (e) {
       onError((e as Error).message);
     }
@@ -128,6 +140,25 @@ export function SettingsView({ onError, onSaved }: { onError: (message: string) 
           <span>Mise en veille après (minutes, 0 = jamais)</span>
           <input type="number" min={0} max={240} value={draft.display.sleep_minutes} onInput={(e) => set('display', { sleep_minutes: Number(e.currentTarget.value) })} />
         </label>
+      </section>
+
+      <section class="panel">
+        <h3>Ordinateur</h3>
+        {settings.pc?.paired ? (
+          <div class="row">
+            <span>
+              Appairé avec <strong>{settings.pc.name || 'un PC'}</strong>
+            </span>
+            <button class="ghost" onClick={forgetPc}>
+              Oublier ce PC
+            </button>
+          </div>
+        ) : (
+          <small class="hint">
+            Aucun PC appairé. Lance l’app Desk Monitor sur l’ordinateur : elle trouve l’écran sur le réseau, puis tu saisis le code
+            affiché sur l’écran.
+          </small>
+        )}
       </section>
 
       <section class="panel">

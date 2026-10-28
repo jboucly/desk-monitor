@@ -661,3 +661,32 @@ progress {
     position: static;
   }
 }
+
+/* PC metrics card of the preview: one usage bar per line */
+.face-metrics {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  gap: 4px;
+}
+
+.metric-row {
+  display: grid;
+  grid-template-columns: 32px 1fr 40px;
+  align-items: center;
+  gap: 8px;
+}
+
+.metric-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: #2c3244;
+  overflow: hidden;
+}
+
+.metric-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}

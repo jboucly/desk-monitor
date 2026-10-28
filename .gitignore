@@ -18,6 +18,7 @@ firmware/sim/build/
 web/node_modules/
 web/dist/
 
-# Companion (Rust / Tauri, phase 2)
-companion/target/
+# Companion (Rust / Tauri)
+companion/node_modules/
 companion/src-tauri/target/
+companion/src-tauri/gen/

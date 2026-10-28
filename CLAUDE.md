@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Desk Monitor v2: a 480×480 touch screen (Guition ESP32-S3-4848S040, ST7701S RGB panel, GT911 touch, 16 MB flash, 8 MB PSRAM) that acts as an extension of the PC. It works standalone over Wi-Fi (Home Assistant, Open-Meteo weather, clock). A BLE link to a PC companion (phase 2) adds metrics, shortcuts and media. Pages come from a JSON layout edited in a web editor that the screen serves itself. UI text is in French; code and comments are in English.
+Desk Monitor v2: a 480×480 touch screen (Guition ESP32-S3-4848S040, ST7701S RGB panel, GT911 touch, 16 MB flash, 8 MB PSRAM) that acts as an extension of the PC. It works standalone over Wi-Fi (Home Assistant, Open-Meteo weather, clock). A PC companion (Rust + Tauri, `companion/`) connects over the local network (WebSocket) and adds metrics and shortcuts; media comes in phase 3. Pages come from a JSON layout edited in a web editor that the screen serves itself. UI text is in French; code and comments are in English.
 
-Phase status: phase 1 is done (firmware, simulator, web editor). Phase 2 (BLE + Rust/Tauri companion for macOS/Windows) and phase 3 (media + cover art) are planned; see `protocol/README.md`.
+Phase status: phases 1 (firmware, simulator, web editor) and 2 (PC link + companion; tested on macOS only, the Windows code is not even compile-checked) are done. Phase 3 (media + cover art) is planned. The PC link replaced the BLE plan: BLE needed internal RAM the ESP32 does not have. See `protocol/README.md`.
 
 `legacy/esphome/` is the archived v1 (ESPHome config, still flashable, has its own CLAUDE.md). Don't modify it for v2 work.
 
@@ -32,9 +32,14 @@ npm run dev                                       # proxies /api to the simulato
 
 # Fonts and icon tables (after editing protocol/icons.json)
 node firmware/tools/gen_assets.mjs
+
+# PC companion (Rust/Tauri 2; Rust via rustup)
+cd companion && npm install && npm run dev        # menu bar app; set the address to localhost:8081 for the simulator
+cd companion/src-tauri && cargo test              # key chord parsing + a metrics sample
+firmware/sim/build/desk_monitor_sim --mock-pc     # fake PC metrics without the companion
 ```
 
-There are no unit tests. To verify a change:
+The firmware has no unit tests (the companion has a few `cargo test`s). To verify a change:
 
 - Build the simulator and look at headless screenshots (`--do … shot=`). Read the PNGs.
 - Run `idf.py build`, because the ESP32 target catches C++ differences (e.g. `-Werror=stringop-truncation`, designated-initializer order).
@@ -86,6 +91,15 @@ Anything that is not hardware or transport goes in `core/`: HA protocol logic, w
 - the transport lives in `main/ha_client.cpp` (esp_websocket_client, frame reassembly);
 - the simulator replaces HA with `sim::MockHome`.
 
+**PC link.** `dm::PcSession` (core) is the screen side of the companion protocol (`protocol/README.md`, "PC link"):
+
+- one connection at a time; a 6-digit pairing code shown through the `sys/pc_pair` bus key, then a token kept in `Settings` (`pc_name`/`pc_token`, forgotten with `PUT /api/settings {"pc":{"forget":true}}`);
+- `metrics` go to the `pc` bus key (`pc_metrics`, `pc_gauge` widgets); shortcut actions go out through `Services::pc_action`; failures come back as `sys/toast`;
+- frames are queued under the lock and written after it (`flush()`): never call the transport or `Settings::set_pc` with the lock held (`set_pc` triggers `on_change`, which calls `forget()`);
+- transports: `main/http_server.cpp` (`/api/pc`, esp_http_server WebSocket) and `sim/ws_server.cpp` (minimal WebSocket server on the HTTP port + 1). `--mock-pc` fakes a PC; `/sim/tap?x=&y=` taps in `--no-window` mode.
+
+**Companion (`companion/`).** Tauri 2 menu bar app, static UI in `companion/ui/` (no bundler, `window.__TAURI__`). `link.rs` runs the reconnect loop and the protocol, `metrics.rs` samples with sysinfo (GPU: `ioreg` IOAccelerator on macOS, NVML on Windows), `actions.rs` runs `keys` (enigo, on the main thread; macOS needs Accessibility; digits use physical key codes so AZERTY works), `launch` and `url`. Its config (address, token) is `config.json` in the app config folder.
+
 **Web editor (`web/`).** It talks to the REST API (`core/src/api.cpp`). It is built into one HTML file and gzipped. At every firmware build, `main/select_web.cmake` copies `web/dist/index.html.gz` (or `main/www_fallback.html` when it is missing) to `web.bin`, which gets embedded. The server sends `Content-Encoding: gzip` when the bundle starts with the gzip magic bytes. Icon SVGs come from `web/src/generated/icons.ts`, which is generated too.
 
 ## Gotchas
@@ -98,5 +112,6 @@ Anything that is not hardware or transport goes in `core/`: HA protocol logic, w
 - **`lv_tileview_get_tile_active()` is NULL** until a tile is set explicitly. `build_pages()` sets tile 0.
 - **Labels** that must stay on one line use `theme::single_line()`, because `LV_LABEL_LONG_DOT` alone wraps when the height is `LV_SIZE_CONTENT`.
 - **C++ and IDF macros.** Several IDF/component config macros use designated initializers in an order that fails in C++ (e.g. `ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG`). Fill the structs field by field.
+- **esp_http_server WebSocket.** In ESP-IDF 5.5 the URI handler is not called for the handshake, only for frames: `pc_ws_handler` opens the `PcSession` on the first frame and keeps its id with `httpd_sess_set_ctx` (frame requests do not copy `req->sess_ctx` back to the session).
 - **Secrets.** `settings.json` stores the Wi-Fi password and the HA token on LittleFS. `GET /api/settings` never returns them (`has_*` flags), and an empty secret in `PUT` keeps the stored value.
 - **Toolchain.** `sdkconfig` is generated and ignored; edit `sdkconfig.defaults`, then delete `sdkconfig` and run `idf.py set-target esp32s3`. `managed_components/` and `dependencies.lock` are fetched by the IDF component manager.

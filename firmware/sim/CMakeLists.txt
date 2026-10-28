@@ -54,7 +54,7 @@ target_link_libraries(lvgl PUBLIC PkgConfig::SDL2)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../core ${CMAKE_BINARY_DIR}/core)
 
 # ── Simulator executable ───────────────────────────────────────────────────
-add_executable(desk_monitor_sim main.cpp mock.cpp png.cpp)
+add_executable(desk_monitor_sim main.cpp mock.cpp png.cpp ws_server.cpp)
 target_include_directories(desk_monitor_sim PRIVATE ${httplib_SOURCE_DIR})
 target_link_libraries(desk_monitor_sim PRIVATE dm_core lvgl PkgConfig::SDL2 CURL::libcurl)
 target_compile_definitions(desk_monitor_sim PRIVATE

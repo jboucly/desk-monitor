@@ -94,6 +94,7 @@ class App {
   void apply_pending_layout();
   void update_page_indicator();
   void update_setup_banner(const cJSON *wifi);
+  void show_pairing_code(const char *code, const char *pc_name);
   void tick();
 
   Bus &bus_;
@@ -121,6 +122,7 @@ class App {
   lv_obj_t *dots_ = nullptr;
   lv_obj_t *sheet_ = nullptr;
   std::function<void()> sheet_on_close_;
+  bool pairing_sheet_ = false;
   lv_obj_t *toast_ = nullptr;
   lv_obj_t *setup_ = nullptr;
 };

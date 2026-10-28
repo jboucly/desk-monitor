@@ -95,6 +95,7 @@ inline lv_color_t warn() { return lv_color_hex(0xFBBF24); }
 inline lv_color_t crit() { return lv_color_hex(0xF87171); }
 inline lv_color_t warm() { return lv_color_hex(0xFFC078); }    // light "on" without color info
 inline lv_color_t panel() { return lv_color_hex(0x121829); }   // popup panel
+inline lv_color_t track() { return lv_color_hex(0x2C3244); }   // empty part of bars
 
 /**
  * @description Opacity of popup panels and toasts: slightly see-through in the glass style, opaque otherwise.

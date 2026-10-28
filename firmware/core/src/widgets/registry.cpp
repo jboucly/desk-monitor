@@ -1,4 +1,4 @@
-// Widget type → factory. Types missing here (pc_metrics, pc_gauge, media) render as a placeholder.
+// Widget type → factory. Types missing here (media) render as a placeholder.
 #include "common.h"
 
 namespace dm {
@@ -11,7 +11,8 @@ WidgetFactory find_widget_factory(const std::string &type) {
       {"clock", widgets::create_clock},         {"weather", widgets::create_weather},
       {"ha_toggle", widgets::create_ha_toggle}, {"ha_light", widgets::create_ha_light},
       {"ha_sensor", widgets::create_ha_sensor}, {"ha_gauge", widgets::create_ha_gauge},
-      {"shortcut", widgets::create_shortcut},
+      {"shortcut", widgets::create_shortcut},   {"pc_metrics", widgets::create_pc_metrics},
+      {"pc_gauge", widgets::create_pc_gauge},
   };
   for (const auto &entry : FACTORIES)
     if (type == entry.type) return entry.factory;

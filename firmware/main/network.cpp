@@ -86,6 +86,9 @@ void start_services() {
     mdns_hostname_set("desk-monitor");
     mdns_instance_name_set("Desk Monitor");
     mdns_service_add("Desk Monitor", "_http", "_tcp", 80, nullptr, 0);
+    // Lets the PC companion find the screen without typing an address
+    mdns_txt_item_t txt[] = {{"path", "/api/pc"}};
+    mdns_service_add("Desk Monitor", "_desk-monitor", "_tcp", 80, txt, 1);
   }
 }
 
