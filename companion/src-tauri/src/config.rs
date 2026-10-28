@@ -14,6 +14,9 @@ pub struct Config {
     /// Token given by the screen at pairing time.
     #[serde(default)]
     pub token: String,
+    /// Last IP:port that answered, tried first so that a slow name lookup does not delay the link.
+    #[serde(default)]
+    pub last_address: String,
 }
 
 impl Config {

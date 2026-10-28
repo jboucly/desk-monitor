@@ -6,6 +6,7 @@ use crate::metrics::Collector;
 use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
 use serde_json::{json, Value};
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
@@ -93,8 +94,15 @@ async fn run(
             s.custom_host = config.host.clone();
             s.paired = !config.token.is_empty();
         });
-        let end = match connect(&host).await {
-            Ok(socket) => session(&app, &store, &mut config, &state, &mut commands, &collector, socket).await,
+        let end = match connect(&host, &config.last_address).await {
+            Ok((socket, address)) => {
+                log::info!("connected to {address}");
+                if config.last_address != address.to_string() {
+                    config.last_address = address.to_string();
+                    store.save(&config);
+                }
+                session(&app, &store, &mut config, &state, &mut commands, &collector, socket).await
+            }
             Err(e) => {
                 log::warn!("cannot reach {host}: {e}");
                 publish(&app, &state, |s| {
@@ -119,6 +127,7 @@ fn apply_offline_command(store: &ConfigStore, config: &mut Config, cmd: Command)
     match cmd {
         Command::SetHost(host) => {
             config.host = host;
+            config.last_address.clear();
             store.save(config);
         }
         Command::Forget => {
@@ -131,48 +140,95 @@ fn apply_offline_command(store: &ConfigStore, config: &mut Config, cmd: Command)
 
 type Socket = tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>;
 
-/// Resolves the address and tries each IP, IPv4 first. "desk-monitor.local" may also resolve to an
-/// IPv6 link-local address that does not answer; browsers fall back quickly, a plain connect does not.
-async fn connect(host: &str) -> Result<Socket, String> {
-    let with_port = if host.rsplit_once(':').is_some_and(|(_, p)| p.parse::<u16>().is_ok()) {
-        host.to_string()
-    } else {
-        format!("{host}:80")
+/// Splits "host" or "host:port" (port 80 by default).
+fn split_host(host: &str) -> (String, u16) {
+    match host.rsplit_once(':') {
+        Some((name, port)) if !name.contains(':') => match port.parse() {
+            Ok(port) => (name.to_string(), port),
+            Err(_) => (host.to_string(), 80),
+        },
+        _ => (host.trim_matches(['[', ']']).to_string(), 80),
+    }
+}
+
+/// IPv4 addresses of a name. Asking for IPv4 only matters for "desk-monitor.local": a lookup of any
+/// family also waits for the IPv6 answer, which the screen never sends (seconds of delay).
+fn lookup_ipv4(name: &str, port: u16) -> Vec<SocketAddr> {
+    let hints = dns_lookup::AddrInfoHints {
+        flags: 0,
+        address: dns_lookup::AddrFamily::Inet.into(),
+        socktype: dns_lookup::SockType::Stream.into(),
+        protocol: 0,
     };
-    let lookup = tokio::time::timeout(Duration::from_secs(5), tokio::net::lookup_host(with_port.clone()));
-    let mut addresses: Vec<std::net::SocketAddr> = match lookup.await {
-        Ok(Ok(found)) => found.collect(),
-        Ok(Err(e)) => return Err(format!("nom introuvable ({e})")),
-        Err(_) => return Err("nom introuvable (délai dépassé)".into()),
+    match dns_lookup::getaddrinfo(Some(name), Some(&port.to_string()), Some(hints)) {
+        Ok(found) => found.filter_map(Result::ok).map(|info| info.sockaddr).collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// Addresses to try, in order.
+async fn resolve(name: &str, port: u16) -> Result<Vec<SocketAddr>, String> {
+    if let Ok(ip) = name.parse::<std::net::IpAddr>() {
+        return Ok(vec![SocketAddr::new(ip, port)]);
+    }
+    let owned = name.to_string();
+    let ipv4 = tokio::task::spawn_blocking(move || lookup_ipv4(&owned, port));
+    if let Ok(Ok(found)) = tokio::time::timeout(Duration::from_secs(6), ipv4).await {
+        if !found.is_empty() {
+            return Ok(found);
+        }
+    }
+    // No IPv4 answer: any family, as a last resort
+    match tokio::time::timeout(Duration::from_secs(8), tokio::net::lookup_host((name, port))).await {
+        Ok(Ok(found)) => Ok(found.collect()),
+        Ok(Err(e)) => Err(format!("nom introuvable ({e})")),
+        Err(_) => Err("nom introuvable (délai dépassé)".into()),
+    }
+}
+
+/// Connects to the screen: the last address that worked first, then the resolved ones.
+/// Returns the socket and the address that answered.
+async fn connect(host: &str, last_address: &str) -> Result<(Socket, SocketAddr), String> {
+    let (name, port) = split_host(host);
+    let mut last_error = String::from("aucune adresse");
+
+    let cached: Option<SocketAddr> = last_address.parse().ok();
+    if let Some(address) = cached {
+        match attempt(address, host).await {
+            Ok(socket) => return Ok((socket, address)),
+            Err(e) => last_error = e,
+        }
+    }
+    let mut addresses = match resolve(&name, port).await {
+        Ok(found) => found,
+        Err(e) if cached.is_some() => return Err(format!("{last_error} ; {e}")),
+        Err(e) => return Err(e),
     };
     addresses.sort_by_key(|a| a.is_ipv6());
     addresses.dedup();
-
-    let mut last_error = String::from("aucune adresse");
-    for address in addresses {
-        let stream = match tokio::time::timeout(Duration::from_secs(3), tokio::net::TcpStream::connect(address)).await {
-            Ok(Ok(stream)) => stream,
-            Ok(Err(e)) => {
-                last_error = format!("{address} : {e}");
-                continue;
-            }
-            Err(_) => {
-                last_error = format!("{address} : délai dépassé");
-                continue;
-            }
-        };
-        let _ = stream.set_nodelay(true);
-        let url = format!("ws://{with_port}/api/pc");
-        match tokio::time::timeout(Duration::from_secs(5), tokio_tungstenite::client_async(url.as_str(), stream)).await {
-            Ok(Ok((socket, _))) => {
-                log::info!("connected to {address}");
-                return Ok(socket);
-            }
-            Ok(Err(e)) => last_error = format!("{address} : {e}"),
-            Err(_) => last_error = format!("{address} : pas de réponse WebSocket"),
+    for address in addresses.into_iter().filter(|a| Some(*a) != cached) {
+        match attempt(address, host).await {
+            Ok(socket) => return Ok((socket, address)),
+            Err(e) => last_error = e,
         }
     }
     Err(last_error)
+}
+
+/// Opens the TCP connection and the WebSocket on one address.
+async fn attempt(address: SocketAddr, host: &str) -> Result<Socket, String> {
+    let stream = match tokio::time::timeout(Duration::from_secs(3), tokio::net::TcpStream::connect(address)).await {
+        Ok(Ok(stream)) => stream,
+        Ok(Err(e)) => return Err(format!("{address} : {e}")),
+        Err(_) => return Err(format!("{address} : délai dépassé")),
+    };
+    let _ = stream.set_nodelay(true);
+    let url = format!("ws://{host}/api/pc");
+    match tokio::time::timeout(Duration::from_secs(5), tokio_tungstenite::client_async(url.as_str(), stream)).await {
+        Ok(Ok((socket, _))) => Ok(socket),
+        Ok(Err(e)) => Err(format!("{address} : {e}")),
+        Err(_) => Err(format!("{address} : pas de réponse WebSocket")),
+    }
 }
 
 /// Name shown on the screen: the computer name on macOS, the host name elsewhere.
@@ -246,6 +302,7 @@ async fn session(
                 Command::SubmitCode(code) => Some(json!({ "type": "pair", "code": code.trim() })),
                 Command::SetHost(host) => {
                     config.host = host;
+                    config.last_address.clear();
                     store.save(config);
                     return End::Reconnect;
                 }
@@ -354,5 +411,17 @@ fn run_action(app: AppHandle, id: Value, action: Value, out: mpsc::UnboundedSend
         let _ = app.run_on_main_thread(move || reply(actions::press_keys(&keys)));
     } else {
         tauri::async_runtime::spawn_blocking(move || reply(actions::run(&action)));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::split_host;
+
+    #[test]
+    fn splits_host_and_port() {
+        assert_eq!(split_host("desk-monitor.local"), ("desk-monitor.local".into(), 80));
+        assert_eq!(split_host("localhost:8081"), ("localhost".into(), 8081));
+        assert_eq!(split_host("192.168.1.50"), ("192.168.1.50".into(), 80));
     }
 }
