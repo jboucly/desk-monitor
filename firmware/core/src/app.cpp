@@ -201,7 +201,8 @@ void App::build_shell() {
   // The pages loop: a swipe past the last page goes to the first one, and back. LVGL gestures cannot
   // be used (the tileview claims every horizontal drag, even at its ends), so the pointer itself is
   // watched: a press on a page and a release far to the side, on the same page, wraps around.
-  lv_obj_remove_flag(tileview_, LV_OBJ_FLAG_SCROLL_ELASTIC);
+  // Keep the tileview's elastic overscroll: at both ends it is what turns a swipe into a scroll, so that
+  // the card under the finger is not clicked.
   for (lv_indev_t *indev = lv_indev_get_next(nullptr); indev; indev = lv_indev_get_next(indev)) {
     if (lv_indev_get_type(indev) != LV_INDEV_TYPE_POINTER) continue;
     lv_indev_add_event_cb(indev, [](lv_event_t *e) { static_cast<App *>(lv_event_get_user_data(e))->on_pointer(e); },
@@ -230,9 +231,9 @@ void App::build_pages() {
   const int count = static_cast<int>(layout_->pages.size());
   for (int i = 0; i < count; i++) {
     const PageSpec &page = layout_->pages[i];
-    lv_dir_t dir = LV_DIR_NONE;
-    if (i > 0) dir = static_cast<lv_dir_t>(dir | LV_DIR_LEFT);
-    if (i < count - 1) dir = static_cast<lv_dir_t>(dir | LV_DIR_RIGHT);
+    // Both directions on every page, even at the ends: a swipe past the first or last page must
+    // scroll (elastic overscroll, then the page loop) and not click the card under the finger
+    const lv_dir_t dir = count > 1 ? LV_DIR_HOR : LV_DIR_NONE;
     lv_obj_t *tile = lv_tileview_add_tile(tileview_, i, 0, dir);
     lv_obj_set_style_pad_all(tile, theme::GRID_PAD, 0);
     lv_obj_set_style_pad_row(tile, theme::GRID_GAP, 0);
@@ -394,8 +395,12 @@ void App::on_pointer(lv_event_t *e) {
   const int dx = point.x - swipe_start_.x, dy = point.y - swipe_start_.y;
   swipe_page_ = -1;
   if (std::abs(dx) < 80 || std::abs(dy) > std::abs(dx)) return;
-  if (dx < 0 && index == count - 1) show_page(0, true);
-  else if (dx > 0 && index == 0) show_page(count - 1, true);
+  const bool to_first = dx < 0 && index == count - 1, to_last = dx > 0 && index == 0;
+  if (!to_first && !to_last) return;
+  // This handler runs before the widgets get the release: reset the pointer so that the card under
+  // the finger does not get a click, then jump
+  lv_indev_reset(indev, nullptr);
+  show_page(to_first ? 0 : count - 1, true);
 }
 
 void App::show_page(int index, bool animate) {
