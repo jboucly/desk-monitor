@@ -66,10 +66,10 @@ Anything that is not hardware or transport goes in `core/`: HA protocol logic, w
 
 - `Layout::parse` validates the JSON (4×4 grid, no overlap, required props) and returns French error messages.
 - `App` builds one `lv_tileview` tile per page, with a grid layout, and asks `find_widget_factory(type)` (`core/src/widgets/registry.cpp`) for each widget.
-- Unimplemented types (`pc_*`, `media`) render a "Bientôt" placeholder.
+- A type without a factory (layout from a newer editor) renders a "Non pris en charge" placeholder.
 - Rebuild order matters: `close_sheet()`, then `bus.clear_subscriptions()`, then `widgets_.clear()`, then delete the LVGL objects.
 
-**Widgets** (`core/src/widgets/`) subclass `dm::Widget`, build under `root`, subscribe through `ctx.bus`, and call `ctx.services.ha_call` / `pc_action`.
+**Widgets** (`core/src/widgets/`) subclass `dm::Widget`, build under `root`, subscribe through `ctx.bus`, and call `ctx.services.ha_call` / `pc_action` / `pc_media` / `ha_fetch`.
 
 - Keep the `WidgetContext&`: it is an `App` member.
 - Don't call virtual methods from base constructors. `EntityTile::start()` exists for that reason.
@@ -109,7 +109,7 @@ Anything that is not hardware or transport goes in `core/`: HA protocol logic, w
 - **Icons must be declared.** An icon name used anywhere (layout, widget code, editor) must be in `protocol/icons.json`, and the fonts must be regenerated. Unknown names show `alert-circle-outline`.
 - **Display orientation** (verified on hardware). No mirroring at all: v1's hardware mirror (SDIR/MADCTL) and LVGL 180° rotation cancelled out. Never use `esp_lcd_panel_mirror` with mirror X: the RGB driver then copies pixel by pixel instead of memcpy. SDIR (0xC7) is only accepted in command2 bank 0.
 - **Internal RAM is the scarce resource** (~190 KB free before Wi-Fi). LVGL and cJSON allocate from PSRAM (`main/psram_alloc.cpp`, `CONFIG_LV_USE_CUSTOM_MALLOC`); `CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM` stays off (107 KB of IRAM); Wi-Fi, the HTTP server task and the draw/bounce buffers need the rest. `ESP_ERR_HTTPD_TASK` or a Wi-Fi `no mem` at boot means something ate it.
-- **Display speed** (measured on the device, full-screen redraw): ~35 ms for the flush into the PSRAM frame buffer, +16 ms for the wallpaper, +50 to 95 ms for the translucent cards, so swipes run at ~8-10 FPS. Tried without success: 16 MHz pclk (picture shakes and shifts), two LVGL draw threads (+1 FPS, cost the RAM the HTTP server needed), 40-line bounce buffers. Long CPU-bound work in `app_main` (e.g. a boot benchmark) also shifted the picture. Now: flat style + two PSRAM frame buffers in direct mode (`DOUBLE_BUFFER` in `main/display.cpp`) against tearing; not yet measured on the device. `desk_monitor_sim --do bench=N` gives the same breakdown in the simulator (`App::benchmark`).
+- **Display speed** (measured on the device, full-screen redraw): ~35 ms for the flush into the PSRAM frame buffer, +16 ms for the wallpaper, +50 to 95 ms for the translucent cards, so swipes run at ~8-10 FPS. Tried without success: 16 MHz pclk (picture shakes and shifts), two LVGL draw threads (+1 FPS, cost the RAM the HTTP server needed), 40-line bounce buffers. Long CPU-bound work in `app_main` (e.g. a boot benchmark) also shifted the picture. Now: flat style + two PSRAM frame buffers in direct mode (`DOUBLE_BUFFER` in `main/display.cpp`) against tearing; swipes are smooth (~20 FPS) according to the user. `desk_monitor_sim --do bench=N` gives the same breakdown in the simulator (`App::benchmark`).
 - **RGB data pins** are in esp_lcd order (B0..B4, G0..G5, R0..R4), little-endian. ESPHome swaps the bytes because its buffers are big-endian; we don't.
 - **`lv_tileview_get_tile_active()` is NULL** until a tile is set explicitly. `build_pages()` sets tile 0.
 - **Labels** that must stay on one line use `theme::single_line()`, because `LV_LABEL_LONG_DOT` alone wraps when the height is `LV_SIZE_CONTENT`.
