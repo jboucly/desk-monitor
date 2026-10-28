@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Desk Monitor v2: a 480×480 touch screen (Guition ESP32-S3-4848S040, ST7701S RGB panel, GT911 touch, 16 MB flash, 8 MB PSRAM) that acts as an extension of the PC. It works standalone over Wi-Fi (Home Assistant, Open-Meteo weather, clock). A PC companion (Rust + Tauri, `companion/`) connects over the local network (WebSocket) and adds metrics and shortcuts; media comes in phase 3. Pages come from a JSON layout edited in a web editor that the screen serves itself. UI text is in French; code and comments are in English.
+Desk Monitor v2: a 480×480 touch screen (Guition ESP32-S3-4848S040, ST7701S RGB panel, GT911 touch, 16 MB flash, 8 MB PSRAM) that acts as an extension of the PC. It works standalone over Wi-Fi (Home Assistant, Open-Meteo weather, clock). A PC companion (Rust + Tauri, `companion/`) connects over the local network (WebSocket) and adds metrics, shortcuts and the system's now playing. Pages come from a JSON layout edited in a web editor that the screen serves itself. UI text is in French; code and comments are in English.
 
-Phase status: phases 1 (firmware, simulator, web editor) and 2 (PC link + companion; tested on macOS only, the Windows code is not even compile-checked) are done. Phase 3 (media + cover art) is planned. The PC link replaced the BLE plan: BLE needed internal RAM the ESP32 does not have. See `protocol/README.md`.
+Phase status: phases 1 (firmware, simulator, web editor), 2 (PC link + companion) and 3 (now playing + covers, HA fallback) are done. Everything companion-side was tested on macOS only: the Windows code is not even compile-checked, and Windows now playing (GlobalSystemMediaTransportControls) is not written yet. The PC link replaced the BLE plan: BLE needed internal RAM the ESP32 does not have. See `protocol/README.md`.
 
 `legacy/esphome/` is the archived v1 (ESPHome config, still flashable, has its own CLAUDE.md). Don't modify it for v2 work.
 
@@ -36,7 +36,7 @@ node firmware/tools/gen_assets.mjs
 # PC companion (Rust/Tauri 2; Rust via rustup)
 cd companion && npm install && npm run dev        # menu bar app; set the address to localhost:8081 for the simulator
 cd companion/src-tauri && cargo test              # key chord parsing + a metrics sample
-firmware/sim/build/desk_monitor_sim --mock-pc     # fake PC metrics without the companion
+firmware/sim/build/desk_monitor_sim --mock-pc     # fake PC metrics and now playing without the companion
 ```
 
 The firmware has no unit tests (the companion has a few `cargo test`s). To verify a change:
@@ -98,6 +98,8 @@ Anything that is not hardware or transport goes in `core/`: HA protocol logic, w
 - frames are queued under the lock and written after it (`flush()`): never call the transport or `Settings::set_pc` with the lock held (`set_pc` triggers `on_change`, which calls `forget()`);
 - transports: `main/http_server.cpp` (`/api/pc`, esp_http_server WebSocket) and `sim/ws_server.cpp` (minimal WebSocket server on the HTTP port + 1). `--mock-pc` fakes a PC; `/sim/tap?x=&y=` taps in `--no-window` mode.
 
+**Media.** The `media` widget shows `pc/media` + `pc/media_art` (from the companion) and falls back to an optional HA `media_player`. The companion reads the macOS now playing through the vendored `mediaremote-adapter` (`companion/vendor/`, compiled by `build.rs` into `src-tauri/resources/mediaremote/`, run with `/usr/bin/perl` because only entitled binaries may use MediaRemote since macOS 15.4), scales covers to 160x160 RGB565 and picks their dominant color. HA covers (`entity_picture`, JPEG) are downloaded by `Services::ha_fetch` and decoded by `core/src/cover.cpp` with LVGL's TJpgDec (`LV_USE_TJPGD`).
+
 **Companion (`companion/`).** Tauri 2 menu bar app, static UI in `companion/ui/` (no bundler, `window.__TAURI__`). `link.rs` runs the reconnect loop and the protocol, `metrics.rs` samples with sysinfo (GPU: `ioreg` IOAccelerator on macOS, NVML on Windows), `actions.rs` runs `keys` (enigo, on the main thread; macOS needs Accessibility; digits use physical key codes so AZERTY works), `launch` and `url`. Its config (address, token, last working IP) is `config.json` in the app config folder. Names are resolved IPv4-only (`dns-lookup`): an any-family lookup of `desk-monitor.local` waits seconds for an IPv6 answer that never comes. The bundle is ad-hoc signed with a stable identifier (`signingIdentity: "-"`) so that macOS keeps the Local Network and Accessibility permissions across rebuilds.
 
 **Web editor (`web/`).** It talks to the REST API (`core/src/api.cpp`). It is built into one HTML file and gzipped. At every firmware build, `main/select_web.cmake` copies `web/dist/index.html.gz` (or `main/www_fallback.html` when it is missing) to `web.bin`, which gets embedded. The server sends `Content-Encoding: gzip` when the bundle starts with the gzip magic bytes. Icon SVGs come from `web/src/generated/icons.ts`, which is generated too.
@@ -114,6 +116,8 @@ Anything that is not hardware or transport goes in `core/`: HA protocol logic, w
 - **C++ and IDF macros.** Several IDF/component config macros use designated initializers in an order that fails in C++ (e.g. `ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG`). Fill the structs field by field.
 - **Backlight (GPIO38).** It floats after reset and lights the uninitialized panel (white flash). `bootloader_components/backlight_off` drives it low in the bootloader, and `display_show()` turns it on only after the first frame is drawn (wake from sleep redraws first too). After adding a bootloader component, delete `build/bootloader` once: the bootloader subproject does not rescan.
 - **Touch filter (`filter_touch`).** Never change `point_num` in the GT911 `process_coordinates` callback: a count of 0 makes `esp_lcd_touch_get_data` fail and esp_lvgl_port aborts. The wake-up touch is ignored with `lv_indev_wait_release()` instead.
+- **TJpgDec pixel order.** LVGL's copy outputs 24-bit pixels as B, G, R (`cover.cpp`).
+- **WebSocket frame size.** Covers are ~68 KB of base64: `MAX_WS_FRAME` (96 KB) in `main/http_server.cpp` must stay above it.
 - **esp_http_server WebSocket.** In ESP-IDF 5.5 the URI handler is not called for the handshake, only for frames: `pc_ws_handler` opens the `PcSession` on the first frame and keeps its id with `httpd_sess_set_ctx` (frame requests do not copy `req->sess_ctx` back to the session).
 - **Secrets.** `settings.json` stores the Wi-Fi password and the HA token on LittleFS. `GET /api/settings` never returns them (`has_*` flags), and an empty secret in `PUT` keeps the stored value.
 - **Toolchain.** `sdkconfig` is generated and ignored; edit `sdkconfig.defaults`, then delete `sdkconfig` and run `idf.py set-target esp32s3`. `managed_components/` and `dependencies.lock` are fetched by the IDF component manager.

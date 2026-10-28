@@ -129,6 +129,10 @@ import {
   mdiDownload,
   mdiUpload,
   mdiLanDisconnect,
+  mdiMusicNote,
+  mdiMusicOff,
+  mdiVolumeMinus,
+  mdiVolumePlus,
 } from '@mdi/js';
 
 /**
@@ -264,4 +268,8 @@ export const ICONS: Record<string, string> = {
   'download': mdiDownload,
   'upload': mdiUpload,
   'lan-disconnect': mdiLanDisconnect,
+  'music-note': mdiMusicNote,
+  'music-off': mdiMusicOff,
+  'volume-minus': mdiVolumeMinus,
+  'volume-plus': mdiVolumePlus,
 };

@@ -10,8 +10,10 @@ namespace dm {
 
 namespace {
 
-// A connected PC sends metrics every second; after this much silence it counts as gone
+// A connected PC sends metrics every second; after this much silence it counts as gone.
+// Before pairing, the PC may wait for the user to type the code: it only sends pings.
 constexpr auto SILENCE_TIMEOUT = std::chrono::seconds(6);
+constexpr auto UNPAIRED_SILENCE_TIMEOUT = std::chrono::seconds(30);
 constexpr auto PAIRING_TIME = std::chrono::minutes(2);
 constexpr int PAIRING_ATTEMPTS = 5;
 
@@ -130,6 +132,11 @@ void PcSession::on_message(uint32_t connection, const std::string &text) {
       cJSON *metrics = cJSON_Duplicate(root.get(), true);
       cJSON_DeleteItemFromObject(metrics, "type");
       bus_.post("pc", metrics);
+    } else if ((type == "media" || type == "media_art") && state_ == State::Ready) {
+      // Now playing on the PC, and its cover (RGB565, sent only when it changes)
+      cJSON *copy = cJSON_Duplicate(root.get(), true);
+      cJSON_DeleteItemFromObject(copy, "type");
+      bus_.post(type == "media" ? "pc/media" : "pc/media_art", copy);
     } else if (type == "action_result" && state_ == State::Ready) {
       if (!json::boolean(root.get(), "ok", true)) {
         cJSON *toast = cJSON_CreateObject();
@@ -150,7 +157,8 @@ void PcSession::poll() {
   {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!pair_code_.empty() && Clock::now() > pair_deadline_) end_pairing_locked();
-    if (state_ != State::Closed && Clock::now() - last_message_ > SILENCE_TIMEOUT) {
+    const auto timeout = state_ == State::Ready ? SILENCE_TIMEOUT : UNPAIRED_SILENCE_TIMEOUT;
+    if (state_ != State::Closed && Clock::now() - last_message_ > timeout) {
       close = close_;
       connection_ = 0;
       send_ = nullptr;
@@ -188,6 +196,18 @@ bool PcSession::send_action(const cJSON *action) {
   return true;
 }
 
+bool PcSession::send_media(const std::string &command) {
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (state_ != State::Ready) return false;
+    cJSON *msg = message("media_cmd");
+    cJSON_AddStringToObject(msg, "cmd", command.c_str());
+    send_locked(msg);
+  }
+  flush();
+  return true;
+}
+
 void PcSession::send_locked(cJSON *msg) {
   outgoing_.push_back(json::print(msg));
   cJSON_Delete(msg);
@@ -213,7 +233,10 @@ void PcSession::set_state_locked(State state) {
   cJSON_AddStringToObject(status, "name", pc_name_.c_str());
   bus_.post("sys/pc", status);
   // Widgets clear their values when the PC goes away
-  if (state != State::Ready) bus_.post("pc", cJSON_CreateObject());
+  if (state != State::Ready) {
+    bus_.post("pc", cJSON_CreateObject());
+    bus_.post("pc/media", cJSON_CreateObject());
+  }
 }
 
 void PcSession::end_pairing_locked() {

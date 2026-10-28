@@ -4,6 +4,7 @@
 mod actions;
 mod config;
 mod link;
+mod media;
 mod metrics;
 
 use link::{Command, Link, LinkState};
@@ -59,6 +60,14 @@ fn accessibility(prompt: bool) -> bool {
     accessibility_granted(prompt)
 }
 
+/// Folder of the bundled MediaRemote adapter (macOS): in the app's resources, or in the source
+/// tree when running `tauri dev`.
+fn media_adapter_dir(app: &AppHandle) -> Option<std::path::PathBuf> {
+    let bundled = app.path().resource_dir().ok().map(|dir| dir.join("mediaremote"));
+    let source = Some(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/mediaremote"));
+    [bundled, source].into_iter().flatten().find(|dir| dir.join("mediaremote-adapter.pl").exists())
+}
+
 fn show_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
@@ -79,7 +88,8 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             let store = config::ConfigStore::new(app.path().app_config_dir()?);
-            let link = link::start(app.handle().clone(), store);
+            let media = media::start(media_adapter_dir(app.handle()));
+            let link = link::start(app.handle().clone(), store, media);
             app.manage(link);
 
             let open = MenuItem::with_id(app, "open", "Ouvrir Desk Monitor", true, None::<&str>)?;

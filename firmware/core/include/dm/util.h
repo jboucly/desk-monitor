@@ -2,7 +2,9 @@
 #pragma once
 
 #include <ctime>
+#include <cstdint>
 #include <string>
+#include <vector>
 
 #include "lvgl.h"
 
@@ -47,5 +49,21 @@ const char *month_name(int month);
  * @description Formats a number with a fixed count of decimals, French decimal comma.
  */
 std::string format_number(double value, int decimals);
+
+/**
+ * @description Formats a duration in seconds as "m:ss" or "h:mm:ss". NaN or negative gives "–:––".
+ */
+std::string format_duration(double seconds);
+
+/**
+ * @description Decodes standard base64 (padding optional, whitespace ignored).
+ * @returns False on an invalid character.
+ */
+bool base64_decode(const char *text, std::vector<uint8_t> &out);
+
+/**
+ * @description Encodes bytes as standard base64 with padding.
+ */
+std::string base64_encode(const uint8_t *data, size_t len);
 
 }  // namespace dm::util

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <ctime>
 #include <thread>
 
 #include "dm/weather.h"
@@ -85,6 +86,19 @@ cJSON *initial_state(const std::string &id) {
       cJSON_AddItemToArray(hs, cJSON_CreateNumber(70));
       update_rgb(attrs);
     }
+  } else if (domain == "media_player") {
+    // A speaker playing, with a cover served by the simulator (sim/assets/cover.jpg)
+    cJSON_AddStringToObject(state, "s", "playing");
+    cJSON_AddStringToObject(attrs, "media_title", "Clair de lune");
+    cJSON_AddStringToObject(attrs, "media_artist", "Claude Debussy");
+    cJSON_AddStringToObject(attrs, "app_name", "Sonos");
+    cJSON_AddNumberToObject(attrs, "media_duration", 302);
+    cJSON_AddNumberToObject(attrs, "media_position", 42);
+    char now[32];
+    const time_t t = time(nullptr);
+    strftime(now, sizeof now, "%Y-%m-%dT%H:%M:%S+00:00", gmtime(&t));
+    cJSON_AddStringToObject(attrs, "media_position_updated_at", now);
+    cJSON_AddStringToObject(attrs, "entity_picture", "/mock/cover.jpg");
   } else if (domain == "sensor") {
     char value[16];
     snprintf(value, sizeof value, "%.1f", 15 + r * 75);
@@ -123,6 +137,14 @@ void MockHome::call(const std::string &domain, const std::string &service, const
   cJSON *state = it->second.get();
   cJSON *attrs = cJSON_GetObjectItem(state, "a");
   const bool on = !strcmp(dm::json::str(state, "s"), "on");
+
+  if (domain == "media_player") {
+    const bool playing = !strcmp(dm::json::str(state, "s"), "playing");
+    if (service == "media_play_pause") set_string(state, "s", playing ? "paused" : "playing");
+    printf("[mock HA] media_player.%s %s\n", service.c_str(), entity_id.c_str());
+    publish(entity_id);
+    return;
+  }
 
   bool turn_on = service == "turn_on" || (service == "toggle" && !on);
   if (service == "turn_off" || (service == "toggle" && on)) turn_on = false;

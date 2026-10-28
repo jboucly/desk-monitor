@@ -66,6 +66,12 @@ class PcSession {
    */
   bool send_action(const cJSON *action);
 
+  /**
+   * @description Sends a media command ("toggle", "next", "prev") to the paired PC.
+   * @returns False when no paired PC is connected.
+   */
+  bool send_media(const std::string &command);
+
  private:
   using Clock = std::chrono::steady_clock;
   enum class State { Closed, Unpaired, Ready };

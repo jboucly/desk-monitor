@@ -23,7 +23,7 @@ Widgets cannot overlap or leave the grid. The firmware validates every layout ag
 | `shortcut` | `name`, `icon`, `color`, `action` | `ha` action over Wi-Fi, other kinds via the PC |
 | `pc_metrics` | `name` (default: the PC's name) | PC companion |
 | `pc_gauge` | `metric` (`cpu`, `ram`, `gpu`, `vram`, `disk`, `cpu_temp`, `gpu_temp`), `name`, `warn`, `crit` | PC companion |
-| `media` | (phase 3) | Shown as "Bientôt" for now |
+| `media` | `entity` (optional `media_player`) | PC companion (now playing of any app), else the Home Assistant player |
 
 Shortcut actions (`action.kind`):
 
@@ -78,7 +78,9 @@ Data sources publish on the bus, and widgets subscribe to it (`firmware/core/inc
 | `sys/pc_pair` | `{"code", "name"}` while a pairing code is shown, `{}` to hide it | `PcSession` |
 | `sys/toast` | `{"text"}` | anything (e.g. a failed PC action) |
 | `pc` | `metrics` fields (see PC link), `{}` when the PC is gone | `PcSession` |
-| `media` | now playing (phase 3) | PC link or `media_player` |
+| `pc/media` | `media` fields (see PC link), `{}` when nothing plays or the PC is gone | `PcSession` |
+| `pc/media_art` | `{"id", "w", "h", "data"}` (RGB565, base64) | `PcSession` |
+| `ha_art/<entity_id>` | same shape, decoded from the player's `entity_picture` (JPEG) | media widget, through `Services::ha_fetch` |
 
 ## PC link (WebSocket)
 
@@ -88,7 +90,7 @@ The PC companion (`companion/`) talks to the screen over the local network. The 
 - **Discovery:** the screen announces the mDNS service `_desk-monitor._tcp` (TXT `path=/api/pc`).
 - **Frames:** text frames, one JSON object each, with a `type` field.
 - **One PC at a time:** a new connection replaces the previous one.
-- **Liveness:** the companion sends `metrics` every second. After 6 s of silence, the screen drops the connection.
+- **Liveness:** the companion sends `metrics` every second once welcomed, and `ping` every second before (e.g. while the user types the pairing code). The screen drops a paired connection after 6 s of silence, an unpaired one after 30 s.
 
 Pairing happens once. The screen shows a 6-digit code, the user types it in the companion, and the screen returns a token. The companion stores the token and presents it on every connection. Only a paired PC receives shortcut actions. The editor can forget the paired PC (`PUT /api/settings` with `{"pc": {"forget": true}}`).
 
@@ -103,6 +105,9 @@ pair {code}                      →
                                   ← error {code: "bad_code"}  (5 tries at most)
                                   ← paired {token}, welcome {name}
 metrics {…}                      →                            (every second, once welcomed)
+media_art {id, w, h, data}       →                            (when the cover changes, before its media)
+media {title, artist, …}         →                            (when the now playing changes)
+                                  ← media_cmd {cmd}           (toggle, next, prev)
                                   ← action {id, action}       (a shortcut was tapped)
 action_result {id, ok, error?}   →                            (an error shows as a toast)
 ping                             →
@@ -119,5 +124,18 @@ Errors look like `{"type": "error", "code": "bad_code" | "pair_expired", "messag
 | `cpu_temp`, `gpu_temp` | °C |
 | `ram_used`, `ram_total` | bytes |
 | `net_rx`, `net_tx` | bytes per second |
+
+`media` describes the system's now playing (any app: Music, Spotify, a browser…). An empty `media` (no `title`) means nothing plays.
+
+| Field | Meaning |
+| --- | --- |
+| `title`, `artist`, `album` | texts (typographic punctuation replaced by ASCII: the screen fonts are Latin-1) |
+| `app` | name of the playing app ("Plexamp", "Google Chrome") |
+| `playing` | true while playing, false when paused |
+| `duration`, `elapsed` | seconds; `elapsed` is the position when the message was sent, the screen moves it forward while playing |
+| `color` | `#RRGGBB` dominant color of the cover (controls, progress bar) |
+| `art` | id of the cover sent with `media_art` |
+
+`media_art` carries the cover: `w` x `h` pixels (160 x 160) in RGB565 little-endian, base64 in `data` (about 68 KB). It is sent only when the cover changes. On macOS the companion reads the now playing with the vendored `mediaremote-adapter` (`companion/vendor/`).
 
 `action` carries the shortcut's `action` object from the layout (`keys`, `launch`, `url`). The companion runs it and answers with `action_result`.

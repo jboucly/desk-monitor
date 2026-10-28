@@ -20,7 +20,8 @@ namespace {
 const char *TAG = "http";
 constexpr size_t MAX_BODY = 64 * 1024;
 
-constexpr size_t MAX_WS_FRAME = 8 * 1024;
+// Covers are sent as base64 RGB565 (160x160: ~68 KB); the buffer goes to PSRAM
+constexpr size_t MAX_WS_FRAME = 96 * 1024;
 
 struct Context {
   Api *api;

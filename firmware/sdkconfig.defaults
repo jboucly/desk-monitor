@@ -59,6 +59,8 @@ CONFIG_LV_LOG_PRINTF=y
 # Not CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM: it moves ~107 KB of LVGL into IRAM, which is carved out of
 # internal RAM, and Wi-Fi + the HTTP server then ran out of it. Code runs from PSRAM through the cache.
 CONFIG_LV_CACHE_DEF_SIZE=0
+# JPEG decoder for Home Assistant covers (used directly by core/src/cover.cpp)
+CONFIG_LV_USE_TJPGD=y
 CONFIG_LV_FONT_MONTSERRAT_14=y
 CONFIG_LV_BUILD_EXAMPLES=n
 CONFIG_LV_BUILD_DEMOS=n

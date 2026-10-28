@@ -74,7 +74,10 @@
         { "if": { "properties": { "type": { "enum": ["ha_toggle", "ha_light"] } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_entity" } }, "required": ["props"] } },
         { "if": { "properties": { "type": { "const": "ha_sensor" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_sensor" } }, "required": ["props"] } },
         { "if": { "properties": { "type": { "const": "ha_gauge" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_gauge" } }, "required": ["props"] } },
-        { "if": { "properties": { "type": { "const": "shortcut" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_shortcut" } }, "required": ["props"] } }
+        { "if": { "properties": { "type": { "const": "shortcut" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_shortcut" } }, "required": ["props"] } },
+        { "if": { "properties": { "type": { "const": "pc_metrics" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_pc_metrics" } } } },
+        { "if": { "properties": { "type": { "const": "pc_gauge" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_pc_gauge" } } } },
+        { "if": { "properties": { "type": { "const": "media" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_media" } } } }
       ]
     },
     "props_clock": {
@@ -123,6 +126,25 @@
         "decimals": { "type": "integer", "minimum": 0, "maximum": 3, "default": 0 },
         "warn": { "type": "number", "description": "Value from which the arc turns orange." },
         "crit": { "type": "number", "description": "Value from which the arc turns red." }
+      }
+    },
+    "props_pc_metrics": {
+      "type": "object",
+      "properties": { "name": { "type": "string", "description": "Card title; default: the PC's name" } }
+    },
+    "props_pc_gauge": {
+      "type": "object",
+      "properties": {
+        "metric": { "enum": ["cpu", "ram", "gpu", "vram", "disk", "cpu_temp", "gpu_temp"], "default": "cpu" },
+        "name": { "type": "string" },
+        "warn": { "type": "number" },
+        "crit": { "type": "number" }
+      }
+    },
+    "props_media": {
+      "type": "object",
+      "properties": {
+        "entity": { "type": "string", "pattern": "^media_player\\.", "description": "Home Assistant player shown when the PC plays nothing" }
       }
     },
     "props_shortcut": {

@@ -43,6 +43,18 @@ struct Services {
    * @description Sends a shortcut action to the PC companion. Returns false when no PC is connected.
    */
   std::function<bool(const cJSON *action)> pc_action;
+
+  /**
+   * @description Sends a media command ("toggle", "next", "prev") to the PC companion.
+   * Returns false when no PC is connected.
+   */
+  std::function<bool(const std::string &command)> pc_media;
+
+  /**
+   * @description Downloads a Home Assistant resource (e.g. a media_player's entity_picture path) in the
+   * background. `done` runs on a worker thread with the body, or an empty string on failure.
+   */
+  std::function<void(const std::string &path, std::function<void(std::string body)> done)> ha_fetch;
 };
 
 }  // namespace dm

@@ -19,7 +19,7 @@ const int32_t GRID_COL_DSC[] = {LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_
 const int32_t GRID_ROW_DSC[] = {LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
 
 /**
- * @description Card shown for widget types that have no implementation yet (media, phase 3).
+ * @description Card shown for a widget type this firmware does not know (layout from a newer editor).
  */
 class Placeholder : public Widget {
  public:
@@ -27,8 +27,8 @@ class Placeholder : public Widget {
     root = theme::make_card(parent);
     lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(root, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    theme::make_icon(root, &dm_icons_24, "music", theme::text3());
-    theme::make_label(root, &dm_font_14, theme::text3(), "Bientôt");
+    theme::make_icon(root, &dm_icons_24, "alert-circle-outline", theme::text3());
+    theme::make_label(root, &dm_font_14, theme::text3(), "Non pris en charge");
   }
 };
 

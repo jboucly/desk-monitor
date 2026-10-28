@@ -1,6 +1,6 @@
 # Desk Monitor
 
-Écran tactile de bureau 480×480 (Guition ESP32-S3-4848S040) qui sert d'**extension de l'ordinateur**. Il fonctionne seul en Wi-Fi : Home Assistant, météo, horloge. Une application compagnon sur l'ordinateur s'y connecte par le réseau local pour afficher les métriques du PC et exécuter des raccourcis façon Stream Deck (la musique arrive en phase 3).
+Écran tactile de bureau 480×480 (Guition ESP32-S3-4848S040) qui sert d'**extension de l'ordinateur**. Il fonctionne seul en Wi-Fi : Home Assistant, météo, horloge. Une application compagnon sur l'ordinateur s'y connecte par le réseau local pour afficher les métriques du PC et exécuter des raccourcis façon Stream Deck et afficher la musique en cours de lecture.
 
 Les pages se configurent **à la volée** depuis un éditeur web servi par l'écran lui-même (`http://desk-monitor.local`), sans recompiler ni reflasher.
 
@@ -12,7 +12,7 @@ Les pages se configurent **à la volée** depuis un éditeur web servi par l'éc
 | --- | --- | --- |
 | 1 | Firmware natif (ESP-IDF + LVGL 9), design « glass », Wi-Fi, Home Assistant, météo Open-Meteo, layout JSON, éditeur web, OTA | ✅ |
 | 2 | Application compagnon (Rust/Tauri, macOS et Windows) reliée par le réseau local : métriques PC, raccourcis clavier, lancement d'applications et d'URL | ✅ (testée sur macOS) |
-| 3 | Contrôle de la musique et pochette de l'album en cours | à venir |
+| 3 | Musique en cours de lecture (toutes les apps du Mac, navigateur compris) avec pochette et commandes ; repli sur un lecteur Home Assistant | ✅ (macOS ; Windows à venir) |
 
 ## Widgets
 
@@ -27,8 +27,8 @@ Les pages se configurent **à la volée** depuis un éditeur web servi par l'éc
 | Raccourci | Action Home Assistant, ou action sur le PC (raccourci clavier, application, URL) |
 | Métriques PC | CPU, RAM, GPU (avec températures) et débit réseau de l'ordinateur appairé |
 | Jauge PC | Une mesure du PC : CPU, RAM, GPU, mémoire GPU, disque ou température |
+| Musique | Ce que joue l'ordinateur (Musique, Spotify, Chrome, Safari…) avec pochette, progression et commandes ; sinon le lecteur Home Assistant choisi |
 
-Le widget musique s'affiche « Bientôt » jusqu'à la phase 3.
 
 ## Démarrage rapide
 

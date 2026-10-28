@@ -690,3 +690,37 @@ progress {
   height: 100%;
   border-radius: 3px;
 }
+
+/* Media card of the preview: cover, titles, play button */
+.face-media {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  height: 100%;
+}
+
+.face-media-row {
+  flex-direction: row;
+  align-items: center;
+}
+
+.media-cover {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  height: min(100%, 120px);
+  max-height: 120px;
+  border-radius: 12px;
+}
+
+.face-media:not(.face-media-row) .media-cover {
+  height: 56px;
+}
+
+.media-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}

@@ -71,6 +71,8 @@ extern "C" void app_main(void) {
                         cJSON *data) { ha.call_service(domain, service, entity_id, data); };
   static dm::PcSession pc(bus, settings, [] { return esp_random(); });
   services.pc_action = [](const cJSON *action) { return pc.send_action(action); };
+  services.pc_media = [](const std::string &command) { return pc.send_media(command); };
+  services.ha_fetch = dm::esp32::ha_fetch;
 
   dm::esp32::display_init();
   dm::esp32::display_configure(initial.brightness, initial.sleep_minutes);

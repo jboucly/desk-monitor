@@ -57,6 +57,21 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
           <span class={big ? 'value-big' : 'value'}>13°</span>
         </div>
       );
+    case 'media':
+      return (
+        <div class={`face face-media ${widget.w >= 3 || widget.h === 1 ? 'face-media-row' : ''}`}>
+          <span class="media-cover" style={{ background: `linear-gradient(135deg, ${theme.accent}, ${theme.accent2})` }}>
+            <Icon name="music-note" size={widget.h >= 2 && widget.w >= 3 ? 40 : 22} color="#fff" />
+          </span>
+          <span class="media-text">
+            <span class="ellipsis">Titre en cours</span>
+            <span class="muted small ellipsis">Artiste</span>
+          </span>
+          <span class="badge" style={{ background: theme.accent }}>
+            <Icon name="play" size={18} color="#0b0d13" />
+          </span>
+        </div>
+      );
     case 'pc_metrics':
       return (
         <div class="face face-metrics">
@@ -118,10 +133,11 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
         </div>
       );
     default:
+      // A type this editor does not know (layout written by a newer version)
       return (
         <div class="face face-center muted">
-          <Icon name={CATALOG[widget.type].icon} size={24} />
-          <span class="small">Bientôt</span>
+          <Icon name="alert-circle-outline" size={24} />
+          <span class="small">Inconnu</span>
         </div>
       );
   }

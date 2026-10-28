@@ -24,6 +24,17 @@
       ]
     },
     {
+      "id": "music",
+      "title": "Musique",
+      "widgets": [
+        { "id": "now_playing", "type": "media", "x": 0, "y": 0, "w": 4, "h": 3, "props": {} },
+        { "id": "m_spotify", "type": "shortcut", "x": 0, "y": 3, "w": 1, "h": 1, "props": { "name": "Spotify", "icon": "spotify", "color": "#1DB954", "action": { "kind": "launch", "target": "Spotify" } } },
+        { "id": "m_music", "type": "shortcut", "x": 1, "y": 3, "w": 1, "h": 1, "props": { "name": "Musique", "icon": "music", "color": "#FA2D48", "action": { "kind": "launch", "target": "Music" } } },
+        { "id": "m_vol_down", "type": "shortcut", "x": 2, "y": 3, "w": 1, "h": 1, "props": { "name": "Volume -", "icon": "volume-minus", "color": "#334155", "action": { "kind": "keys", "keys": "volumedown" } } },
+        { "id": "m_vol_up", "type": "shortcut", "x": 3, "y": 3, "w": 1, "h": 1, "props": { "name": "Volume +", "icon": "volume-plus", "color": "#334155", "action": { "kind": "keys", "keys": "volumeup" } } }
+      ]
+    },
+    {
       "id": "server",
       "title": "Serveur",
       "widgets": [

@@ -99,4 +99,53 @@ std::string format_number(double value, int decimals) {
   return buf;
 }
 
+std::string format_duration(double seconds) {
+  if (std::isnan(seconds) || seconds < 0) return "–:––";
+  const long total = static_cast<long>(seconds);
+  char buf[16];
+  if (total >= 3600) snprintf(buf, sizeof buf, "%ld:%02ld:%02ld", total / 3600, total / 60 % 60, total % 60);
+  else snprintf(buf, sizeof buf, "%ld:%02ld", total / 60, total % 60);
+  return buf;
+}
+
+bool base64_decode(const char *text, std::vector<uint8_t> &out) {
+  out.clear();
+  uint32_t buffer = 0;
+  int bits = 0;
+  for (const char *p = text; p && *p; p++) {
+    const char c = *p;
+    int value;
+    if (c >= 'A' && c <= 'Z') value = c - 'A';
+    else if (c >= 'a' && c <= 'z') value = c - 'a' + 26;
+    else if (c >= '0' && c <= '9') value = c - '0' + 52;
+    else if (c == '+') value = 62;
+    else if (c == '/') value = 63;
+    else if (c == '=' || c == '\n' || c == '\r' || c == ' ') continue;
+    else return false;
+    buffer = (buffer << 6) | static_cast<uint32_t>(value);
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out.push_back(static_cast<uint8_t>((buffer >> bits) & 0xFF));
+    }
+  }
+  return true;
+}
+
+std::string base64_encode(const uint8_t *data, size_t len) {
+  static const char *TABLE = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  std::string out;
+  out.reserve((len + 2) / 3 * 4);
+  for (size_t i = 0; i < len; i += 3) {
+    uint32_t n = static_cast<uint32_t>(data[i]) << 16;
+    if (i + 1 < len) n |= static_cast<uint32_t>(data[i + 1]) << 8;
+    if (i + 2 < len) n |= data[i + 2];
+    out += TABLE[(n >> 18) & 63];
+    out += TABLE[(n >> 12) & 63];
+    out += i + 1 < len ? TABLE[(n >> 6) & 63] : '=';
+    out += i + 2 < len ? TABLE[n & 63] : '=';
+  }
+  return out;
+}
+
 }  // namespace dm::util

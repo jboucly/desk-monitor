@@ -34,7 +34,7 @@ export const CATALOG: Record<WidgetType, WidgetInfo> = {
   },
   pc_metrics: { label: 'Métriques PC', icon: 'desktop-tower', w: 4, h: 2, available: true, defaults: () => ({}) },
   pc_gauge: { label: 'Jauge PC', icon: 'cpu-64-bit', w: 2, h: 2, available: true, defaults: () => ({ metric: 'cpu' }) },
-  media: { label: 'Musique', icon: 'music', w: 4, h: 2, available: false, defaults: () => ({}) },
+  media: { label: 'Musique', icon: 'music', w: 4, h: 2, available: true, defaults: () => ({}) },
 };
 
 /**

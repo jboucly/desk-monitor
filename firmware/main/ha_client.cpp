@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "esp_crt_bundle.h"
+#include "esp_http_client.h"
 #include "esp_log.h"
 #include "esp_websocket_client.h"
 #include "freertos/FreeRTOS.h"
@@ -104,6 +105,59 @@ std::string ha_client_entities() {
   std::string out;
   if (xSemaphoreTake(pending->done, pdMS_TO_TICKS(8000)) == pdTRUE) out = pending->result;
   return out;
+}
+
+namespace {
+
+struct FetchJob {
+  std::string url;
+  std::function<void(std::string)> done;
+};
+
+constexpr size_t MAX_FETCH = 1024 * 1024;
+
+void fetch_task(void *arg) {
+  std::unique_ptr<FetchJob> job(static_cast<FetchJob *>(arg));
+  std::string body;
+  esp_http_client_config_t config = {};
+  config.url = job->url.c_str();
+  config.timeout_ms = 8000;
+  config.crt_bundle_attach = esp_crt_bundle_attach;
+  esp_http_client_handle_t client = esp_http_client_init(&config);
+  if (client && esp_http_client_open(client, 0) == ESP_OK) {
+    esp_http_client_fetch_headers(client);
+    if (esp_http_client_get_status_code(client) == 200) {
+      char chunk[1024];
+      int n;
+      while ((n = esp_http_client_read(client, chunk, sizeof chunk)) > 0 && body.size() < MAX_FETCH) body.append(chunk, n);
+    }
+  }
+  if (client) esp_http_client_cleanup(client);
+  if (body.size() >= MAX_FETCH) body.clear();
+  ESP_LOGI(TAG, "fetched %u bytes from %s", static_cast<unsigned>(body.size()), job->url.substr(0, job->url.find('?')).c_str());
+  job->done(std::move(body));
+  vTaskDelete(nullptr);
+}
+
+}  // namespace
+
+void ha_fetch(const std::string &path, std::function<void(std::string body)> done) {
+  // http(s)://host:port from the WebSocket URL of the session
+  std::string base = g_url;
+  if (base.rfind("wss://", 0) == 0) base = "https://" + base.substr(6);
+  else if (base.rfind("ws://", 0) == 0) base = "http://" + base.substr(5);
+  const size_t api = base.find("/api/websocket");
+  if (api != std::string::npos) base.resize(api);
+  if (base.empty() || path.empty()) {
+    done({});
+    return;
+  }
+  auto *job = new FetchJob{path.rfind("http", 0) == 0 ? path : base + path, std::move(done)};
+  // The JPEG decoding of the cover runs in this task too (TJpgDec, small recursion, PSRAM buffers)
+  if (xTaskCreate(fetch_task, "ha_fetch", 8192, job, 3, nullptr) != pdPASS) {
+    job->done({});
+    delete job;
+  }
 }
 
 }  // namespace dm::esp32

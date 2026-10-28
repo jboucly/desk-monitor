@@ -131,7 +131,6 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
   return (
     <div class="inspector">
       <h3>{info.label}</h3>
-      {!info.available && <p class="hint">Ce widget arrive avec la phase 3 : il s’affiche « Bientôt » sur l’écran.</p>}
       {(widget.type === 'pc_metrics' || widget.type === 'pc_gauge') && (
         <p class="hint">Données envoyées par l’app Desk Monitor de l’ordinateur appairé (Réglages → Ordinateur).</p>
       )}
@@ -203,6 +202,18 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
               <NumberInput value={p.crit} onChange={(v) => set({ crit: v })} />
             </Field>
           </div>
+        </>
+      )}
+
+      {widget.type === 'media' && (
+        <>
+          <Field label="Lecteur Home Assistant (facultatif)">
+            <EntityPicker value={p.entity ?? ''} entities={entities} domains={['media_player']} onChange={(v) => set({ entity: v || undefined })} />
+          </Field>
+          <small class="hint">
+            Affiche ce que joue l’ordinateur appairé (toutes les apps : Musique, Spotify, Chrome…). Quand il ne joue rien ou qu’il est
+            éteint, le widget montre ce lecteur Home Assistant.
+          </small>
         </>
       )}
 

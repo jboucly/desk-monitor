@@ -76,6 +76,7 @@ std::string read_file(const char *path) {
 // ── Headless mode: simulated clock, scripted pointer, off-screen frame buffer ──
 uint32_t g_sim_ms = 0;
 std::atomic<bool> g_pressed{false};
+std::atomic<int> g_page_request{-1};  // set by /sim/page, applied by the LVGL loop
 lv_point_t g_point = {0, 0};
 uint16_t g_frame[dm::theme::SCREEN_W * dm::theme::SCREEN_H];
 
@@ -139,11 +140,55 @@ void post_status(dm::Bus &bus) {
   bus.post("sys/ha", cJSON_Parse(R"({"state":"ok"})"));
 }
 
+std::string base64(const uint8_t *data, size_t len) {
+  static const char *TABLE = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  std::string out;
+  for (size_t i = 0; i < len; i += 3) {
+    uint32_t n = data[i] << 16;
+    if (i + 1 < len) n |= data[i + 1] << 8;
+    if (i + 2 < len) n |= data[i + 2];
+    out += TABLE[(n >> 18) & 63];
+    out += TABLE[(n >> 12) & 63];
+    out += i + 1 < len ? TABLE[(n >> 6) & 63] : '=';
+    out += i + 2 < len ? TABLE[n & 63] : '=';
+  }
+  return out;
+}
+
+/**
+ * @description Fake cover for the mock PC: a 160x160 RGB565 gradient with a disc, like an album sleeve.
+ */
+void post_mock_cover(dm::Bus &bus) {
+  constexpr int SIZE = 160;
+  std::vector<uint8_t> pixels(SIZE * SIZE * 2);
+  for (int y = 0; y < SIZE; y++) {
+    for (int x = 0; x < SIZE; x++) {
+      const int dx = x - 80, dy = y - 80;
+      const bool disc = dx * dx + dy * dy < 46 * 46 && dx * dx + dy * dy > 8 * 8;
+      const int r = disc ? 20 : 255 - y, g = disc ? 20 : 90 + x / 2, b = disc ? 30 : 140 + y / 2;
+      const uint16_t c = static_cast<uint16_t>(((r >> 3) << 11) | ((g >> 2) << 5) | (std::min(b, 255) >> 3));
+      pixels[(y * SIZE + x) * 2] = c & 0xFF;
+      pixels[(y * SIZE + x) * 2 + 1] = c >> 8;
+    }
+  }
+  cJSON *art = cJSON_CreateObject();
+  cJSON_AddStringToObject(art, "id", "mock");
+  cJSON_AddNumberToObject(art, "w", SIZE);
+  cJSON_AddNumberToObject(art, "h", SIZE);
+  cJSON_AddStringToObject(art, "data", base64(pixels.data(), pixels.size()).c_str());
+  bus.post("pc/media_art", art);
+  bus.post("pc/media", cJSON_Parse(R"({"title":"Bipolar Disorder","artist":"Mock Artist","album":"Single",)"
+                                   R"("app":"Plexamp","playing":true,"duration":214,"elapsed":71,"color":"#F0A35E"})"));
+}
+
 /**
  * @description Fake PC companion (headless runs and --mock-pc): connected, with drifting metrics.
  */
 void post_mock_pc(dm::Bus &bus, int step) {
-  if (step == 0) bus.post("sys/pc", cJSON_Parse(R"({"state":"connected","name":"MacBook Pro"})"));
+  if (step == 0) {
+    bus.post("sys/pc", cJSON_Parse(R"({"state":"connected","name":"MacBook Pro"})"));
+    post_mock_cover(bus);
+  }
   const double wave = (step % 20) / 20.0;
   char metrics[320];
   snprintf(metrics, sizeof metrics,
@@ -221,6 +266,19 @@ int main(int argc, char **argv) {
   if (headless) mock_pc = true;
   std::random_device entropy;
   dm::PcSession pc(bus, settings, [&entropy] { return static_cast<uint32_t>(entropy()); });
+  // Home Assistant pictures: the mock player's cover comes from sim/assets
+  services.ha_fetch = [](const std::string &path, std::function<void(std::string)> done) {
+    std::thread([path, done = std::move(done)] {
+      std::string body;
+      if (path.rfind("/mock/", 0) == 0) body = read_file((std::string(DM_SIM_ASSETS_PATH) + path.substr(5)).c_str());
+      done(body);
+    }).detach();
+  };
+  services.pc_media = [&pc, mock_pc](const std::string &command) {
+    if (!mock_pc) return pc.send_media(command);
+    printf("[mock PC] media %s\n", command.c_str());
+    return true;
+  };
   services.pc_action = [&pc, mock_pc](const cJSON *action) {
     if (!mock_pc) return pc.send_action(action);
     printf("[mock PC] action %s\n", dm::json::print(action).c_str());
@@ -328,6 +386,11 @@ int main(int argc, char **argv) {
     g_pressed = false;
     res.set_content("{\"ok\":true}", "application/json");
   });
+  // Shows a page in --no-window mode: /sim/page?n=2
+  server.Get("/sim/page", [](const httplib::Request &req, httplib::Response &res) {
+    g_page_request = std::atoi(req.get_param_value("n").c_str());
+    res.set_content("{\"ok\":true}", "application/json");
+  });
   server.Get(R"(/api/.*)", handler);
   server.Put(R"(/api/.*)", handler);
   server.Post(R"(/api/.*)", handler);
@@ -337,6 +400,7 @@ int main(int argc, char **argv) {
   }).detach();
 
   while (true) {
+    if (const int page = g_page_request.exchange(-1); page >= 0) app.show_page(page, false);
     const uint32_t idle = lv_timer_handler();
     if (no_window) {
       std::lock_guard<std::mutex> lock(g_shot_mutex);

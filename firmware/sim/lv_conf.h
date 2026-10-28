@@ -42,4 +42,7 @@
 
 #define LV_USE_SYSMON 0
 
+// JPEG decoder for Home Assistant covers (used directly by core/src/cover.cpp)
+#define LV_USE_TJPGD 1
+
 #endif  // LV_CONF_H

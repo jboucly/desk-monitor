@@ -60,4 +60,5 @@ target_link_libraries(desk_monitor_sim PRIVATE dm_core lvgl PkgConfig::SDL2 CURL
 target_compile_definitions(desk_monitor_sim PRIVATE
   DM_DEFAULT_LAYOUT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../data/layout.json"
   DM_WEB_DIST_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../../web/dist"
-  DM_SIM_DATA_PATH="${CMAKE_BINARY_DIR}/data")
+  DM_SIM_DATA_PATH="${CMAKE_BINARY_DIR}/data"
+  DM_SIM_ASSETS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets")

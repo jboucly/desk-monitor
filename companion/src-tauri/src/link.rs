@@ -2,6 +2,7 @@
 
 use crate::actions;
 use crate::config::{Config, ConfigStore};
+use crate::media::{Media, Snapshot};
 use crate::metrics::Collector;
 use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
@@ -47,7 +48,7 @@ const RETRY_DELAY: Duration = Duration::from_secs(3);
 const METRICS_PERIOD: Duration = Duration::from_secs(1);
 
 /// Starts the link task. It reconnects forever.
-pub fn start(app: AppHandle, store: ConfigStore) -> Link {
+pub fn start(app: AppHandle, store: ConfigStore, media: Media) -> Link {
     let config = store.load();
     let state = Arc::new(Mutex::new(LinkState {
         status: "connecting".into(),
@@ -58,7 +59,7 @@ pub fn start(app: AppHandle, store: ConfigStore) -> Link {
     }));
     let (tx, rx) = mpsc::unbounded_channel();
     let link = Link { state: state.clone(), commands: tx };
-    tauri::async_runtime::spawn(run(app, store, config, state, rx));
+    tauri::async_runtime::spawn(run(app, store, config, state, rx, media));
     link
 }
 
@@ -84,6 +85,7 @@ async fn run(
     mut config: Config,
     state: Arc<Mutex<LinkState>>,
     mut commands: mpsc::UnboundedReceiver<Command>,
+    media: Media,
 ) {
     let collector = Arc::new(Mutex::new(Collector::new()));
     loop {
@@ -101,7 +103,7 @@ async fn run(
                     config.last_address = address.to_string();
                     store.save(&config);
                 }
-                session(&app, &store, &mut config, &state, &mut commands, &collector, socket).await
+                session(&app, &store, &mut config, &state, &mut commands, &collector, &media, socket).await
             }
             Err(e) => {
                 log::warn!("cannot reach {host}: {e}");
@@ -262,8 +264,12 @@ async fn session(
     state: &Arc<Mutex<LinkState>>,
     commands: &mut mpsc::UnboundedReceiver<Command>,
     collector: &Arc<Mutex<Collector>>,
+    media: &Media,
     socket: Socket,
 ) -> End {
+    let mut media_updates = media.updates.clone();
+    // Cover already on the screen during this connection
+    let mut sent_art: Option<String> = None;
     let (mut write, mut read) = socket.split();
     // Action results come back from other tasks through this channel
     let (out_tx, mut out_rx) = mpsc::unbounded_channel::<Value>();
@@ -280,8 +286,19 @@ async fn session(
     }
 
     let mut welcomed = false;
+    let mut media_synced = false;
     let mut ticker = tokio::time::interval(METRICS_PERIOD);
     loop {
+        // Right after the welcome, the screen gets the current media and cover
+        if welcomed && !media_synced {
+            media_synced = true;
+            let snapshot = media_updates.borrow_and_update().clone();
+            for message in media_messages(&snapshot, &mut sent_art) {
+                if write.send(Message::text(message.to_string())).await.is_err() {
+                    return End::Retry;
+                }
+            }
+        }
         let outgoing: Option<Value> = tokio::select! {
             incoming = read.next() => {
                 let text = match incoming {
@@ -290,13 +307,32 @@ async fn session(
                     Some(Ok(_)) => continue,
                 };
                 let Ok(msg) = serde_json::from_str::<Value>(&text) else { continue };
-                handle_message(app, store, config, state, &out_tx, &mut welcomed, &msg)
+                handle_message(app, store, config, state, media, &out_tx, &mut welcomed, &msg)
             }
-            _ = ticker.tick(), if welcomed => {
-                let collector = collector.clone();
-                tokio::task::spawn_blocking(move || collector.lock().unwrap().sample()).await.ok()
+            _ = ticker.tick() => {
+                if welcomed {
+                    let collector = collector.clone();
+                    tokio::task::spawn_blocking(move || collector.lock().unwrap().sample()).await.ok()
+                } else {
+                    // Keeps the link alive while the user types the pairing code
+                    Some(json!({ "type": "ping" }))
+                }
             }
             Some(result) = out_rx.recv() => Some(result),
+            Ok(()) = media_updates.changed(), if media_synced => {
+                let snapshot = media_updates.borrow_and_update().clone();
+                let mut failed = false;
+                for message in media_messages(&snapshot, &mut sent_art) {
+                    if write.send(Message::text(message.to_string())).await.is_err() {
+                        failed = true;
+                        break;
+                    }
+                }
+                if failed {
+                    break;
+                }
+                None
+            }
             Some(cmd) = commands.recv() => match cmd {
                 Command::StartPairing => Some(json!({ "type": "pair_start" })),
                 Command::SubmitCode(code) => Some(json!({ "type": "pair", "code": code.trim() })),
@@ -326,12 +362,27 @@ async fn session(
     End::Retry
 }
 
+/// Messages that bring the screen up to date: the cover first when it changed, then the media
+/// (an empty `media` when nothing plays).
+fn media_messages(snapshot: &Snapshot, sent_art: &mut Option<String>) -> Vec<Value> {
+    let mut messages = Vec::new();
+    if let Some(art) = &snapshot.art {
+        if sent_art.as_deref() != Some(art.id.as_str()) {
+            messages.push(art.message.clone());
+            *sent_art = Some(art.id.clone());
+        }
+    }
+    messages.push(snapshot.media.clone().unwrap_or_else(|| json!({ "type": "media" })));
+    messages
+}
+
 /// Reacts to one message of the screen. Returns a message to send back, if any.
 fn handle_message(
     app: &AppHandle,
     store: &ConfigStore,
     config: &mut Config,
     state: &Arc<Mutex<LinkState>>,
+    media: &Media,
     out: &mpsc::UnboundedSender<Value>,
     welcomed: &mut bool,
     msg: &Value,
@@ -379,6 +430,12 @@ fn handle_message(
                 }
                 s.message = text;
             });
+            None
+        }
+        "media_cmd" => {
+            if let Some(cmd) = msg.get("cmd").and_then(Value::as_str) {
+                media.command(cmd);
+            }
             None
         }
         "action" => {

@@ -22,3 +22,6 @@ web/dist/
 companion/node_modules/
 companion/src-tauri/target/
 companion/src-tauri/gen/
+
+# Built by companion/src-tauri/build.rs
+companion/src-tauri/resources/
