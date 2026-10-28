@@ -81,6 +81,7 @@ extern "C" void app_main(void) {
     app.start();
     lvgl_port_unlock();
   }
+  dm::esp32::display_show();
 
   ESP_LOGI(TAG, "internal RAM after UI: %u free, largest block %u",
            (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),

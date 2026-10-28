@@ -16,4 +16,10 @@ void display_init();
  */
 void display_configure(int brightness_pct, int sleep_minutes);
 
+/**
+ * @description Draws the first frame, then turns the backlight on. Call once the UI is built:
+ * until then the backlight stays off (also in the bootloader, see bootloader_components/).
+ */
+void display_show();
+
 }  // namespace dm::esp32

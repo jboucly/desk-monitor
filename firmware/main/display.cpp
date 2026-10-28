@@ -117,7 +117,23 @@ std::atomic<int> g_brightness{100};
 std::atomic<int> g_sleep_minutes{5};
 std::atomic<bool> g_asleep{false};
 std::atomic<bool> g_wake_request{false};
-std::atomic<bool> g_swallow_touch{false};
+lv_indev_t *g_touch = nullptr;
+std::atomic<bool> g_shown{false};  // the backlight stays off until the first frame is drawn
+
+/**
+ * @description Asks the LVGL task to redraw the whole screen and waits for it, so that the backlight
+ * never reveals an empty or stale frame. The drawing itself must stay in the LVGL task: rendering
+ * needs far more stack than the callers (sleep task, main task) have.
+ */
+void redraw_and_wait() {
+  if (lvgl_port_lock(100)) {
+    lv_obj_invalidate(lv_screen_active());
+    lvgl_port_unlock();
+  }
+  lvgl_port_task_wake(LVGL_PORT_EVENT_DISPLAY, nullptr);
+  // A full redraw takes ~60-100 ms; the double buffer then switches at the next frame
+  vTaskDelay(pdMS_TO_TICKS(150));
+}
 
 void backlight_set(int pct) {
   const uint32_t duty = (8191u * static_cast<uint32_t>(pct)) / 100u;
@@ -143,19 +159,17 @@ void backlight_init() {
 }
 
 /**
- * @description Touch filter: while the screen sleeps, the first touch only wakes it up
- * and is swallowed until the finger is lifted, so it never presses a widget.
+ * @description Touch filter: while the screen sleeps, the first touch only wakes it up. LVGL then
+ * ignores that touch until the finger is lifted, so it never presses a widget. The point count must
+ * not be changed here: the GT911 driver rejects a count of 0 with an error that esp_lvgl_port turns
+ * into an abort (the screen used to reboot, with a white flash, on every wake-up).
+ * Runs in the LVGL task, inside the touch read callback.
  */
 void filter_touch(esp_lcd_touch_handle_t, uint16_t *, uint16_t *, uint16_t *, uint8_t *point_num, uint8_t) {
-  if (*point_num == 0) {
-    g_swallow_touch = false;
-    return;
-  }
-  if (g_asleep) {
+  if (*point_num > 0 && g_asleep && !g_wake_request) {
     g_wake_request = true;
-    g_swallow_touch = true;
+    if (g_touch) lv_indev_wait_release(g_touch);
   }
-  if (g_swallow_touch) *point_num = 0;
 }
 
 /**
@@ -170,6 +184,7 @@ void sleep_task(void *) {
         lv_display_trigger_activity(nullptr);
         lvgl_port_unlock();
       }
+      redraw_and_wait();
       backlight_set(g_brightness);
       continue;
     }
@@ -324,12 +339,11 @@ void display_init() {
     lvgl_port_touch_cfg_t touch_cfg = {};
     touch_cfg.disp = display;
     touch_cfg.handle = touch;
-    lvgl_port_add_touch(&touch_cfg);
+    g_touch = lvgl_port_add_touch(&touch_cfg);
   } else {
     ESP_LOGE(TAG, "GT911 not found, the screen will not react to touch");
   }
 
-  backlight_set(g_brightness);
   xTaskCreate(sleep_task, "dm_sleep", 3072, nullptr, 2, nullptr);
   ESP_LOGI(TAG, "display ready");
 }
@@ -337,6 +351,12 @@ void display_init() {
 void display_configure(int brightness_pct, int sleep_minutes) {
   g_brightness = brightness_pct < 5 ? 5 : brightness_pct > 100 ? 100 : brightness_pct;
   g_sleep_minutes = sleep_minutes;
+  if (g_shown && !g_asleep) backlight_set(g_brightness);
+}
+
+void display_show() {
+  redraw_and_wait();
+  g_shown = true;
   if (!g_asleep) backlight_set(g_brightness);
 }
 
