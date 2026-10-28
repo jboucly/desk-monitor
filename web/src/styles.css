@@ -316,13 +316,18 @@ code {
   font-size: 14px;
 }
 
+/*
+  Fixed 4x4 grid, like the device. minmax(0, 1fr): a plain 1fr track grows with its content (a big
+  gauge pushed the bottom rows out of the screen, hiding their resize handles).
+*/
 .grid {
   flex: 1;
+  min-height: 0;
   margin-bottom: 18px;
   padding: 12px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
   gap: 10px;
   touch-action: none;
 }
@@ -482,9 +487,11 @@ code {
   flex: none;
 }
 
+/* The arc takes the room left by the name and scales down to fit it */
 .gauge {
-  width: 70%;
-  max-height: 75%;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
 }
 
 .gauge path {

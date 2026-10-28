@@ -79,7 +79,11 @@ function ActionEditor({ action, entities, onChange }: { action: Action; entities
             spellcheck={false}
             onInput={(e) => onChange({ ...action, keys: e.currentTarget.value })}
           />
-          <small class="hint">Touches séparées par +, plusieurs combinaisons séparées par un espace. cmd = ⌘ sur Mac, Windows sur PC.</small>
+          <small class="hint">
+            Touches séparées par +, plusieurs combinaisons séparées par un espace. Modificateurs : cmd (⌘ sur Mac, Windows sur PC),
+            ctrl, alt, shift. Touches spéciales : volumeup, volumedown, mute, playpause, next, prev, enter, esc, tab, space,
+            backspace, delete, up, down, left, right, home, end, pageup, pagedown, f1 à f12.
+          </small>
         </Field>
       )}
       {action.kind === 'ha' && (
@@ -113,7 +117,7 @@ function ActionEditor({ action, entities, onChange }: { action: Action; entities
           </Field>
         </>
       )}
-      {action.kind !== 'ha' && <small class="hint">Exécuté par l’application compagnon quand le PC est connecté en Bluetooth.</small>}
+      {action.kind !== 'ha' && <small class="hint">Exécuté par l’application Desk Monitor de l’ordinateur appairé, quand elle est connectée.</small>}
     </>
   );
 }

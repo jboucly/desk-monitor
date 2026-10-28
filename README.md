@@ -73,7 +73,7 @@ Au premier démarrage, l'écran ouvre le Wi-Fi **DeskMonitor-setup**. Connecte-t
 2. **Home Assistant** : saisis l'adresse (`http://homeassistant.local:8123`) et un jeton d'accès longue durée (Profil → Sécurité → Jetons d'accès longue durée).
 3. **Météo** : cherche ta ville.
 
-Une fois l'écran connecté, l'éditeur est accessible depuis n'importe quel navigateur du réseau : **http://desk-monitor.local**. Les mises à jour suivantes peuvent se faire depuis l'onglet *Système*, en envoyant `firmware/build/desk_monitor.bin` (fonction pas encore testée sur l'écran : en cas de souci, flasher en USB).
+Une fois l'écran connecté, l'éditeur est accessible depuis n'importe quel navigateur du réseau : **http://desk-monitor.local**. Les mises à jour suivantes se font sans câble, depuis l'onglet *Système*, en envoyant `firmware/build/desk_monitor.bin`. Depuis un terminal : `curl --data-binary @firmware/build/desk_monitor.bin http://desk-monitor.local/api/ota`.
 
 ### Application compagnon (ordinateur)
 

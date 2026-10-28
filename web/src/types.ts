@@ -16,7 +16,7 @@ export type WidgetType =
   | 'media';
 
 /**
- * @description What a shortcut does: Home Assistant over Wi-Fi, or the PC companion over BLE.
+ * @description What a shortcut does: Home Assistant over Wi-Fi, or the paired PC companion over the local network.
  */
 export type Action =
   | { kind: 'ha'; domain: string; service: string; entity_id?: string; data?: Record<string, unknown> }
