@@ -3,6 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 
 import { ApiError, api, setPin } from './api';
 import { CATALOG, EMPTY_LAYOUT, createWidget, fits } from './catalog';
+import { askText } from './components/Dialog';
 import { Icon } from './components/Icon';
 import { Inspector } from './components/Inspector';
 import { Preview } from './components/Preview';
@@ -37,9 +38,9 @@ export function App() {
   };
 
   // A 401 means a PIN is set: ask for it, then let the user retry
-  const fail = (e: unknown) => {
+  const fail = async (e: unknown) => {
     if (e instanceof ApiError && e.status === 401) {
-      const pin = prompt('Code PIN de l’écran :');
+      const pin = await askText('Code PIN de l’écran :', { secret: true });
       if (pin !== null) {
         setPin(pin);
         return notify('PIN mémorisé pour cet onglet, réessaie.');

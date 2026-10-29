@@ -26,6 +26,8 @@ pub struct LinkState {
     pub paired: bool,
     /// Last error or hint, in French
     pub message: String,
+    /// Web editor served by the screen; empty while it is not reachable
+    pub editor_url: String,
 }
 
 /// Requests from the window to the link task.
@@ -56,6 +58,7 @@ pub fn start(app: AppHandle, store: ConfigStore, media: Media) -> Link {
         custom_host: config.host.clone(),
         paired: !config.token.is_empty(),
         message: String::new(),
+        editor_url: String::new(),
     }));
     let (tx, rx) = mpsc::unbounded_channel();
     let link = Link { state: state.clone(), commands: tx };
@@ -95,6 +98,7 @@ async fn run(
             s.host = host.clone();
             s.custom_host = config.host.clone();
             s.paired = !config.token.is_empty();
+            s.editor_url.clear();
         });
         let end = match connect(&host, &config.last_address).await {
             Ok((socket, address)) => {
@@ -103,6 +107,7 @@ async fn run(
                     config.last_address = address.to_string();
                     store.save(&config);
                 }
+                publish(&app, &state, |s| s.editor_url = editor_url(address));
                 session(&app, &store, &mut config, &state, &mut commands, &collector, &media, socket).await
             }
             Err(e) => {
@@ -215,6 +220,20 @@ async fn connect(host: &str, last_address: &str) -> Result<(Socket, SocketAddr),
         }
     }
     Err(last_error)
+}
+
+/// Web editor of the screen whose link answered at `address`. The IP rather than the name: the
+/// WebView would resolve desk-monitor.local again, slowly. The device serves both on port 80; the
+/// simulator listens for the link on its HTTP port + 1.
+fn editor_url(address: SocketAddr) -> String {
+    let ip = match address.ip() {
+        std::net::IpAddr::V6(ip) => format!("[{ip}]"),
+        ip => ip.to_string(),
+    };
+    match address.port() {
+        80 => format!("http://{ip}/"),
+        port => format!("http://{ip}:{}/", port.saturating_sub(1)),
+    }
 }
 
 /// Opens the TCP connection and the WebSocket on one address.
@@ -473,12 +492,19 @@ fn run_action(app: AppHandle, id: Value, action: Value, out: mpsc::UnboundedSend
 
 #[cfg(test)]
 mod tests {
-    use super::split_host;
+    use super::{editor_url, split_host};
 
     #[test]
     fn splits_host_and_port() {
         assert_eq!(split_host("desk-monitor.local"), ("desk-monitor.local".into(), 80));
         assert_eq!(split_host("localhost:8081"), ("localhost".into(), 8081));
         assert_eq!(split_host("192.168.1.50"), ("192.168.1.50".into(), 80));
+    }
+
+    #[test]
+    fn editor_url_of_device_and_simulator() {
+        assert_eq!(editor_url("192.168.1.50:80".parse().unwrap()), "http://192.168.1.50/");
+        assert_eq!(editor_url("127.0.0.1:8081".parse().unwrap()), "http://127.0.0.1:8080/");
+        assert_eq!(editor_url("[fe80::1]:80".parse().unwrap()), "http://[fe80::1]/");
     }
 }

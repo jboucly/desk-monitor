@@ -17,7 +17,7 @@ const STATUS = {
 
 /**
  * @description Renders the link state sent by the Rust side.
- * @param {{status: string, host: string, custom_host: string, paired: boolean, message: string}} state
+ * @param {{status: string, host: string, custom_host: string, paired: boolean, message: string, editor_url: string}} state
  */
 function render(state) {
   const [label, color] = STATUS[state.status] ?? [state.status, ''];
@@ -31,6 +31,8 @@ function render(state) {
   if (pairing && $('pair-form').hidden) setTimeout(() => $('code').focus(), 0);
   $('pair-form').hidden = !pairing;
   $('forget-button').hidden = !state.paired;
+  $('editor-button').disabled = !state.editor_url;
+  $('editor-button').title = state.editor_url || 'Écran injoignable';
 }
 
 /**
@@ -41,6 +43,10 @@ async function refreshAccessibility() {
 }
 
 $('pair-button').addEventListener('click', () => invoke('start_pairing'));
+
+$('editor-button').addEventListener('click', () => {
+  invoke('open_editor').catch((error) => ($('message').textContent = `Impossible d’ouvrir l’éditeur : ${error}`));
+});
 
 $('pair-form').addEventListener('submit', (event) => {
   event.preventDefault();

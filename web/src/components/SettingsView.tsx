@@ -3,6 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 
 import { api, searchPlace, type Place } from '../api';
 import type { Settings } from '../types';
+import { ask } from './Dialog';
 
 // POSIX time zones (the ESP32 has no tz database)
 const TIMEZONES: [string, string][] = [
@@ -47,7 +48,8 @@ export function SettingsView({ onError, onSaved }: { onError: (message: string) 
   };
 
   const forgetPc = async () => {
-    if (!confirm(`Oublier « ${settings.pc.name || 'ce PC'} » ? Il faudra l’appairer à nouveau.`)) return;
+    const message = `Oublier « ${settings.pc.name || 'ce PC'} » ? Il faudra l’appairer à nouveau.`;
+    if (!(await ask(message, { confirmLabel: 'Oublier', danger: true }))) return;
     try {
       const saved = await api.putSettings({ pc: { name: '', forget: true } });
       setSettings(saved);

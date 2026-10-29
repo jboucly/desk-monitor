@@ -142,6 +142,17 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Full-width button under the link status */
+button.wide {
+  width: 100%;
+  margin-top: 12px;
+}
+
 button.primary {
   background: var(--accent);
   border-color: var(--accent);

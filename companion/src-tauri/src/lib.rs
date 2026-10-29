@@ -3,6 +3,7 @@
 
 mod actions;
 mod config;
+mod editor;
 mod link;
 mod media;
 mod metrics;
@@ -61,6 +62,17 @@ fn accessibility(prompt: bool) -> bool {
     accessibility_granted(prompt)
 }
 
+/// "Ouvrir l'éditeur" button: the editor of the screen the link is connected to.
+/// Async: creating a window from a synchronous command deadlocks on Windows.
+#[tauri::command]
+async fn open_editor(app: AppHandle) -> Result<(), String> {
+    let url = app.state::<Link>().state.lock().unwrap().editor_url.clone();
+    if url.is_empty() {
+        return Err("Écran injoignable".into());
+    }
+    editor::open(&app, &url)
+}
+
 /// Escape key in the overlay.
 #[tauri::command]
 fn hide_overlay(window: WebviewWindow) {
@@ -81,7 +93,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| overlay::show(app)))
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
-        .invoke_handler(tauri::generate_handler![link_state, start_pairing, submit_code, set_host, forget, accessibility, hide_overlay])
+        .invoke_handler(tauri::generate_handler![link_state, start_pairing, submit_code, set_host, forget, accessibility, hide_overlay, open_editor])
         .setup(|app| {
             // Menu bar app: no Dock icon on macOS
             #[cfg(target_os = "macos")]
@@ -126,6 +138,9 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| match event {
+            WindowEvent::Destroyed if window.label() == editor::LABEL => editor::closed(window.app_handle()),
+            // The overlay ("main") below; the editor window closes normally
+            _ if window.label() != "main" => {}
             // Closing the window keeps the app running in the menu bar
             WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();

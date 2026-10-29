@@ -3,6 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 
 import { api } from '../api';
 import type { Status } from '../types';
+import { ask } from './Dialog';
 
 /**
  * @description "2 j 03 h 12 min" from a number of seconds.
@@ -29,7 +30,8 @@ export function SystemView({ onError, onSaved }: { onError: (message: string) =>
   }, []);
 
   const upload = async (file: File) => {
-    if (!confirm(`Installer ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} Mo) ? L’écran redémarrera.`)) return;
+    const message = `Installer ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} Mo) ? L’écran redémarrera.`;
+    if (!(await ask(message, { confirmLabel: 'Installer' }))) return;
     try {
       setProgress(0);
       await api.uploadFirmware(file, setProgress);
@@ -77,7 +79,9 @@ export function SystemView({ onError, onSaved }: { onError: (message: string) =>
         <h3>Redémarrage</h3>
         <button
           class="ghost"
-          onClick={() => confirm('Redémarrer l’écran ?') && api.reboot().then(() => onSaved('Redémarrage…'), (e) => onError(e.message))}
+          onClick={async () =>
+            (await ask('Redémarrer l’écran ?', { confirmLabel: 'Redémarrer' })) && api.reboot().then(() => onSaved('Redémarrage…'), (e) => onError(e.message))
+          }
         >
           Redémarrer l’écran
         </button>

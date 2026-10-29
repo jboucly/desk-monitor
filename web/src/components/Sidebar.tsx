@@ -1,6 +1,7 @@
 // Left column of the editor: pages (add, rename, reorder, delete) and theme.
 import { STYLES, WALLPAPERS, newId } from '../catalog';
 import type { Layout, Page, Theme, ThemeStyle, Wallpaper } from '../types';
+import { ask } from './Dialog';
 import { Icon } from './Icon';
 
 interface SidebarProps {
@@ -31,8 +32,9 @@ export function Sidebar({ layout, current, onSelect, onChange }: SidebarProps) {
     onSelect(layout.pages.length);
   };
 
-  const remove = (index: number) => {
-    if (layout.pages.length <= 1 || !confirm(`Supprimer la page « ${layout.pages[index].title} » ?`)) return;
+  const remove = async (index: number) => {
+    if (layout.pages.length <= 1) return;
+    if (!(await ask(`Supprimer la page « ${layout.pages[index].title} » ?`, { confirmLabel: 'Supprimer', danger: true }))) return;
     setPages(layout.pages.filter((_, i) => i !== index));
     onSelect(Math.max(0, index - 1));
   };
