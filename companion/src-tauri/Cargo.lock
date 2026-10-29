@@ -893,6 +893,8 @@ dependencies = [
  "log",
  "macos-accessibility-client",
  "nvml-wrapper",
+ "objc2",
+ "objc2-app-kit",
  "open",
  "serde",
  "serde_json",

@@ -60,8 +60,33 @@ $('accessibility-button').addEventListener('click', async () => {
   setTimeout(refreshAccessibility, 3000);
 });
 
+/**
+ * @description Pending confirmation of the forget button. A native confirm() dialog would blur
+ * the overlay, which hides it: the button asks for a second click instead.
+ */
+let forgetTimer = null;
+
+/**
+ * @description Puts the forget button back in its first state.
+ */
+function resetForget() {
+  clearTimeout(forgetTimer);
+  forgetTimer = null;
+  $('forget-button').textContent = 'Oublier l’appairage';
+}
+
 $('forget-button').addEventListener('click', () => {
-  if (confirm('Oublier l’appairage ? Il faudra saisir un nouveau code.')) invoke('forget');
+  if (forgetTimer) {
+    resetForget();
+    invoke('forget');
+    return;
+  }
+  $('forget-button').textContent = 'Confirmer (nouveau code requis)';
+  forgetTimer = setTimeout(resetForget, 4000);
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') invoke('hide_overlay');
 });
 
 $('autostart').addEventListener('change', (event) => {

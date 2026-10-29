@@ -19,11 +19,17 @@
   box-sizing: border-box;
 }
 
+/* The window is transparent: only the rounded panel is painted */
+html,
+body {
+  background: transparent;
+}
+
 body {
   margin: 0;
-  background: linear-gradient(#151926, var(--bg));
+  height: 100vh;
+  overflow: hidden;
   color: var(--text);
-  min-height: 100vh;
   user-select: none;
 }
 
@@ -31,7 +37,12 @@ main {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  height: 100vh;
   padding: 18px;
+  overflow-y: auto;
+  background: linear-gradient(#151926, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 12px;
 }
 
 header {
