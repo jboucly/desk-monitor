@@ -43,7 +43,7 @@ Le style se choisit dans l'éditeur (*Thème → Style*) :
 
 ### Prérequis
 
-- **ESP-IDF 5.5**. Celui qu'installe ESPHome est réutilisé : `. firmware/tools/idf_env.sh`.
+- **ESP-IDF 5.5.5** dans `~/esp/esp-idf` (ou `$DM_IDF_PATH`) : `git clone -b v5.5.5 --recursive https://github.com/espressif/esp-idf.git ~/esp/esp-idf && ~/esp/esp-idf/install.sh esp32s3`, puis `. firmware/tools/idf_env.sh` dans chaque terminal.
 - **SDL2** et **libcurl** pour le simulateur : `brew install sdl2 curl`.
 - **Node.js 20+** pour l'éditeur web et l'application compagnon.
 - **Rust** ([rustup](https://rustup.rs)) et les outils de ligne de commande Xcode pour l'application compagnon.
