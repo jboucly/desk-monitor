@@ -29,7 +29,7 @@ Pages are configured **on the fly** from a web editor served by the screen itsel
 
 ## Hardware
 
-- **Guition ESP32-S3-4848S040**: 4" 480×480 IPS panel (ST7701S, RGB interface), GT911 capacitive touch, ESP32-S3 with 16 MB flash and 8 MB PSRAM.
+- **Guition ESP32-S3-4848S040** ([AliExpress](https://www.aliexpress.com/item/1005008214679682.html)): 4" 480×480 IPS panel (ST7701S, RGB interface), GT911 capacitive touch, ESP32-S3 with 16 MB flash and 8 MB PSRAM.
 - A USB-C cable. Nothing to solder.
 
 ## Widgets
