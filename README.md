@@ -31,6 +31,7 @@ Pages are configured **on the fly** from a web editor served by the screen itsel
 
 - **Guition ESP32-S3-4848S040** ([AliExpress](https://www.aliexpress.com/item/1005008214679682.html)): 4" 480×480 IPS panel (ST7701S, RGB interface), GT911 capacitive touch, ESP32-S3 with 16 MB flash and 8 MB PSRAM.
 - A USB-C cable. Nothing to solder.
+- Optional: a 3D printed [stand for the screen](https://www.printables.com/model/1740394-stand-for-the-guition-esp32s3-4848s040-4-inch) (Printables).
 
 ## Widgets
 

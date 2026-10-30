@@ -28,6 +28,7 @@ Les pages se configurent **à la volée** depuis un éditeur web servi par l'éc
 
 - **Guition ESP32-S3-4848S040** ([AliExpress](https://fr.aliexpress.com/item/1005008214679682.html)) : dalle IPS 4" 480×480 (ST7701S, interface RGB), tactile capacitif GT911, ESP32-S3 avec 16 Mo de flash et 8 Mo de PSRAM.
 - Un câble USB-C. Aucune soudure.
+- En option : un [socle pour l'écran](https://www.printables.com/model/1740394-stand-for-the-guition-esp32s3-4848s040-4-inch) à imprimer en 3D (Printables).
 
 ## Widgets
 
