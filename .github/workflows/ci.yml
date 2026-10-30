@@ -15,8 +15,8 @@ jobs:
     name: Web editor
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -29,7 +29,7 @@ jobs:
     name: Simulator
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install SDL2, libcurl and Ninja
         run: sudo apt-get update && sudo apt-get install -y libsdl2-dev libcurl4-openssl-dev ninja-build
       - name: Build
@@ -38,7 +38,7 @@ jobs:
           cmake --build firmware/sim/build
       - name: Headless smoke run
         run: firmware/sim/build/desk_monitor_sim --no-window --mock-pc --port 8099 --do wait=1000 --do shot=screenshot.png
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: simulator-screenshot
           path: screenshot.png
@@ -47,8 +47,8 @@ jobs:
     name: Firmware (ESP32-S3)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -68,7 +68,7 @@ jobs:
     name: Companion (macOS)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
