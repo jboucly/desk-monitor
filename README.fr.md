@@ -11,6 +11,9 @@ Les pages se configurent **à la volée** depuis un éditeur web servi par l'éc
 | ![Accueil](docs/images/home.png) | ![Ordinateur](docs/images/computer.png) | ![Musique](docs/images/music.png) |
 | ![Lumières](docs/images/lights.png) | ![Météo](docs/images/weather.png) | ![Raccourcis](docs/images/shortcuts.png) |
 
+![Editor](docs/images/editor.png)
+![Desk Monitor](docs/images/deskMonitor.png)
+
 *Captures du simulateur, avec la mise en page par défaut.*
 
 ## État d'avancement

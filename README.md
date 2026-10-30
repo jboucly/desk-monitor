@@ -12,7 +12,10 @@ Pages are configured **on the fly** from a web editor served by the screen itsel
 | --- | --- | --- |
 | ![Home](docs/images/home.png) | ![Computer](docs/images/computer.png) | ![Music](docs/images/music.png) |
 | ![Lights](docs/images/lights.png) | ![Weather](docs/images/weather.png) | ![Shortcuts](docs/images/shortcuts.png) |
-| ![Desk Monitor](docs/images/deskMonitor.png) | ![Editor](docs/images/editor.png) |  |
+
+![Editor](docs/images/editor.png)
+![Desk Monitor](docs/images/deskMonitor.png)
+
 
 *Simulator screenshots, default layout.*
 
