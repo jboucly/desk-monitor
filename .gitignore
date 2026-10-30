@@ -25,3 +25,6 @@ companion/src-tauri/gen/
 
 # Built by companion/src-tauri/build.rs
 companion/src-tauri/resources/
+
+# Local leftovers of the removed v1 (ESPHome secrets, caches)
+legacy/

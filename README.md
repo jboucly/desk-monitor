@@ -4,8 +4,6 @@
 
 Les pages se configurent **à la volée** depuis un éditeur web servi par l'écran lui-même (`http://desk-monitor.local`), sans recompiler ni reflasher.
 
-> La v1 (configuration ESPHome) est archivée dans [`legacy/esphome/`](legacy/esphome/) et reste flashable.
-
 ## État d'avancement
 
 | Phase | Contenu | État |
@@ -111,7 +109,6 @@ companion/     application compagnon (Rust + Tauri) : métriques, raccourcis, mu
   vendor/      mediaremote-adapter (lecture « À l'écoute » de macOS)
 protocol/      contrats partagés : schéma du layout, liste d'icônes, API, lien PC
 docs/hardware/ documentation constructeur de l'écran (non versionnée)
-legacy/esphome/ version 1 (ESPHome)
 ```
 
 ## Crédits

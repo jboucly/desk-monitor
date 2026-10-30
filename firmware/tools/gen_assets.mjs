@@ -82,6 +82,9 @@ const convert = (name, font, size, range) => {
     '--size', String(size), '--bpp', '4', '--format', 'lvgl', '--no-compress',
     '--lv-include', 'lvgl.h', '--lv-font-name', name,
     '-o', join(FONTS_OUT, `${name}.c`)]);
+  // lv_font_conv records its command line: keep paths relative so no local folder leaks into the repo
+  const out = join(FONTS_OUT, `${name}.c`);
+  writeFileSync(out, readFileSync(out, 'utf8').replaceAll(`${tmp}/`, '').replaceAll(`${ROOT}/`, ''));
   console.log(`  ${name}.c`);
 };
 

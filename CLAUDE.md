@@ -8,8 +8,6 @@ Desk Monitor v2: a 480×480 touch screen (Guition ESP32-S3-4848S040, ST7701S RGB
 
 Phase status: phases 1 (firmware, simulator, web editor), 2 (PC link + companion) and 3 (now playing + covers, HA fallback) are done. Everything companion-side was tested on macOS only: the Windows code is not even compile-checked, and Windows now playing (GlobalSystemMediaTransportControls) is not written yet. The PC link replaced the BLE plan: BLE needed internal RAM the ESP32 does not have. See `protocol/README.md`.
 
-`legacy/esphome/` is the archived v1 (ESPHome config, still flashable, has its own CLAUDE.md). Don't modify it for v2 work.
-
 ## Commands
 
 ```sh
