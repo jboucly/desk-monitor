@@ -3,6 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "description": "Desk Monitor PC companion: metrics and shortcuts for the desk screen",
+  "license": "MIT",
+  "repository": "github:jboucly/desk-monitor",
   "scripts": {
     "tauri": "tauri",
     "dev": "tauri dev",

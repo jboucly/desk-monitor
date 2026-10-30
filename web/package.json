@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Web editor of the Desk Monitor, served by the screen (http://desk-monitor.local)",
+  "license": "MIT",
+  "repository": "github:jboucly/desk-monitor",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build && node scripts/gzip.mjs",
