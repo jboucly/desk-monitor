@@ -51,6 +51,16 @@ Le style se choisit dans l'éditeur (*Thème → Style*) :
 - **Verre figé** : cartes teintées comme du verre sur un fond coloré, presque aussi rapide.
 - **Verre translucide** : le plus joli, mais environ 2,5 fois plus lent à dessiner (glissements saccadés).
 
+## Installer depuis une release
+
+Chaque [release](https://github.com/jboucly/desk-monitor/releases) fournit des fichiers prêts à l'emploi :
+
+- **`desk-monitor-<version>-full.bin`** : l'image complète de l'écran. Flashe-la à l'adresse `0x0` en USB, depuis le navigateur avec [ESP Tool](https://espressif.github.io/esptool-js/), ou avec `esptool.py --chip esp32s3 write_flash 0x0 desk-monitor-<version>-full.bin`. Suis ensuite les étapes du premier démarrage ci-dessous ([Écran physique](#écran-physique)).
+- **`desk-monitor-<version>-ota.bin`** : la mise à jour d'un écran qui tourne déjà sous Desk Monitor, à envoyer depuis l'éditeur (onglet *Système*). Les réglages et la mise en page sont conservés.
+- **`desk-monitor-companion-<version>-macos-universal.dmg`** : l'application compagnon pour macOS 12+ (Apple Silicon et Intel). Elle n'est pas notarisée : au premier lancement, clic droit → *Ouvrir*, ou `xattr -dr com.apple.quarantine "/Applications/Desk Monitor.app"`.
+
+Pour tout compiler soi-même, voir la suite.
+
 ## Démarrage rapide
 
 ### Prérequis

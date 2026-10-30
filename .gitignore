@@ -10,6 +10,8 @@ firmware/sdkconfig
 firmware/sdkconfig.old
 firmware/managed_components/
 firmware/dependencies.lock
+# Written by the release workflow (app version)
+firmware/version.txt
 
 # Simulator build (also holds its layout.json / settings.json)
 firmware/sim/build/

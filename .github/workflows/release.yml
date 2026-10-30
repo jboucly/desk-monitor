@@ -1,0 +1,147 @@
+# Publishes a GitHub release when a version tag (v1.0.0, v1.1.0-beta.1…) is pushed:
+# the firmware (full image + OTA update) and the macOS companion (.dmg).
+# Run it by hand (Actions → Release → Run workflow) to build the files without publishing.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - id: version
+        name: Read the version from the tag
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.0-dev.${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+  firmware:
+    name: Firmware (ESP32-S3)
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      # The editor is embedded in the firmware
+      - name: Build the web editor
+        working-directory: web
+        run: npm ci && npm run build
+      # ESP-IDF reads the app version (shown in the editor and the boot log) from version.txt
+      - name: Set the firmware version
+        run: echo "$VERSION" > firmware/version.txt
+      - name: Build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5.5
+          target: esp32s3
+          path: firmware
+          command: idf.py build && idf.py merge-bin -o merged.bin
+      - name: Collect the images
+        run: |
+          mkdir dist
+          cp firmware/build/merged.bin "dist/desk-monitor-$VERSION-full.bin"
+          cp firmware/build/desk_monitor.bin "dist/desk-monitor-$VERSION-ota.bin"
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: dist/*
+
+  companion:
+    name: Companion (macOS)
+    needs: version
+    runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: companion/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: companion/src-tauri
+      # The bundle takes its version from tauri.conf.json
+      - name: Set the app version
+        working-directory: companion
+        run: |
+          node -e '
+            const fs = require("fs");
+            const path = "src-tauri/tauri.conf.json";
+            const conf = JSON.parse(fs.readFileSync(path, "utf8"));
+            conf.version = process.env.VERSION;
+            fs.writeFileSync(path, JSON.stringify(conf, null, 2) + "\n");'
+      # Universal binary: Apple Silicon and Intel Macs
+      - name: Build
+        working-directory: companion
+        run: npm ci && npx tauri build --target universal-apple-darwin --bundles dmg
+      - name: Collect the disk image
+        run: |
+          mkdir dist
+          cp companion/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg "dist/desk-monitor-companion-$VERSION-macos-universal.dmg"
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: companion-macos
+          path: dist/*
+
+  release:
+    name: Publish
+    if: github.ref_type == 'tag'
+    needs: [version, firmware, companion]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Write the install notes
+        run: |
+          cat > notes.md <<EOF
+          ## Install
+
+          **Screen (Guition ESP32-S3-4848S040)**
+          - First install: flash \`desk-monitor-$VERSION-full.bin\` at address \`0x0\`, from the browser with [ESP Tool](https://espressif.github.io/esptool-js/) or with \`esptool.py --chip esp32s3 write_flash 0x0 desk-monitor-$VERSION-full.bin\`.
+          - Update: send \`desk-monitor-$VERSION-ota.bin\` from the editor (*Système* tab), or \`curl --data-binary @desk-monitor-$VERSION-ota.bin http://desk-monitor.local/api/ota\`. Settings and layout are kept.
+
+          **Companion (macOS 12+, Apple Silicon and Intel)**
+          - Open the \`.dmg\` and drag *Desk Monitor* into *Applications*.
+          - The app is not notarized: on first launch, right click → *Open*, or run \`xattr -dr com.apple.quarantine "/Applications/Desk Monitor.app"\`.
+
+          EOF
+      - name: Create the release
+        run: |
+          prerelease=""
+          case "$VERSION" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Desk Monitor $GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            --generate-notes \
+            $prerelease

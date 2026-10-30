@@ -1,7 +1,7 @@
 {
   "name": "desk-monitor-editor",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "Web editor of the Desk Monitor, served by the screen (http://desk-monitor.local)",
   "license": "MIT",

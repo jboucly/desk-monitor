@@ -37,6 +37,16 @@ cd companion/src-tauri && cargo test
 
 Add screenshots to the pull request for any visual change.
 
+## Releasing (maintainers)
+
+Push a version tag: the [Release workflow](.github/workflows/release.yml) builds the firmware and the macOS companion, then publishes a GitHub release with the files. The version comes from the tag, so there is nothing to bump by hand.
+
+```sh
+git tag v1.1.0 && git push origin v1.1.0          # a tag with a suffix (v1.1.0-beta.1) gives a pre-release
+```
+
+To check the build without publishing, run the workflow by hand (Actions → Release → Run workflow): the files are attached to the run as artifacts.
+
 ## Platform status
 
 The companion app has only been tested on macOS. The Windows code (metrics, shortcuts) has never been compiled, and Windows now playing is not written yet: help is especially welcome there.

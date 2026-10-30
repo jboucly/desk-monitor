@@ -12,6 +12,7 @@ Pages are configured **on the fly** from a web editor served by the screen itsel
 | --- | --- | --- |
 | ![Home](docs/images/home.png) | ![Computer](docs/images/computer.png) | ![Music](docs/images/music.png) |
 | ![Lights](docs/images/lights.png) | ![Weather](docs/images/weather.png) | ![Shortcuts](docs/images/shortcuts.png) |
+| ![Desk Monitor](docs/images/deskMonitor.png) | ![Editor](docs/images/editor.png) |  |
 
 *Simulator screenshots, default layout.*
 
@@ -52,6 +53,16 @@ The style is picked in the editor (*Thème → Style*):
 - **Flat dark** (default): the smoothest.
 - **Frozen glass**: cards tinted like glass over a colored background, almost as fast.
 - **Translucent glass**: the prettiest, but about 2.5 times slower to draw (choppy swipes).
+
+## Install from a release
+
+Each [release](https://github.com/jboucly/desk-monitor/releases) ships ready-made files:
+
+- **`desk-monitor-<version>-full.bin`**: the full screen image. Flash it at address `0x0` over USB, from the browser with [ESP Tool](https://espressif.github.io/esptool-js/), or with `esptool.py --chip esp32s3 write_flash 0x0 desk-monitor-<version>-full.bin`. Then follow the first boot steps below ([Real screen](#real-screen)).
+- **`desk-monitor-<version>-ota.bin`**: the update for a screen that already runs Desk Monitor, sent from the editor (*Système* tab). Settings and layout are kept.
+- **`desk-monitor-companion-<version>-macos-universal.dmg`**: the companion app for macOS 12+ (Apple Silicon and Intel). It is not notarized: on first launch, right click → *Open*, or run `xattr -dr com.apple.quarantine "/Applications/Desk Monitor.app"`.
+
+To build everything yourself instead, see below.
 
 ## Quick start
 

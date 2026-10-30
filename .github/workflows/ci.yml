@@ -1,0 +1,78 @@
+# Builds every part of the project on each push to main and each pull request.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web editor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Typecheck and build
+        working-directory: web
+        run: npm ci && npm run build
+
+  simulator:
+    name: Simulator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SDL2, libcurl and Ninja
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev libcurl4-openssl-dev ninja-build
+      - name: Build
+        run: |
+          cmake -S firmware/sim -B firmware/sim/build -G Ninja
+          cmake --build firmware/sim/build
+      - name: Headless smoke run
+        run: firmware/sim/build/desk_monitor_sim --no-window --mock-pc --port 8099 --do wait=1000 --do shot=screenshot.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simulator-screenshot
+          path: screenshot.png
+
+  firmware:
+    name: Firmware (ESP32-S3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      # The editor is embedded in the firmware
+      - name: Build the web editor
+        working-directory: web
+        run: npm ci && npm run build
+      - name: Build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5.5
+          target: esp32s3
+          path: firmware
+
+  companion:
+    name: Companion (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: companion/src-tauri
+      - name: Test
+        working-directory: companion/src-tauri
+        run: cargo test
