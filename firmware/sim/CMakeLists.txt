@@ -33,13 +33,13 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(cjson GIT_REPOSITORY https://github.com/DaveGamble/cJSON.git GIT_TAG v1.7.18 GIT_SHALLOW TRUE)
 
 # ── cpp-httplib (header-only HTTP server for the API and the web editor) ───
-FetchContent_Declare(httplib GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git GIT_TAG v0.18.3 GIT_SHALLOW TRUE)
+# SOURCE_SUBDIR points nowhere: only download the header, don't load httplib's own CMake project
+FetchContent_Declare(httplib GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git GIT_TAG v0.18.3 GIT_SHALLOW TRUE
+  SOURCE_SUBDIR no-cmake)
 
-FetchContent_MakeAvailable(lvgl cjson)
-FetchContent_GetProperties(httplib)
-if(NOT httplib_POPULATED)
-  FetchContent_Populate(httplib)
-endif()
+# cJSON asks for CMake 2.8.5, which CMake 4 refuses: raise the policy floor of fetched projects
+set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
+FetchContent_MakeAvailable(lvgl cjson httplib)
 
 # cJSON's CMake target has no usage requirements: expose its headers
 target_include_directories(cjson PUBLIC $<BUILD_INTERFACE:${cjson_SOURCE_DIR}>)
