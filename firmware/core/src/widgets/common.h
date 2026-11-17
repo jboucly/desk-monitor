@@ -22,6 +22,9 @@ std::unique_ptr<Widget> create_shortcut(lv_obj_t *parent, const WidgetSpec &spec
 std::unique_ptr<Widget> create_pc_metrics(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_pc_gauge(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_media(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
+std::unique_ptr<Widget> create_claude_sessions(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
+std::unique_ptr<Widget> create_claude_usage(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
+std::unique_ptr<Widget> create_claude_limits(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 
 // ── Home Assistant helpers ───────────────────────────────────────────────────
 
@@ -66,6 +69,14 @@ lv_color_t light_color(const cJSON *state);
  * @description Opens the light control sheet (on/off, brightness, color wheel, white temperature).
  */
 void open_light_popup(WidgetContext &ctx, const std::string &entity_id, const std::string &name, const char *icon);
+
+// ── Claude detail views (claude_detail.cpp) ──────────────────────────────────
+
+/**
+ * @description Opens a full-screen Claude detail view ("session", "usage" or "limits") and asks the
+ * PC companion for its data. The view deletes itself when its sheet closes.
+ */
+void open_claude_detail(WidgetContext &ctx, const std::string &view, const std::string &id);
 
 // ── LVGL helpers ─────────────────────────────────────────────────────────────
 

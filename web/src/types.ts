@@ -13,7 +13,10 @@ export type WidgetType =
   | 'shortcut'
   | 'pc_metrics'
   | 'pc_gauge'
-  | 'media';
+  | 'media'
+  | 'claude_sessions'
+  | 'claude_usage'
+  | 'claude_limits';
 
 /**
  * @description What a shortcut does: Home Assistant over Wi-Fi, or the paired PC companion over the local network.

@@ -138,6 +138,12 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
       {(widget.type === 'pc_metrics' || widget.type === 'pc_gauge') && (
         <p class="hint">Données envoyées par l’app Desk Monitor de l’ordinateur appairé (Réglages → Ordinateur).</p>
       )}
+      {widget.type.startsWith('claude_') && (
+        <p class="hint">
+          Sessions Claude Code de l’ordinateur appairé. Dans l’app Desk Monitor, active « Claude Code » : les demandes
+          d’autorisation s’affichent alors sur l’écran, qui se réveille.
+        </p>
+      )}
 
       <div class="row">
         <Field label="Largeur">
@@ -240,6 +246,16 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
       {widget.type === 'pc_metrics' && (
         <Field label="Titre (vide = nom du PC)">
           <input value={p.name ?? ''} onInput={(e) => set({ name: e.currentTarget.value || undefined })} />
+        </Field>
+      )}
+
+      {widget.type.startsWith('claude_') && (
+        <Field label="Titre">
+          <input
+            value={p.name ?? ''}
+            placeholder={{ claude_sessions: 'Claude Code', claude_usage: 'Tokens' }[widget.type as string] ?? 'Limites'}
+            onInput={(e) => set({ name: e.currentTarget.value || undefined })}
+          />
         </Field>
       )}
 

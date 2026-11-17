@@ -60,7 +60,7 @@
       "properties": {
         "id": { "type": "string" },
         "type": {
-          "enum": ["clock", "weather", "ha_toggle", "ha_light", "ha_sensor", "ha_gauge", "shortcut", "pc_metrics", "pc_gauge", "media"]
+          "enum": ["clock", "weather", "ha_toggle", "ha_light", "ha_sensor", "ha_gauge", "shortcut", "pc_metrics", "pc_gauge", "media", "claude_sessions", "claude_usage", "claude_limits"]
         },
         "x": { "type": "integer", "minimum": 0, "maximum": 3 },
         "y": { "type": "integer", "minimum": 0, "maximum": 3 },

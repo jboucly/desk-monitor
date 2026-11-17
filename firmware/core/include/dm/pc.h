@@ -72,6 +72,21 @@ class PcSession {
    */
   bool send_media(const std::string &command);
 
+  /**
+   * @description Answers a Claude Code approval request of the paired PC.
+   * @param decision "allow", "deny", or "ask" (Claude Code asks in the terminal).
+   * @returns False when no paired PC is connected.
+   */
+  bool send_claude_answer(const std::string &id, const char *decision);
+
+  /**
+   * @description Tells the paired PC which Claude detail view is open.
+   * @param view "session", "usage", "limits", or "" when the view closes.
+   * @param id Session id for the "session" view.
+   * @returns False when no paired PC is connected.
+   */
+  bool send_claude_view(const std::string &view, const std::string &id);
+
  private:
   using Clock = std::chrono::steady_clock;
   enum class State { Closed, Unpaired, Ready };

@@ -70,6 +70,18 @@ class App {
   void toast(const std::string &text);
 
   /**
+   * @description Shows the first pending Claude Code approval again, even one the user dismissed. LVGL thread only.
+   */
+  void show_claude_asks();
+
+  /**
+   * @description Opens a full-screen Claude detail view. LVGL thread only.
+   * @param view "session", "usage" or "limits".
+   * @param id Session id for the "session" view.
+   */
+  void show_claude_detail(const std::string &view, const std::string &id = "");
+
+  /**
    * @description Shows the page at an index (used by the simulator's screenshot mode). LVGL thread only.
    */
   void show_page(int index, bool animate);
@@ -95,6 +107,9 @@ class App {
   void update_page_indicator();
   void update_setup_banner(const cJSON *wifi);
   void show_pairing_code(const char *code, const char *pc_name);
+  void update_claude_asks(const cJSON *value);
+  void open_claude_ask(const cJSON *ask, int position, int count);
+  void answer_claude_ask(bool allow);
   void on_pointer(lv_event_t *e);
   void tick();
 
@@ -124,6 +139,10 @@ class App {
   lv_obj_t *sheet_ = nullptr;
   std::function<void()> sheet_on_close_;
   bool pairing_sheet_ = false;
+  // Claude Code approval shown in the sheet, and the ones the user closed without answering
+  bool claude_sheet_ = false;
+  std::string claude_ask_id_;
+  std::set<std::string> claude_dismissed_;
   // Swipe being watched for the page loop (see on_pointer)
   int swipe_page_ = -1;
   lv_point_t swipe_start_ = {0, 0};

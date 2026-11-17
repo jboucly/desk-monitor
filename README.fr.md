@@ -2,7 +2,7 @@
 
 [English](README.md) · **Français**
 
-Écran tactile de bureau 480×480 (Guition ESP32-S3-4848S040) qui sert d'**extension de l'ordinateur**. Il fonctionne seul en Wi-Fi : Home Assistant, météo, horloge. Une application compagnon sur l'ordinateur s'y connecte par le réseau local : elle envoie les métriques du PC et la musique en cours de lecture, et exécute les raccourcis façon Stream Deck.
+Écran tactile de bureau 480×480 (Guition ESP32-S3-4848S040) qui sert d'**extension de l'ordinateur**. Il fonctionne seul en Wi-Fi : Home Assistant, météo, horloge. Une application compagnon sur l'ordinateur s'y connecte par le réseau local : elle envoie les métriques du PC, la musique en cours de lecture et les sessions Claude Code (l'écran se réveille pour autoriser un outil), et exécute les raccourcis façon Stream Deck.
 
 Les pages se configurent **à la volée** depuis un éditeur web servi par l'écran lui-même (`http://desk-monitor.local`), sans recompiler ni reflasher.
 
@@ -23,6 +23,7 @@ Les pages se configurent **à la volée** depuis un éditeur web servi par l'éc
 | 1 | Firmware natif (ESP-IDF + LVGL 9), thème sombre, Wi-Fi, Home Assistant, météo Open-Meteo, layout JSON, éditeur web | ✅ |
 | 2 | Application compagnon (Rust/Tauri) reliée par le réseau local : métriques PC, raccourcis clavier, lancement d'applications et d'URL | ✅ macOS (Windows écrit, jamais compilé) |
 | 3 | Musique en cours de lecture (toutes les apps du Mac, navigateur compris) avec pochette et commandes ; repli sur un lecteur Home Assistant | ✅ macOS (Windows à écrire) |
+| 4 | Claude Code : sessions en cours, autorisations données depuis l'écran (qui se réveille), tokens et limites du forfait | ✅ macOS |
 
 ## Matériel
 
@@ -45,7 +46,11 @@ Les pages se configurent **à la volée** depuis un éditeur web servi par l'éc
 | Jauge PC | Une mesure du PC : CPU, RAM, GPU, mémoire GPU, disque ou température |
 | Musique | Ce que joue l'ordinateur (Musique, Spotify, Chrome, Safari…) avec pochette, progression et commandes ; sinon le lecteur Home Assistant choisi |
 
-Les widgets PC et la musique de l'ordinateur ont besoin de l'application compagnon.
+| Sessions Claude | Sessions Claude Code en cours (CLI, IDE, onglet Code de l'app de bureau) : en attente, au travail ou inactives, outil utilisé, taille du contexte, sous-agents en cours. Un appui affiche la session en plein écran : tokens par type, sous-agents, derniers outils |
+| Tokens Claude | Tokens du jour et de la semaine, avec un coût estimé au tarif de l'API et un histogramme sur 7 jours. Un appui affiche 30 jours par modèle, la journée heure par heure et les projets les plus gourmands |
+| Limites Claude | Limites du forfait sur 5 heures et sur la semaine, avec l'heure de remise à zéro. Un appui affiche le compte à rebours, le rythme et une courbe sur 7 jours |
+
+Les widgets PC, la musique de l'ordinateur et les widgets Claude ont besoin de l'application compagnon.
 
 ### Thèmes
 
@@ -113,6 +118,8 @@ Pour l'installer, glisse `Desk Monitor.app` (dans `src-tauri/target/release/bund
 
 L'app vit dans la barre des menus. Au premier lancement, elle trouve l'écran (`desk-monitor.local`) et propose l'appairage : l'écran affiche un code à 6 chiffres à saisir dans l'app. Pour tester avec le simulateur, mets l'adresse `localhost:8081`. Le PC appairé se gère dans l'éditeur, *Réglages → Ordinateur*.
 
+**Claude Code.** Dans l'app, coche *Sessions et autorisations sur l'écran* : elle ajoute des hooks HTTP à `~/.claude/settings.json` (tes autres réglages sont conservés, et une sauvegarde est faite). Quand Claude Code demande l'autorisation d'utiliser un outil, l'écran se réveille et affiche *Refuser / Autoriser* ; fermer la popup renvoie la question au terminal. Les limites du forfait viennent de l'app Claude de bureau, ou de la status line du terminal avec le second interrupteur (ta status line reste affichée). Les conversations de claude.ai et de l'app de bureau ne sont pas affichées : seul Claude Code expose ses sessions.
+
 Sur macOS, l'app demande l'accès au *réseau local*, et les raccourcis clavier l'autorisation *Accessibilité* (bouton dans l'app). La musique en cours de lecture est lue avec [mediaremote-adapter](https://github.com/ungive/mediaremote-adapter), comme le fait boring.notch : aucune autorisation supplémentaire.
 
 ### Développer l'éditeur web
@@ -133,7 +140,7 @@ firmware/
   data/        layout par défaut
   tools/       génération des polices et icônes, environnement ESP-IDF
 web/           éditeur (Vite + Preact + TypeScript), compilé en une page gzippée embarquée dans le firmware
-companion/     application compagnon (Rust + Tauri) : métriques, raccourcis, musique en cours
+companion/     application compagnon (Rust + Tauri) : métriques, raccourcis, musique en cours, Claude Code
   vendor/      mediaremote-adapter (lecture « À l'écoute » de macOS)
 protocol/      contrats partagés : schéma du layout, liste d'icônes, API, lien PC
 docs/images/   captures d'écran

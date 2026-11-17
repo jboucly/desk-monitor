@@ -24,6 +24,15 @@
       ]
     },
     {
+      "id": "claude",
+      "title": "Claude",
+      "widgets": [
+        { "id": "claude_sessions", "type": "claude_sessions", "x": 0, "y": 0, "w": 4, "h": 2, "props": {} },
+        { "id": "claude_usage", "type": "claude_usage", "x": 0, "y": 2, "w": 2, "h": 2, "props": {} },
+        { "id": "claude_limits", "type": "claude_limits", "x": 2, "y": 2, "w": 2, "h": 2, "props": {} }
+      ]
+    },
+    {
       "id": "music",
       "title": "Musique",
       "widgets": [

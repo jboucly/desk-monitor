@@ -6,6 +6,9 @@
 //   sys/wifi        {"rssi": -60, "ip": "192.168.1.50"} or {"rssi": null}
 //   sys/ha          {"state": "ok" | "connecting" | "auth_error" | "off"}
 //   sys/pc          {"state": "connected" | "off", "name": "..."}
+//   pc/claude       Claude Code sessions and usage from the companion
+//   pc/claude_asks  {"asks": [...]} pending Claude Code approvals
+//   pc/claude_detail data of the open Claude detail view ({"view": "session"|"usage"|"limits", ...})
 #pragma once
 
 #include <functional>

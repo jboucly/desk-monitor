@@ -8,6 +8,7 @@
 #include <ctime>
 
 #include "dm/theme.h"
+#include "widgets/common.h"
 
 namespace dm {
 
@@ -221,7 +222,12 @@ void App::build_shell() {
 }
 
 void App::build_pages() {
-  // Popups and listeners point into the widgets: drop them first
+  // Popups and listeners point into the widgets: drop them first. An approval sheet closed by the
+  // rebuild is not dismissed: it opens again when the listener below is registered.
+  if (claude_sheet_) {
+    sheet_on_close_ = nullptr;
+    claude_sheet_ = false;
+  }
   close_sheet();
   bus_.clear_subscriptions();
   widgets_.clear();
@@ -296,6 +302,140 @@ void App::build_header_status() {
     else if (pairing_sheet_) close_sheet();
   });
   bus_.subscribe("sys/toast", [this](const cJSON *v) { toast(json::str(v, "text")); });
+  // Claude Code approvals: wake the screen and ask, whatever the page
+  bus_.subscribe("pc/claude_asks", [this](const cJSON *v) { update_claude_asks(v); });
+}
+
+void App::show_claude_asks() {
+  claude_dismissed_.clear();
+  update_claude_asks(bus_.get("pc/claude_asks"));
+}
+
+void App::show_claude_detail(const std::string &view, const std::string &id) {
+  widgets::open_claude_detail(widget_ctx_, view, id);
+}
+
+void App::update_claude_asks(const cJSON *value) {
+  const cJSON *asks = json::get(value, "asks");
+  const int count = cJSON_IsArray(asks) ? cJSON_GetArraySize(asks) : 0;
+
+  // Forget the dismissed approvals that are gone, and find the first one to show
+  std::set<std::string> still_pending;
+  const cJSON *next = nullptr;
+  int position = 0;
+  for (int i = 0; i < count; i++) {
+    const cJSON *ask = cJSON_GetArrayItem(asks, i);
+    const std::string id = json::str(ask, "id");
+    if (id.empty()) continue;
+    if (claude_dismissed_.count(id)) {
+      still_pending.insert(id);
+    } else if (!next) {
+      next = ask;
+      position = i;
+    }
+  }
+  claude_dismissed_.swap(still_pending);
+
+  if (!next) {
+    if (claude_sheet_) close_sheet();
+    return;
+  }
+  // A pairing code stays on screen: the approval shows once it is done
+  if (pairing_sheet_) return;
+  if (claude_sheet_ && claude_ask_id_ == json::str(next, "id")) return;
+  open_claude_ask(next, position, count);
+}
+
+void App::open_claude_ask(const cJSON *ask, int position, int count) {
+  if (services_.wake) services_.wake();
+  lv_display_trigger_activity(nullptr);
+
+  // Closing without an answer (tap outside) hands every pending approval back to the terminal
+  lv_obj_t *panel = open_sheet(420, 330, [this] {
+    claude_sheet_ = false;
+    const cJSON *asks = json::get(bus_.get("pc/claude_asks"), "asks");
+    for (int i = 0; cJSON_IsArray(asks) && i < cJSON_GetArraySize(asks); i++) {
+      const std::string id = json::str(cJSON_GetArrayItem(asks, i), "id");
+      if (!claude_dismissed_.insert(id).second) continue;
+      if (services_.pc_claude_answer) services_.pc_claude_answer(id, "ask");
+    }
+  });
+  claude_sheet_ = true;
+  claude_ask_id_ = json::str(ask, "id");
+  lv_obj_set_flex_flow(panel, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(panel, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+  lv_obj_set_style_pad_row(panel, 8, 0);
+
+  // Header: icon, title and the position in the queue
+  lv_obj_t *head = lv_obj_create(panel);
+  lv_obj_add_style(head, theme::bare(), 0);
+  lv_obj_set_size(head, lv_pct(100), LV_SIZE_CONTENT);
+  lv_obj_set_flex_flow(head, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(head, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_column(head, 10, 0);
+  theme::make_icon(head, &dm_icons_32, "shield-alert-outline", theme::warn());
+  lv_obj_t *title = theme::make_label(head, &dm_font_20, theme::text(), "Claude demande l'accord");
+  lv_obj_set_flex_grow(title, 1);
+  theme::single_line(title);
+  if (count > 1) {
+    char queue[24];
+    snprintf(queue, sizeof queue, "%d/%d", position + 1, count);
+    theme::make_label(head, &dm_font_14, theme::text3(), queue);
+  }
+
+  lv_obj_t *project = theme::make_label(panel, &dm_font_14, theme::text2(), json::str(ask, "project", "Claude Code"));
+  lv_obj_set_width(project, lv_pct(100));
+  theme::single_line(project);
+
+  lv_obj_t *tool = theme::make_label(panel, &dm_font_28, theme::accent(), json::str(ask, "tool", "Outil"));
+  lv_obj_set_width(tool, lv_pct(100));
+  theme::single_line(tool);
+
+  // What the tool will run or touch, three lines at most
+  lv_obj_t *detail = theme::make_label(panel, &dm_font_16, theme::text(), json::str(ask, "detail"));
+  lv_obj_set_width(detail, lv_pct(100));
+  lv_obj_set_flex_grow(detail, 1);
+  lv_label_set_long_mode(detail, LV_LABEL_LONG_DOT);
+
+  lv_obj_t *buttons = lv_obj_create(panel);
+  lv_obj_add_style(buttons, theme::bare(), 0);
+  lv_obj_set_size(buttons, lv_pct(100), 64);
+  lv_obj_set_flex_flow(buttons, LV_FLEX_FLOW_ROW);
+  lv_obj_set_style_pad_column(buttons, 12, 0);
+  const auto make_button = [&](const char *text, const char *icon, lv_color_t bg, lv_color_t fg, bool allow) {
+    lv_obj_t *button = lv_obj_create(buttons);
+    lv_obj_remove_style_all(button);
+    lv_obj_set_height(button, lv_pct(100));
+    lv_obj_set_flex_grow(button, 1);
+    lv_obj_set_style_radius(button, 20, 0);
+    lv_obj_set_style_bg_color(button, bg, 0);
+    lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(button, lv_color_mix(lv_color_white(), bg, 50), LV_STATE_PRESSED);
+    lv_obj_set_flex_flow(button, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(button, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(button, 8, 0);
+    lv_obj_add_flag(button, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(button, LV_OBJ_FLAG_SCROLLABLE);
+    theme::make_icon(button, &dm_icons_24, icon, fg);
+    theme::make_label(button, &dm_font_20, fg, text);
+    const lv_event_cb_t on_click =
+        allow ? +[](lv_event_t *e) { static_cast<App *>(lv_event_get_user_data(e))->answer_claude_ask(true); }
+              : +[](lv_event_t *e) { static_cast<App *>(lv_event_get_user_data(e))->answer_claude_ask(false); };
+    lv_obj_add_event_cb(button, on_click, LV_EVENT_CLICKED, this);
+  };
+  make_button("Refuser", "close", theme::track(), theme::crit(), false);
+  make_button("Autoriser", "check", theme::accent(), lv_color_white(), true);
+}
+
+void App::answer_claude_ask(bool allow) {
+  const std::string id = claude_ask_id_;
+  if (!services_.pc_claude_answer || !services_.pc_claude_answer(id, allow ? "allow" : "deny")) toast("PC non connecté");
+  // Answered: only this approval leaves the queue, the next one shows right away
+  claude_dismissed_.insert(id);
+  sheet_on_close_ = nullptr;
+  claude_sheet_ = false;
+  close_sheet();
+  update_claude_asks(bus_.get("pc/claude_asks"));
 }
 
 void App::show_pairing_code(const char *code, const char *pc_name) {

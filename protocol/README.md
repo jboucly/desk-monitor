@@ -80,6 +80,9 @@ Data sources publish on the bus, and widgets subscribe to it (`firmware/core/inc
 | `pc` | `metrics` fields (see PC link), `{}` when the PC is gone | `PcSession` |
 | `pc/media` | `media` fields (see PC link), `{}` when nothing plays or the PC is gone | `PcSession` |
 | `pc/media_art` | `{"id", "w", "h", "data"}` (RGB565, base64) | `PcSession` |
+| `pc/claude` | `claude` fields (see PC link), `{}` when the PC is gone | `PcSession` |
+| `pc/claude_asks` | `{"asks": [...]}` pending Claude Code approvals (see PC link), `{}` when the PC is gone | `PcSession` |
+| `pc/claude_detail` | `claude_detail` fields of the open detail view (see PC link), `{}` when the PC is gone | `PcSession` |
 | `ha_art/<entity_id>` | same shape, decoded from the player's `entity_picture` (JPEG) | media widget, through `Services::ha_fetch` |
 
 ## PC link (WebSocket)
@@ -110,6 +113,11 @@ media {title, artist, …}         →                            (when the now 
                                   ← media_cmd {cmd}           (toggle, next, prev)
                                   ← action {id, action}       (a shortcut was tapped)
 action_result {id, ok, error?}   →                            (an error shows as a toast)
+claude {…}                       →                            (Claude Code sessions and usage, when they change)
+claude_asks {asks}               →                            (pending approvals, when the list changes)
+                                  ← claude_answer {id, decision} (allow, deny, or ask in the terminal)
+                                  ← claude_view {view, id?}      (detail view opened, view null when it closes)
+claude_detail {view, …}          →                            (data of the open view, when it changes)
 ping                             →
                                   ← pong
 ```
@@ -139,3 +147,39 @@ Errors look like `{"type": "error", "code": "bad_code" | "pair_expired", "messag
 `media_art` carries the cover: `w` x `h` pixels (160 x 160) in RGB565 little-endian, base64 in `data` (about 68 KB). It is sent only when the cover changes. On macOS the companion reads the now playing with the vendored `mediaremote-adapter` (`companion/vendor/`).
 
 `action` carries the shortcut's `action` object from the layout (`keys`, `launch`, `url`). The companion runs it and answers with `action_result`.
+
+### Claude Code
+
+The companion follows the Claude Code sessions of the PC (CLI, IDE extensions, the desktop app's Code tab) and sends them to the screen. It reads three sources:
+
+- the live session registry of Claude Code, `~/.claude/sessions/<pid>.json` (one file per running session);
+- the transcripts, `~/.claude/projects/**/*.jsonl`, for the tokens, and the subagents' meta files (`<session>/subagents/agent-<id>.meta.json`: type, description, finished);
+- the hooks it installs in `~/.claude/settings.json` (HTTP hooks to `http://127.0.0.1:47823`), for the approvals and the live state.
+
+The plan limits come from the Claude Code status line (`rate_limits`) when the relay is installed, else from the desktop app's `plan-usage-history.json`. Chats of claude.ai and of the desktop app are not visible: only the plan limits count them.
+
+`claude` is a full snapshot, sent after `welcome` and when something changes (once a second at most). Texts are ASCII (the screen fonts are Latin-1).
+
+| Field | Meaning |
+| --- | --- |
+| `sessions` | up to 6, the most recent first: `{id, name, project, surface, state, since, tool?, model?, context, tokens}` |
+| `sessions[].surface` | `cli`, `vscode`, `jetbrains`, `desktop` or `other` |
+| `sessions[].state` | `working`, `waiting` (an approval or an answer is expected) or `idle` |
+| `sessions[].since` | Unix time (s) of the last state change |
+| `sessions[].context` | tokens in the context window (input + cache of the last answer) |
+| `sessions[].tokens` | tokens used by the session (input + output + cache) |
+| `sessions[].subagents` | optional: number of running subagents |
+| `today`, `week` | `{tokens, cost}`, cost in US dollars, an estimate at API prices |
+| `days` | 7 daily token totals, oldest first, today last |
+| `limits` | optional: `{five_hour: {pct, resets_at?}, week: {pct, resets_at?}, at, source}`, `source` = `statusline` or `desktop`, `at` = Unix time of the reading |
+| `desktop` | true while the Claude desktop app runs |
+
+`claude_asks` lists the approvals Claude Code waits for, oldest first: `{asks: [{id, project, tool, detail}]}`, where `detail` is the command, the file or the URL (200 characters at most). The screen wakes up and shows the first one. `claude_answer {id, decision}` answers it: `allow`, `deny`, or `ask` when the user closed the popup without choosing (Claude Code then asks in the terminal at once). An approval that is answered in the terminal, or that waits more than about 100 s, leaves the list, and Claude Code then asks in the terminal as usual.
+
+A tap on a session or on the usage or limits card opens a full-screen detail view. The screen sends `claude_view {view, id?}` (`view` = `session` with the session's `id`, `usage` or `limits`; `null` when the view closes). While a view is open, the companion sends `claude_detail {view, …}` at once, then whenever its data changes:
+
+| `view` | Fields |
+| --- | --- |
+| `session` | the session's snapshot fields, plus `context_max` (200 000, or 1 000 000 past 200 000), `tokens {in, out, cache_read, cache_write}`, `total`, `cost`, `started` (Unix time of the first answer), `subagents [{type, description, running, tokens}]` (6 at most, running ones first) and `tools [{name, detail, status, at}]` (last 8 calls seen by the hooks, newest first; `status` = `run`, `ok`, `fail`, `denied` or `stopped`) |
+| `usage` | `models` (up to 4 model families, the busiest first), `days` (30, oldest first: `{tokens, cost, m}`, `m` = tokens by family in the order of `models`, then the others), `hours` (24 token totals of today), `projects` (top 5 over 30 days: `{name, tokens, cost}`; a session counts for the project it started in), `today`, `week`, `month` (`{tokens, cost}`) |
+| `limits` | `five_hour` and `week` as in `limits`, plus `pace` (percent used minus the percent of the window gone, when the window's start is known) and `estimated: true` when `resets_at` comes from the last big drop of the weekly use; `at`, `source`, and `history` (`[[t, five_hour_pct, week_pct]]` over 7 days, one reading per hour at most, from the desktop app's history and the status line readings the companion keeps in `claude-limits.json`) |

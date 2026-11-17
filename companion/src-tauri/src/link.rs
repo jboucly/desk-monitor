@@ -1,6 +1,7 @@
 //! WebSocket link to the screen: hello / pairing / metrics / actions (see protocol/README.md, "PC link").
 
 use crate::actions;
+use crate::claude::Claude;
 use crate::config::{Config, ConfigStore};
 use crate::media::{Media, Snapshot};
 use crate::metrics::Collector;
@@ -50,7 +51,7 @@ const RETRY_DELAY: Duration = Duration::from_secs(3);
 const METRICS_PERIOD: Duration = Duration::from_secs(1);
 
 /// Starts the link task. It reconnects forever.
-pub fn start(app: AppHandle, store: ConfigStore, media: Media) -> Link {
+pub fn start(app: AppHandle, store: ConfigStore, media: Media, claude: Claude) -> Link {
     let config = store.load();
     let state = Arc::new(Mutex::new(LinkState {
         status: "connecting".into(),
@@ -62,7 +63,7 @@ pub fn start(app: AppHandle, store: ConfigStore, media: Media) -> Link {
     }));
     let (tx, rx) = mpsc::unbounded_channel();
     let link = Link { state: state.clone(), commands: tx };
-    tauri::async_runtime::spawn(run(app, store, config, state, rx, media));
+    tauri::async_runtime::spawn(run(app, store, config, state, rx, media, claude));
     link
 }
 
@@ -89,6 +90,7 @@ async fn run(
     state: Arc<Mutex<LinkState>>,
     mut commands: mpsc::UnboundedReceiver<Command>,
     media: Media,
+    claude: Claude,
 ) {
     let collector = Arc::new(Mutex::new(Collector::new()));
     loop {
@@ -108,7 +110,10 @@ async fn run(
                     store.save(&config);
                 }
                 publish(&app, &state, |s| s.editor_url = editor_url(address));
-                session(&app, &store, &mut config, &state, &mut commands, &collector, &media, socket).await
+                let end = session(&app, &store, &mut config, &state, &mut commands, &collector, &media, &claude, socket).await;
+                // Approvals waiting for this screen go back to the terminal
+                claude.set_screen(false);
+                end
             }
             Err(e) => {
                 log::warn!("cannot reach {host}: {e}");
@@ -284,9 +289,13 @@ async fn session(
     commands: &mut mpsc::UnboundedReceiver<Command>,
     collector: &Arc<Mutex<Collector>>,
     media: &Media,
+    claude: &Claude,
     socket: Socket,
 ) -> End {
     let mut media_updates = media.updates.clone();
+    let mut claude_snapshot = claude.snapshot.clone();
+    let mut claude_asks = claude.asks.clone();
+    let mut claude_detail = claude.detail.clone();
     // Cover already on the screen during this connection
     let mut sent_art: Option<String> = None;
     let (mut write, mut read) = socket.split();
@@ -312,7 +321,12 @@ async fn session(
         if welcomed && !media_synced {
             media_synced = true;
             let snapshot = media_updates.borrow_and_update().clone();
-            for message in media_messages(&snapshot, &mut sent_art) {
+            // Claude Code sessions and the approvals already waiting
+            claude.set_screen(true);
+            let mut messages = media_messages(&snapshot, &mut sent_art);
+            messages.push(claude_snapshot.borrow_and_update().clone());
+            messages.push(claude_asks.borrow_and_update().clone());
+            for message in messages {
                 if write.send(Message::text(message.to_string())).await.is_err() {
                     return End::Retry;
                 }
@@ -326,7 +340,7 @@ async fn session(
                     Some(Ok(_)) => continue,
                 };
                 let Ok(msg) = serde_json::from_str::<Value>(&text) else { continue };
-                handle_message(app, store, config, state, media, &out_tx, &mut welcomed, &msg)
+                handle_message(app, store, config, state, media, claude, &out_tx, &mut welcomed, &msg)
             }
             _ = ticker.tick() => {
                 if welcomed {
@@ -351,6 +365,13 @@ async fn session(
                     break;
                 }
                 None
+            }
+            Ok(()) = claude_snapshot.changed(), if media_synced => Some(claude_snapshot.borrow_and_update().clone()),
+            Ok(()) = claude_asks.changed(), if media_synced => Some(claude_asks.borrow_and_update().clone()),
+            // Data of the detail view open on the screen, if any
+            Ok(()) = claude_detail.changed(), if media_synced => {
+                let detail = claude_detail.borrow_and_update().clone();
+                detail.get("view").is_some().then_some(detail)
             }
             Some(cmd) = commands.recv() => match cmd {
                 Command::StartPairing => Some(json!({ "type": "pair_start" })),
@@ -402,6 +423,7 @@ fn handle_message(
     config: &mut Config,
     state: &Arc<Mutex<LinkState>>,
     media: &Media,
+    claude: &Claude,
     out: &mpsc::UnboundedSender<Value>,
     welcomed: &mut bool,
     msg: &Value,
@@ -455,6 +477,16 @@ fn handle_message(
             if let Some(cmd) = msg.get("cmd").and_then(Value::as_str) {
                 media.command(cmd);
             }
+            None
+        }
+        "claude_view" => {
+            let id = msg.get("id").and_then(Value::as_str).unwrap_or("");
+            claude.set_view(msg.get("view").and_then(Value::as_str), id);
+            None
+        }
+        "claude_answer" => {
+            let id = msg.get("id").and_then(Value::as_str).unwrap_or("");
+            claude.answer(id, msg.get("decision").and_then(Value::as_str).unwrap_or("ask"));
             None
         }
         "action" => {

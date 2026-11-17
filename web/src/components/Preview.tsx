@@ -89,6 +89,61 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
           ))}
         </div>
       );
+    case 'claude_sessions':
+      return (
+        <div class="face face-metrics">
+          <span class="small ellipsis">
+            <Icon name="creation" size={14} color={theme.accent} /> {p.name || 'Claude Code'}
+          </span>
+          {[
+            ['#FBBF24', 'desk-monitor', 'Attend ton accord'],
+            [theme.accent, 'api-gateway', 'Edit · 6 min'],
+            ['#7D86A3', 'website', 'Inactive · 31 min'],
+          ]
+            .slice(0, Math.max(1, widget.h * 2 - 1))
+            .map(([color, name, status]) => (
+              <div class="claude-row" key={name}>
+                <span class="status-dot" style={{ background: color }} />
+                <span class="small ellipsis">{name}</span>
+                <span class="muted small ellipsis">{status}</span>
+              </div>
+            ))}
+        </div>
+      );
+    case 'claude_usage':
+      return (
+        <div class="face face-metrics">
+          <span class="small ellipsis">
+            <Icon name="chart-bar" size={14} color={theme.accent} /> {p.name || 'Tokens'}
+          </span>
+          <span class="value">
+            7,8 M <span class="muted small">~ 12,40 $</span>
+          </span>
+          {widget.h >= 2 && (
+            <div class="usage-bars">
+              {[42, 70, 23, 100, 55, 19, 80].map((v, i) => (
+                <span key={i} style={{ height: `${v}%`, background: i === 6 ? theme.accent : undefined }} />
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    case 'claude_limits':
+      return (
+        <div class="face face-row">
+          {[['5 h', 42], ['7 j', 78]].map(([label, value]) => (
+            <div class="face-gauge" key={label}>
+              <svg viewBox="0 0 100 100" class="gauge">
+                <path d="M 22 78 A 40 40 0 1 1 78 78" class="gauge-track" />
+                <path d={value === 42 ? 'M 22 78 A 40 40 0 0 1 50 10' : 'M 22 78 A 40 40 0 1 1 88 58'} class="gauge-value" style={{ stroke: theme.accent }} />
+              </svg>
+              <span class="muted small">
+                {label} · {value} %
+              </span>
+            </div>
+          ))}
+        </div>
+      );
     case 'pc_gauge':
     case 'ha_gauge':
       return (

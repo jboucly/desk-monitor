@@ -13,6 +13,9 @@ WidgetFactory find_widget_factory(const std::string &type) {
       {"ha_sensor", widgets::create_ha_sensor}, {"ha_gauge", widgets::create_ha_gauge},
       {"shortcut", widgets::create_shortcut},   {"pc_metrics", widgets::create_pc_metrics},
       {"pc_gauge", widgets::create_pc_gauge},   {"media", widgets::create_media},
+      {"claude_sessions", widgets::create_claude_sessions},
+      {"claude_usage", widgets::create_claude_usage},
+      {"claude_limits", widgets::create_claude_limits},
   };
   for (const auto &entry : FACTORIES)
     if (type == entry.type) return entry.factory;
