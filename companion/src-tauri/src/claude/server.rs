@@ -40,6 +40,18 @@ pub async fn serve(shared: Arc<Shared>, port: u16) {
     }
 }
 
+/// Removes an approval from the screen when its request ends, answered or cancelled.
+struct AskGuard {
+    shared: Arc<Shared>,
+    id: String,
+}
+
+impl Drop for AskGuard {
+    fn drop(&mut self) {
+        self.shared.remove_ask(&self.id);
+    }
+}
+
 fn authorized(shared: &Shared, headers: &HeaderMap) -> bool {
     headers.get("x-dm-token").and_then(|v| v.to_str().ok()).is_some_and(|t| !t.is_empty() && t == shared.token)
 }
@@ -74,8 +86,10 @@ async fn permission(State(shared): State<Arc<Shared>>, headers: HeaderMap, Json(
     }
     let (reply, answer) = oneshot::channel();
     let id = shared.add_ask(Ask::from_event(&event, reply));
+    // Claude Code drops the request when the approval is answered in its own dialog (a refusal sends
+    // no other hook): the handler is then cancelled at the await, and the guard still removes the ask
+    let _guard = AskGuard { shared: shared.clone(), id };
     let decision = tokio::time::timeout(ASK_TIMEOUT, answer).await.ok().and_then(Result::ok);
-    shared.remove_ask(&id);
     Ok(Json(match decision {
         Some(Decision::Allow) => json!({
             "hookSpecificOutput": { "hookEventName": "PermissionRequest", "decision": { "behavior": "allow" } }

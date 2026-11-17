@@ -563,6 +563,30 @@ mod tests {
         assert!(pending.await.unwrap().ends_with("{}"));
     }
 
+    #[tokio::test(flavor = "multi_thread")]
+    async fn removes_an_approval_whose_request_was_dropped() {
+        let (claude, _wake, _snapshot) = create("secret".into());
+        let port = 47900 + (std::process::id() % 90) as u16 + 2;
+        tokio::spawn(server::serve(claude.shared.clone(), port));
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        claude.set_screen(true);
+        let event = json!({
+            "hook_event_name": "PermissionRequest", "session_id": "s1", "cwd": "/p",
+            "tool_name": "Bash", "tool_input": { "command": "touch x" }
+        });
+        // Refused in Claude Code's own dialog: the hook request is dropped, no other hook comes
+        let pending = tokio::spawn(async move { post(port, "/permission", "secret", &event).await });
+        let mut asks = claude.asks.clone();
+        asks.wait_for(|a| a["asks"].as_array().is_some_and(|l| !l.is_empty())).await.unwrap();
+        pending.abort();
+        let cleared = tokio::time::timeout(
+            Duration::from_secs(3),
+            asks.wait_for(|a| a["asks"].as_array().is_some_and(|l| l.is_empty())),
+        )
+        .await;
+        assert!(cleared.is_ok(), "the approval stayed on the screen");
+    }
+
     /// Manual check against this computer's Claude Code data:
     /// `cargo test local_snapshot -- --ignored --nocapture`.
     #[test]
