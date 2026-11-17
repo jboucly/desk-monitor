@@ -2,7 +2,7 @@
 
 **English** · [Français](README.fr.md)
 
-A 480×480 desk touch screen (Guition ESP32-S3-4848S040) that acts as an **extension of your computer**. It works on its own over Wi-Fi: Home Assistant, weather, clock. A companion app on the computer connects to it over the local network: it sends PC metrics and the music currently playing, and runs Stream Deck-style shortcuts.
+A 480×480 desk touch screen (Guition ESP32-S3-4848S040) that acts as an **extension of your computer**. It works on its own over Wi-Fi: Home Assistant, weather, clock. A companion app on the computer connects to it over the local network: it sends PC metrics, the music currently playing and the Claude Code sessions (the screen wakes up to approve a tool call), and runs Stream Deck-style shortcuts.
 
 Pages are configured **on the fly** from a web editor served by the screen itself (`http://desk-monitor.local`), with no rebuild and no reflash.
 
@@ -26,6 +26,7 @@ Pages are configured **on the fly** from a web editor served by the screen itsel
 | 1 | Native firmware (ESP-IDF + LVGL 9), dark theme, Wi-Fi, Home Assistant, Open-Meteo weather, JSON layout, web editor | ✅ |
 | 2 | Companion app (Rust/Tauri) linked over the local network: PC metrics, keyboard shortcuts, launching apps and URLs | ✅ macOS (Windows written, never compiled) |
 | 3 | Now playing (every Mac app, browsers included) with cover art and controls; falls back to a Home Assistant media player | ✅ macOS (Windows still to write) |
+| 4 | Claude Code: running sessions, approvals answered from the screen (it wakes up), tokens and plan limits | ✅ macOS |
 
 ## Hardware
 
@@ -48,7 +49,11 @@ Pages are configured **on the fly** from a web editor served by the screen itsel
 | PC gauge | One PC measure: CPU, RAM, GPU, GPU memory, disk or temperature |
 | Music | What the computer plays (Music, Spotify, Chrome, Safari…) with cover art, progress and controls; otherwise the chosen Home Assistant player |
 
-The PC widgets and the computer's music need the companion app.
+| Claude sessions | Running Claude Code sessions (CLI, IDE, desktop app's Code tab): waiting, working or idle, tool in use, context size |
+| Claude tokens | Tokens of the day and of the week, with an estimated cost at API prices and a 7-day histogram |
+| Claude limits | The plan's 5-hour and weekly limits, with their reset time |
+
+The PC widgets, the computer's music and the Claude widgets need the companion app.
 
 ### Themes
 
@@ -116,6 +121,8 @@ To install it, drag `Desk Monitor.app` (in `src-tauri/target/release/bundle/maco
 
 The app lives in the menu bar. On first launch, it finds the screen (`desk-monitor.local`) and offers to pair: the screen shows a 6-digit code to type in the app. To try it with the simulator, set the address to `localhost:8081`. The paired PC is managed in the editor, *Réglages → Ordinateur*.
 
+**Claude Code.** In the app, tick *Sessions et autorisations sur l'écran*: it adds HTTP hooks to `~/.claude/settings.json` (your other settings are kept, and a backup is made). When Claude Code asks to approve a tool call, the screen wakes up and shows *Refuser / Autoriser*; closing the popup sends the question back to the terminal. The plan limits come from the Claude desktop app, or from the terminal's status line with the second switch (your status line stays). Chats on claude.ai and in the desktop app are not shown: only Claude Code exposes its sessions.
+
 On macOS, the app asks for *Local Network* access, and keyboard shortcuts need the *Accessibility* permission (button in the app). The music currently playing is read with [mediaremote-adapter](https://github.com/ungive/mediaremote-adapter), like boring.notch does: no extra permission.
 
 ### Working on the web editor
@@ -136,7 +143,7 @@ firmware/
   data/        default layout
   tools/       font and icon generation, ESP-IDF environment
 web/           editor (Vite + Preact + TypeScript), built into one gzipped page embedded in the firmware
-companion/     companion app (Rust + Tauri): metrics, shortcuts, now playing
+companion/     companion app (Rust + Tauri): metrics, shortcuts, now playing, Claude Code
   vendor/      mediaremote-adapter (macOS "Now Playing")
 protocol/      shared contracts: layout schema, icon list, API, PC link
 docs/images/   screenshots
