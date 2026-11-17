@@ -235,7 +235,7 @@ void post_mock_claude(dm::Bus &bus) {
   char text[1400];
   snprintf(text, sizeof text,
            R"({"desktop":true,"sessions":[)"
-           R"({"id":"s1","name":"Pages Claude sur l'ecran","project":"desk-monitor","surface":"vscode","state":"waiting","since":%.0f,"tool":"Bash","context":84200,"tokens":2310000},)"
+           R"({"id":"s1","name":"Pages Claude sur l'écran","project":"desk-monitor","surface":"vscode","state":"waiting","since":%.0f,"tool":"Bash","context":84200,"tokens":2310000},)"
            R"({"id":"s2","name":"Refacto du client HTTP","project":"api-gateway","surface":"cli","state":"working","since":%.0f,"tool":"Edit","context":131000,"tokens":5120000,"subagents":2},)"
            R"({"id":"s3","name":"Revue de la PR 42","project":"website","surface":"desktop","state":"idle","since":%.0f,"context":22400,"tokens":410000}],)"
            R"("today":{"tokens":7840000,"cost":12.4},"week":{"tokens":38200000,"cost":61.7},)"

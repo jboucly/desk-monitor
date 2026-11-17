@@ -2,7 +2,7 @@
 
 [English](README.md) · **Français**
 
-Écran tactile de bureau 480×480 (Guition ESP32-S3-4848S040) qui sert d'**extension de l'ordinateur**. Il fonctionne seul en Wi-Fi : Home Assistant, météo, horloge. Une application compagnon sur l'ordinateur s'y connecte par le réseau local : elle envoie les métriques du PC, la musique en cours de lecture et les sessions Claude Code (l'écran se réveille pour autoriser un outil), et exécute les raccourcis façon Stream Deck.
+Écran tactile de bureau 480×480 (Guition ESP32-S3-4848S040) qui sert d'**extension de l'ordinateur**. Il fonctionne seul en Wi-Fi : Home Assistant, météo, horloge. Une application compagnon sur l'ordinateur s'y connecte par le réseau local : elle envoie les métriques du PC, la musique en cours de lecture et un tableau de bord Claude Code (sessions, sous-agents, tokens, limites du forfait ; l'écran se réveille pour autoriser un outil), et exécute les raccourcis façon Stream Deck.
 
 Les pages se configurent **à la volée** depuis un éditeur web servi par l'écran lui-même (`http://desk-monitor.local`), sans recompiler ni reflasher.
 
@@ -23,7 +23,7 @@ Les pages se configurent **à la volée** depuis un éditeur web servi par l'éc
 | 1 | Firmware natif (ESP-IDF + LVGL 9), thème sombre, Wi-Fi, Home Assistant, météo Open-Meteo, layout JSON, éditeur web | ✅ |
 | 2 | Application compagnon (Rust/Tauri) reliée par le réseau local : métriques PC, raccourcis clavier, lancement d'applications et d'URL | ✅ macOS (Windows écrit, jamais compilé) |
 | 3 | Musique en cours de lecture (toutes les apps du Mac, navigateur compris) avec pochette et commandes ; repli sur un lecteur Home Assistant | ✅ macOS (Windows à écrire) |
-| 4 | Claude Code : sessions en cours, autorisations données depuis l'écran (qui se réveille), tokens et limites du forfait | ✅ macOS |
+| 4 | Claude Code : sessions et sous-agents en cours, autorisations données depuis l'écran (qui se réveille), tokens et limites du forfait, vues détaillées en plein écran | ✅ macOS |
 
 ## Matériel
 
@@ -59,6 +59,23 @@ Le style se choisit dans l'éditeur (*Thème → Style*) :
 - **Sombre opaque** (par défaut) : le plus fluide.
 - **Verre figé** : cartes teintées comme du verre sur un fond coloré, presque aussi rapide.
 - **Verre translucide** : le plus joli, mais environ 2,5 fois plus lent à dessiner (glissements saccadés).
+
+## Claude Code
+
+La page *Claude* suit les sessions Claude Code de l'ordinateur (terminal, extensions VS Code et JetBrains, onglet Code de l'app de bureau), grâce à l'application compagnon.
+
+| | | |
+| --- | --- | --- |
+| ![Page Claude](docs/images/claude.png) | ![Autorisation](docs/images/claude-approval.png) | ![Session](docs/images/claude-session.png) |
+| ![Tokens](docs/images/claude-usage.png) | ![Limites](docs/images/claude-limits.png) | |
+
+- **Sessions** : en attente de toi, au travail (avec l'outil utilisé) ou inactives, la taille du contexte et les sous-agents en cours.
+- **Autorisations** : quand Claude Code demande à utiliser un outil, l'écran se réveille, quelle que soit la page, et affiche *Refuser / Autoriser*. La réponse part directement à Claude Code. Fermer la popup renvoie la question au terminal ou à l'IDE, et une autorisation donnée là-bas disparaît de l'écran.
+- **Détail d'une session** (appui sur une session) : modèle et environnement, fenêtre de contexte, tokens par type et coût estimé, sous-agents, derniers outils utilisés.
+- **Tokens** (appui sur la carte) : aujourd'hui, 7 et 30 jours avec un coût estimé au tarif de l'API, 30 jours par modèle, la journée heure par heure, les projets les plus gourmands.
+- **Limites du forfait** (appui sur la carte) : les fenêtres de 5 heures et de la semaine, le compte à rebours avant leur remise à zéro, le rythme (en avance ou en retard sur la fenêtre) et une courbe sur 7 jours.
+
+Les conversations de claude.ai et de l'app de bureau, et les tâches Cowork, ne sont pas affichées : elles ne laissent rien de lisible sur l'ordinateur et n'ont pas de hooks. Seules les limites du forfait en tiennent compte. Voir [Application compagnon](#application-compagnon-ordinateur) pour l'installation.
 
 ## Installer depuis une release
 
@@ -118,7 +135,7 @@ Pour l'installer, glisse `Desk Monitor.app` (dans `src-tauri/target/release/bund
 
 L'app vit dans la barre des menus. Au premier lancement, elle trouve l'écran (`desk-monitor.local`) et propose l'appairage : l'écran affiche un code à 6 chiffres à saisir dans l'app. Pour tester avec le simulateur, mets l'adresse `localhost:8081`. Le PC appairé se gère dans l'éditeur, *Réglages → Ordinateur*.
 
-**Claude Code.** Dans l'app, coche *Sessions et autorisations sur l'écran* : elle ajoute des hooks HTTP à `~/.claude/settings.json` (tes autres réglages sont conservés, et une sauvegarde est faite). Quand Claude Code demande l'autorisation d'utiliser un outil, l'écran se réveille et affiche *Refuser / Autoriser* ; fermer la popup renvoie la question au terminal. Les limites du forfait viennent de l'app Claude de bureau, ou de la status line du terminal avec le second interrupteur (ta status line reste affichée). Les conversations de claude.ai et de l'app de bureau ne sont pas affichées : seul Claude Code expose ses sessions.
+**Claude Code.** Dans l'app, coche *Sessions et autorisations sur l'écran* : elle ajoute des hooks HTTP à `~/.claude/settings.json` (tes autres réglages sont conservés, et une sauvegarde est faite). Quand Claude Code demande l'autorisation d'utiliser un outil, l'écran se réveille et affiche *Refuser / Autoriser* ; fermer la popup renvoie la question au terminal. Les limites du forfait viennent de l'app Claude de bureau, ou de la status line du terminal avec le second interrupteur (ta status line reste affichée ; elle donne aussi les heures de remise à zéro et une courbe plus fine). L'interrupteur s'applique aux nouvelles sessions Claude Code. Voir [Claude Code](#claude-code) pour ce que l'écran affiche.
 
 Sur macOS, l'app demande l'accès au *réseau local*, et les raccourcis clavier l'autorisation *Accessibilité* (bouton dans l'app). La musique en cours de lecture est lue avec [mediaremote-adapter](https://github.com/ungive/mediaremote-adapter), comme le fait boring.notch : aucune autorisation supplémentaire.
 

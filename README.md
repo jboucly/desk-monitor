@@ -2,7 +2,7 @@
 
 **English** · [Français](README.fr.md)
 
-A 480×480 desk touch screen (Guition ESP32-S3-4848S040) that acts as an **extension of your computer**. It works on its own over Wi-Fi: Home Assistant, weather, clock. A companion app on the computer connects to it over the local network: it sends PC metrics, the music currently playing and the Claude Code sessions (the screen wakes up to approve a tool call), and runs Stream Deck-style shortcuts.
+A 480×480 desk touch screen (Guition ESP32-S3-4848S040) that acts as an **extension of your computer**. It works on its own over Wi-Fi: Home Assistant, weather, clock. A companion app on the computer connects to it over the local network: it sends PC metrics, the music currently playing and a Claude Code dashboard (sessions, subagents, tokens, plan limits; the screen wakes up to approve a tool call), and runs Stream Deck-style shortcuts.
 
 Pages are configured **on the fly** from a web editor served by the screen itself (`http://desk-monitor.local`), with no rebuild and no reflash.
 
@@ -26,7 +26,7 @@ Pages are configured **on the fly** from a web editor served by the screen itsel
 | 1 | Native firmware (ESP-IDF + LVGL 9), dark theme, Wi-Fi, Home Assistant, Open-Meteo weather, JSON layout, web editor | ✅ |
 | 2 | Companion app (Rust/Tauri) linked over the local network: PC metrics, keyboard shortcuts, launching apps and URLs | ✅ macOS (Windows written, never compiled) |
 | 3 | Now playing (every Mac app, browsers included) with cover art and controls; falls back to a Home Assistant media player | ✅ macOS (Windows still to write) |
-| 4 | Claude Code: running sessions, approvals answered from the screen (it wakes up), tokens and plan limits | ✅ macOS |
+| 4 | Claude Code: running sessions and subagents, approvals answered from the screen (it wakes up), tokens and plan limits, full-screen detail views | ✅ macOS |
 
 ## Hardware
 
@@ -62,6 +62,23 @@ The style is picked in the editor (*Thème → Style*):
 - **Flat dark** (default): the smoothest.
 - **Frozen glass**: cards tinted like glass over a colored background, almost as fast.
 - **Translucent glass**: the prettiest, but about 2.5 times slower to draw (choppy swipes).
+
+## Claude Code
+
+The *Claude* page follows the Claude Code sessions of the computer (terminal, VS Code and JetBrains extensions, the desktop app's Code tab), through the companion app.
+
+| | | |
+| --- | --- | --- |
+| ![Claude page](docs/images/claude.png) | ![Approval](docs/images/claude-approval.png) | ![Session](docs/images/claude-session.png) |
+| ![Tokens](docs/images/claude-usage.png) | ![Limits](docs/images/claude-limits.png) | |
+
+- **Sessions**: waiting for you, working (with the tool in use) or idle, the context size and the running subagents.
+- **Approvals**: when Claude Code asks to run a tool, the screen wakes up, whatever the page, and shows *Refuser / Autoriser*. The answer goes straight to Claude Code. Closing the popup sends the question back to the terminal or the IDE, and an approval answered there leaves the screen.
+- **Session detail** (tap a session): model and surface, context window, tokens by kind and estimated cost, subagents, last tool calls.
+- **Tokens** (tap the card): today, 7 and 30 days with an estimated cost at API prices, 30 days by model, today hour by hour, the busiest projects.
+- **Plan limits** (tap the card): the 5-hour and weekly windows, the countdown to their reset, the pace (ahead of or behind the window) and a 7-day curve.
+
+Chats on claude.ai and in the desktop app, and Cowork tasks, are not shown: they keep nothing readable on the computer and have no hooks. Only the plan limits count them. See [Companion app](#companion-app-computer) to set it up.
 
 ## Install from a release
 
@@ -121,7 +138,7 @@ To install it, drag `Desk Monitor.app` (in `src-tauri/target/release/bundle/maco
 
 The app lives in the menu bar. On first launch, it finds the screen (`desk-monitor.local`) and offers to pair: the screen shows a 6-digit code to type in the app. To try it with the simulator, set the address to `localhost:8081`. The paired PC is managed in the editor, *Réglages → Ordinateur*.
 
-**Claude Code.** In the app, tick *Sessions et autorisations sur l'écran*: it adds HTTP hooks to `~/.claude/settings.json` (your other settings are kept, and a backup is made). When Claude Code asks to approve a tool call, the screen wakes up and shows *Refuser / Autoriser*; closing the popup sends the question back to the terminal. The plan limits come from the Claude desktop app, or from the terminal's status line with the second switch (your status line stays). Chats on claude.ai and in the desktop app are not shown: only Claude Code exposes its sessions.
+**Claude Code.** In the app, tick *Sessions et autorisations sur l'écran*: it adds HTTP hooks to `~/.claude/settings.json` (your other settings are kept, and a backup is made). When Claude Code asks to approve a tool call, the screen wakes up and shows *Refuser / Autoriser*; closing the popup sends the question back to the terminal. The plan limits come from the Claude desktop app, or from the terminal's status line with the second switch (your status line stays; it also gives the reset times and a finer curve). The switch takes effect in new Claude Code sessions. See [Claude Code](#claude-code) for what the screen shows.
 
 On macOS, the app asks for *Local Network* access, and keyboard shortcuts need the *Accessibility* permission (button in the app). The music currently playing is read with [mediaremote-adapter](https://github.com/ungive/mediaremote-adapter), like boring.notch does: no extra permission.
 
