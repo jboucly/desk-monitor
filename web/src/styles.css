@@ -726,6 +726,39 @@ button.destructive {
   border-radius: 3px;
 }
 
+/* Claude sessions card of the preview: state dot, session, what it does */
+.claude-row {
+  display: grid;
+  grid-template-columns: 8px auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.claude-row > .muted {
+  text-align: right;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* Claude usage card of the preview: 7-day histogram */
+.usage-bars {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.usage-bars > span {
+  flex: 1;
+  border-radius: 3px;
+  background: #2c3244;
+}
+
 /* Media card of the preview: cover, titles, play button */
 .face-media {
   display: flex;
