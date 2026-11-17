@@ -111,6 +111,7 @@
 {"shield-alert-outline", "\xF3\xB0\xBB\x8D"},
 {"chart-bar", "\xF3\xB0\x84\xA8"},
 {"timer-sand", "\xF3\xB0\x94\x9F"},
+{"history", "\xF3\xB0\x8B\x9A"},
 {"weather-sunny", "\xF3\xB0\x96\x99"},
 {"weather-night", "\xF3\xB0\x96\x94"},
 {"weather-partly-cloudy", "\xF3\xB0\x96\x95"},

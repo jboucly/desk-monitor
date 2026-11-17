@@ -75,6 +75,13 @@ class App {
   void show_claude_asks();
 
   /**
+   * @description Opens a full-screen Claude detail view. LVGL thread only.
+   * @param view "session", "usage" or "limits".
+   * @param id Session id for the "session" view.
+   */
+  void show_claude_detail(const std::string &view, const std::string &id = "");
+
+  /**
    * @description Shows the page at an index (used by the simulator's screenshot mode). LVGL thread only.
    */
   void show_page(int index, bool animate);

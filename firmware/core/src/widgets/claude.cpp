@@ -1,19 +1,21 @@
 // Claude Code widgets, fed by the PC companion (bus key pc/claude, see protocol/README.md "Claude Code"):
-// - claude_sessions: running sessions with their state; a waiting one reopens its approval sheet
+// - claude_sessions: running sessions with their state; a tap shows the session's detail, or its
+//   approval when it waits for one
 // - claude_usage: tokens and estimated cost of today and of the week, with a 7-day histogram
 // - claude_limits: the plan's 5-hour and weekly limits as two arcs
+// A tap on the usage or limits card opens its detail view (claude_detail.cpp).
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
 
-#include "common.h"
+#include "claude_common.h"
 #include "dm/util.h"
 
 namespace dm::widgets {
 
-namespace {
+namespace claude {
 
 /**
  * @description Token count in short French form: "850", "12 k", "1,2 M".
@@ -91,6 +93,42 @@ lv_obj_t *make_header(lv_obj_t *parent, const char *icon, const char *title, lv_
   return header;
 }
 
+lv_obj_t *make_column(lv_obj_t *parent, int gap) {
+  lv_obj_t *col = make_row(parent, 0);
+  lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+  lv_obj_set_style_pad_row(col, gap, 0);
+  return col;
+}
+
+lv_color_t state_color(const char *state) {
+  if (!strcmp(state, "waiting")) return theme::warn();
+  if (!strcmp(state, "working")) return theme::accent();
+  return theme::text3();
+}
+
+const char *state_text(const char *state) {
+  if (!strcmp(state, "waiting")) return "Attend ton accord";
+  if (!strcmp(state, "working")) return "Au travail";
+  return "Inactive";
+}
+
+void pass_clicks(lv_obj_t *card) {
+  lv_obj_tree_walk(
+      card,
+      [](lv_obj_t *obj, void *root) {
+        if (obj != root) lv_obj_remove_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+        return LV_OBJ_TREE_WALK_NEXT;
+      },
+      card);
+}
+
+}  // namespace claude
+
+namespace {
+
+using namespace claude;
+
 /**
  * @description True when the PC is connected and sent a Claude snapshot.
  */
@@ -133,6 +171,7 @@ class ClaudeSessions : public Widget {
 
   struct Row {
     lv_obj_t *box, *dot, *name, *status, *context;
+    std::string id;
   };
 
   Row make_session_row() {
@@ -172,9 +211,15 @@ class ClaudeSessions : public Widget {
   }
 
   void on_row_click(lv_event_t *e) {
-    // Only a waiting session has something to show: its approval
-    if (lv_obj_has_state(static_cast<lv_obj_t *>(lv_event_get_current_target(e)), LV_STATE_USER_1))
+    auto *box = static_cast<lv_obj_t *>(lv_event_get_current_target(e));
+    // A waiting session shows its approval, the others their detail
+    if (lv_obj_has_state(box, LV_STATE_USER_1)) {
       ctx_.app.show_claude_asks();
+      return;
+    }
+    for (int i = 0; i < rows_count_; i++) {
+      if (rows_[i].box == box && !rows_[i].id.empty()) ctx_.app.show_claude_detail("session", rows_[i].id);
+    }
   }
 
   void render() {
@@ -199,6 +244,7 @@ class ClaudeSessions : public Widget {
   }
 
   void fill_row(Row &row, const cJSON *session) {
+    row.id = json::str(session, "id");
     const std::string state = json::str(session, "state", "idle");
     const bool waiting = state == "waiting", working = state == "working";
     lv_obj_set_style_bg_color(row.dot, waiting ? theme::warn() : working ? theme::accent() : theme::text3(), 0);
@@ -220,6 +266,8 @@ class ClaudeSessions : public Widget {
     } else {
       status = std::string("Inactive") + age;
     }
+    const int agents = static_cast<int>(json::num(session, "subagents", 0));
+    if (agents > 0) status += " · " + std::to_string(agents) + (agents > 1 ? " agents" : " agent");
     const char *project = json::str(session, "project");
     if (*project && strcmp(project, name) != 0) status = std::string(project) + " · " + status;
     lv_label_set_text(row.status, status.c_str());
@@ -241,8 +289,9 @@ constexpr int DAYS = 7;
 
 class ClaudeUsage : public Widget {
  public:
-  ClaudeUsage(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx) {
+  ClaudeUsage(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx) : ctx_(ctx) {
     root = theme::make_card(parent);
+    bind_event<ClaudeUsage, &ClaudeUsage::on_click>(root, LV_EVENT_CLICKED, this);
     lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(root, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
     lv_obj_set_style_pad_row(root, 2, 0);
@@ -280,11 +329,16 @@ class ClaudeUsage : public Widget {
     week_ = theme::make_label(root, &dm_font_14, theme::text2());
     lv_obj_set_width(week_, lv_pct(100));
     theme::single_line(week_);
+    pass_clicks(root);
 
     ctx.bus.subscribe("pc/claude", [this](const cJSON *claude) { render(claude); });
   }
 
  private:
+  void on_click(lv_event_t *) {
+    if (has_snapshot(ctx_.bus.get("pc/claude"))) ctx_.app.show_claude_detail("usage");
+  }
+
   void render(const cJSON *claude) {
     const bool online = has_snapshot(claude);
     lv_obj_set_style_text_color(icon_, online ? theme::accent() : theme::text3(), 0);
@@ -322,6 +376,7 @@ class ClaudeUsage : public Widget {
     }
   }
 
+  WidgetContext &ctx_;
   lv_obj_t *icon_ = nullptr, *today_ = nullptr, *today_cost_ = nullptr, *week_ = nullptr, *bars_box_ = nullptr;
   lv_obj_t *bars_[DAYS] = {}, *day_labels_[DAYS] = {};
 };
@@ -330,8 +385,9 @@ class ClaudeUsage : public Widget {
 
 class ClaudeLimits : public Widget {
  public:
-  ClaudeLimits(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx) : bus_(ctx.bus) {
+  ClaudeLimits(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx) : ctx_(ctx), bus_(ctx.bus) {
     root = theme::make_card(parent);
+    bind_event<ClaudeLimits, &ClaudeLimits::on_click>(root, LV_EVENT_CLICKED, this);
     lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(root, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(root, 2, 0);
@@ -351,6 +407,7 @@ class ClaudeLimits : public Widget {
     lv_obj_set_width(note_, lv_pct(100));
     lv_obj_set_style_text_align(note_, LV_TEXT_ALIGN_CENTER, 0);
     theme::single_line(note_);
+    pass_clicks(root);
 
     ctx.bus.subscribe("pc/claude", [this](const cJSON *claude) { render(claude); });
   }
@@ -361,6 +418,10 @@ class ClaudeLimits : public Widget {
   }
 
  private:
+  void on_click(lv_event_t *) {
+    if (has_snapshot(bus_.get("pc/claude"))) ctx_.app.show_claude_detail("limits");
+  }
+
   struct Meter {
     lv_obj_t *arc, *value, *reset;
   };
@@ -430,6 +491,7 @@ class ClaudeLimits : public Widget {
 
   lv_obj_t *icon_ = nullptr, *note_ = nullptr;
   Meter meters_[2] = {};
+  WidgetContext &ctx_;
   Bus &bus_;
   int ticks_ = 0;
 };

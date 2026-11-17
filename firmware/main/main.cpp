@@ -102,6 +102,7 @@ extern "C" void app_main(void) {
   services.pc_claude_answer = [](const std::string &id, const char *decision) {
     return pc.send_claude_answer(id, decision);
   };
+  services.pc_claude_view = [](const std::string &view, const std::string &id) { return pc.send_claude_view(view, id); };
   services.wake = dm::esp32::display_wake;
   services.ha_fetch = dm::esp32::ha_fetch;
 

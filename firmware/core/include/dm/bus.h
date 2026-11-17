@@ -8,6 +8,7 @@
 //   sys/pc          {"state": "connected" | "off", "name": "..."}
 //   pc/claude       Claude Code sessions and usage from the companion
 //   pc/claude_asks  {"asks": [...]} pending Claude Code approvals
+//   pc/claude_detail data of the open Claude detail view ({"view": "session"|"usage"|"limits", ...})
 #pragma once
 
 #include <functional>

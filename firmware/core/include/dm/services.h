@@ -63,6 +63,13 @@ struct Services {
   std::function<bool(const std::string &id, const char *decision)> pc_claude_answer;
 
   /**
+   * @description Tells the PC companion which Claude detail view is open, so that it sends its data
+   * (`pc/claude_detail`): "session" (with the session id), "usage", "limits", or "" when it closes.
+   * Returns false when no PC is connected.
+   */
+  std::function<bool(const std::string &view, const std::string &id)> pc_claude_view;
+
+  /**
    * @description Wakes the screen up when it sleeps (backlight off). LVGL thread.
    */
   std::function<void()> wake;

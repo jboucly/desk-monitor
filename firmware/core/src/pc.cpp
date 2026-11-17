@@ -137,11 +137,11 @@ void PcSession::on_message(uint32_t connection, const std::string &text) {
       cJSON *copy = cJSON_Duplicate(root.get(), true);
       cJSON_DeleteItemFromObject(copy, "type");
       bus_.post(type == "media" ? "pc/media" : "pc/media_art", copy);
-    } else if ((type == "claude" || type == "claude_asks") && state_ == State::Ready) {
-      // Claude Code sessions and usage, and the approvals waiting for an answer
+    } else if ((type == "claude" || type == "claude_asks" || type == "claude_detail") && state_ == State::Ready) {
+      // Claude Code sessions and usage, the approvals waiting for an answer, and the open detail view
       cJSON *copy = cJSON_Duplicate(root.get(), true);
       cJSON_DeleteItemFromObject(copy, "type");
-      bus_.post(type == "claude" ? "pc/claude" : "pc/claude_asks", copy);
+      bus_.post(type == "claude" ? "pc/claude" : type == "claude_asks" ? "pc/claude_asks" : "pc/claude_detail", copy);
     } else if (type == "action_result" && state_ == State::Ready) {
       if (!json::boolean(root.get(), "ok", true)) {
         cJSON *toast = cJSON_CreateObject();
@@ -226,6 +226,20 @@ bool PcSession::send_claude_answer(const std::string &id, const char *decision) 
   return true;
 }
 
+bool PcSession::send_claude_view(const std::string &view, const std::string &id) {
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (state_ != State::Ready) return false;
+    cJSON *msg = message("claude_view");
+    if (view.empty()) cJSON_AddNullToObject(msg, "view");
+    else cJSON_AddStringToObject(msg, "view", view.c_str());
+    if (!id.empty()) cJSON_AddStringToObject(msg, "id", id.c_str());
+    send_locked(msg);
+  }
+  flush();
+  return true;
+}
+
 void PcSession::send_locked(cJSON *msg) {
   outgoing_.push_back(json::print(msg));
   cJSON_Delete(msg);
@@ -256,6 +270,7 @@ void PcSession::set_state_locked(State state) {
     bus_.post("pc/media", cJSON_CreateObject());
     bus_.post("pc/claude", cJSON_CreateObject());
     bus_.post("pc/claude_asks", cJSON_CreateObject());
+    bus_.post("pc/claude_detail", cJSON_CreateObject());
   }
 }
 

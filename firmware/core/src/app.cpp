@@ -8,6 +8,7 @@
 #include <ctime>
 
 #include "dm/theme.h"
+#include "widgets/common.h"
 
 namespace dm {
 
@@ -308,6 +309,10 @@ void App::build_header_status() {
 void App::show_claude_asks() {
   claude_dismissed_.clear();
   update_claude_asks(bus_.get("pc/claude_asks"));
+}
+
+void App::show_claude_detail(const std::string &view, const std::string &id) {
+  widgets::open_claude_detail(widget_ctx_, view, id);
 }
 
 void App::update_claude_asks(const cJSON *value) {

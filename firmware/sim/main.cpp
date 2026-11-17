@@ -6,6 +6,7 @@
 #include <SDL2/SDL.h>
 
 #include <algorithm>
+#include <cmath>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -98,10 +99,12 @@ void run_for(uint32_t ms) {
 }
 
 void post_mock_claude_asks(dm::Bus &bus);
+void post_mock_claude_detail(dm::Bus &bus, const std::string &view, const std::string &id);
 
 /**
  * @description Executes one scripted command: page=N, tap=X,Y, long=X,Y, swipe=X1,Y1,X2,Y2, wait=MS,
- * shot=FILE.png, bench=N, claude_ask (fake Claude Code approvals from the mock PC).
+ * shot=FILE.png, bench=N, claude_ask (fake Claude Code approvals from the mock PC),
+ * claude_view=session|usage|limits (a Claude detail view with fake data).
  */
 bool run_command(dm::App &app, dm::Bus &bus, const std::string &command) {
   const auto eq = command.find('=');
@@ -138,6 +141,10 @@ bool run_command(dm::App &app, dm::Bus &bus, const std::string &command) {
   } else if (verb == "claude_ask") {
     post_mock_claude_asks(bus);
     run_for(100);
+  } else if (verb == "claude_view") {
+    app.show_claude_detail(arg, arg == "session" ? "s2" : "");
+    post_mock_claude_detail(bus, arg, arg == "session" ? "s2" : "");
+    run_for(200);
   } else if (verb == "bench") {
     // Full-screen redraws, like every frame of a page swipe (same breakdown as the device logs at boot)
     printf("[sim] bench: %s\n", app.benchmark(std::stoi(arg)).c_str());
@@ -229,13 +236,95 @@ void post_mock_claude(dm::Bus &bus) {
   snprintf(text, sizeof text,
            R"({"desktop":true,"sessions":[)"
            R"({"id":"s1","name":"Pages Claude sur l'ecran","project":"desk-monitor","surface":"vscode","state":"waiting","since":%.0f,"tool":"Bash","context":84200,"tokens":2310000},)"
-           R"({"id":"s2","name":"Refacto du client HTTP","project":"api-gateway","surface":"cli","state":"working","since":%.0f,"tool":"Edit","context":131000,"tokens":5120000},)"
+           R"({"id":"s2","name":"Refacto du client HTTP","project":"api-gateway","surface":"cli","state":"working","since":%.0f,"tool":"Edit","context":131000,"tokens":5120000,"subagents":2},)"
            R"({"id":"s3","name":"Revue de la PR 42","project":"website","surface":"desktop","state":"idle","since":%.0f,"context":22400,"tokens":410000}],)"
            R"("today":{"tokens":7840000,"cost":12.4},"week":{"tokens":38200000,"cost":61.7},)"
            R"("days":[4100000,6900000,2300000,9800000,5400000,1900000,7840000],)"
            R"("limits":{"five_hour":{"pct":42,"resets_at":%.0f},"week":{"pct":78,"resets_at":%.0f},"at":%.0f,"source":"statusline"}})",
            now - 95, now - 400, now - 1900, now + 2 * 3600 + 900, now + 3 * 86400, now - 30);
   bus.post("pc/claude", cJSON_Parse(text));
+}
+
+/**
+ * @description Fake data of a Claude detail view ("session", "usage" or "limits"), as the companion sends it.
+ */
+void post_mock_claude_detail(dm::Bus &bus, const std::string &view, const std::string &id) {
+  const double now = static_cast<double>(time(nullptr));
+  cJSON *root = cJSON_CreateObject();
+  cJSON_AddStringToObject(root, "view", view.c_str());
+  if (view == "session") {
+    char text[1600];
+    snprintf(text, sizeof text,
+             R"({"name":"Refacto du client HTTP","project":"api-gateway","surface":"cli","model":"Opus 5.5",)"
+             R"("state":"working","since":%.0f,"started":%.0f,"tool":"Edit","context":131000,"context_max":200000,)"
+             R"("tokens":{"in":18400,"out":96200,"cache_read":4720000,"cache_write":285000},"total":5120000,"cost":7.85,)"
+             R"("subagents":[{"type":"Explore","description":"Find the retry logic of the HTTP client","running":true,"tokens":412000},)"
+             R"({"type":"general-purpose","description":"Check the timeouts in the tests","running":true,"tokens":96000},)"
+             R"({"type":"Plan","description":"Design the new client","running":false,"tokens":230000}],)"
+             R"("tools":[{"name":"Edit","detail":"src/http/client.rs","status":"run","at":%.0f},)"
+             R"({"name":"Bash","detail":"cargo test -p gateway http::","status":"fail","at":%.0f},)"
+             R"({"name":"Read","detail":"src/http/retry.rs","status":"ok","at":%.0f},)"
+             R"({"name":"Grep","detail":"fn send_with_retry","status":"ok","at":%.0f},)"
+             R"({"name":"WebFetch","detail":"https://docs.rs/reqwest","status":"denied","at":%.0f}]})",
+             now - 400, now - 2 * 3600 - 600, now - 5, now - 70, now - 140, now - 200, now - 900);
+    cJSON *data = cJSON_Parse(text);
+    cJSON *item = nullptr;
+    cJSON_ArrayForEach(item, data) cJSON_AddItemToObject(root, item->string, cJSON_Duplicate(item, true));
+    cJSON_Delete(data);
+    cJSON_AddStringToObject(root, "id", id.c_str());
+  } else if (view == "usage") {
+    cJSON *models = cJSON_AddArrayToObject(root, "models");
+    for (const char *name : {"Opus", "Sonnet", "Haiku"}) cJSON_AddItemToArray(models, cJSON_CreateString(name));
+    cJSON *days = cJSON_AddArrayToObject(root, "days");
+    double week = 0, month = 0;
+    for (int i = 0; i < 30; i++) {
+      const double opus = (i % 7 == 5 || i % 7 == 6) ? 0.4e6 * (i % 3) : 3e6 + 2.5e6 * ((i * 37) % 10) / 10.0;
+      const double sonnet = 0.8e6 * ((i * 13) % 5) / 4.0, haiku = 0.15e6 * (i % 4), other = i == 12 ? 0.6e6 : 0;
+      cJSON *day = cJSON_CreateObject();
+      const double total = opus + sonnet + haiku + other;
+      cJSON_AddNumberToObject(day, "tokens", total);
+      cJSON_AddNumberToObject(day, "cost", total / 1e6 * 1.6);
+      cJSON *split = cJSON_AddArrayToObject(day, "m");
+      for (double v : {opus, sonnet, haiku, other}) cJSON_AddItemToArray(split, cJSON_CreateNumber(v));
+      cJSON_AddItemToArray(days, day);
+      month += total;
+      if (i >= 23) week += total;
+    }
+    cJSON *hours = cJSON_AddArrayToObject(root, "hours");
+    for (int h = 0; h < 24; h++) cJSON_AddItemToArray(hours, cJSON_CreateNumber(h >= 9 && h <= 19 ? 0.2e6 + 0.9e6 * ((h * 7) % 5) / 4.0 : 0));
+    const auto total = [&](const char *key, double tokens) {
+      cJSON *t = cJSON_AddObjectToObject(root, key);
+      cJSON_AddNumberToObject(t, "tokens", tokens);
+      cJSON_AddNumberToObject(t, "cost", tokens / 1e6 * 1.6);
+    };
+    total("today", 7840000);
+    total("week", week);
+    total("month", month);
+    cJSON_AddItemToObject(root, "projects", cJSON_Parse(
+        R"([{"name":"desk-monitor","tokens":61200000,"cost":98.1},{"name":"api-gateway","tokens":38400000,"cost":57.2},)"
+        R"({"name":"website","tokens":12900000,"cost":18.4},{"name":"dotfiles","tokens":3100000,"cost":4.2}])"));
+  } else {
+    char text[600];
+    snprintf(text, sizeof text,
+             R"({"five_hour":{"pct":42,"resets_at":%.0f,"pace":-14},"week":{"pct":78,"resets_at":%.0f,"pace":21},)"
+             R"("at":%.0f,"source":"statusline"})",
+             now + 2 * 3600 + 900, now + 3 * 86400, now - 30);
+    cJSON *data = cJSON_Parse(text);
+    cJSON *item = nullptr;
+    cJSON_ArrayForEach(item, data) cJSON_AddItemToObject(root, item->string, cJSON_Duplicate(item, true));
+    cJSON_Delete(data);
+    // A week of readings: the weekly use climbs, the 5-hour one goes up and down
+    cJSON *history = cJSON_AddArrayToObject(root, "history");
+    for (int i = 0; i <= 56; i++) {
+      const double t = now - 7 * 86400 + i * 3 * 3600;
+      cJSON *sample = cJSON_CreateArray();
+      cJSON_AddItemToArray(sample, cJSON_CreateNumber(t));
+      cJSON_AddItemToArray(sample, cJSON_CreateNumber(std::fmod(i * 17.0, 60.0)));
+      cJSON_AddItemToArray(sample, cJSON_CreateNumber(std::min(78.0, 8 + i * 1.3)));
+      cJSON_AddItemToArray(history, sample);
+    }
+  }
+  bus.post("pc/claude_detail", root);
 }
 
 /**
@@ -274,7 +363,7 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[i], "--no-window")) no_window = true;
     else if (!strcmp(argv[i], "--mock-pc")) mock_pc = true;
     else {
-      fprintf(stderr, "usage: %s [--port N] [--no-window] [--mock-pc] [--do page=N|tap=X,Y|long=X,Y|swipe=X1,Y1,X2,Y2|wait=MS|shot=FILE.png|bench=N|claude_ask]...\n",
+      fprintf(stderr, "usage: %s [--port N] [--no-window] [--mock-pc] [--do page=N|tap=X,Y|long=X,Y|swipe=X1,Y1,X2,Y2|wait=MS|shot=FILE.png|bench=N|claude_ask|claude_view=VIEW]...\n",
               argv[0]);
       return 2;
     }
@@ -349,6 +438,12 @@ int main(int argc, char **argv) {
     printf("[mock PC] claude %s %s\n", id.c_str(), decision);
     g_mock_answered.insert(id);
     post_mock_claude_asks(bus);
+    return true;
+  };
+  services.pc_claude_view = [&pc, &bus, mock_pc](const std::string &view, const std::string &id) {
+    if (!mock_pc) return pc.send_claude_view(view, id);
+    printf("[mock PC] claude view %s %s\n", view.empty() ? "(closed)" : view.c_str(), id.c_str());
+    if (!view.empty()) post_mock_claude_detail(bus, view, id);
     return true;
   };
   // The simulator has no sleep: nothing to wake

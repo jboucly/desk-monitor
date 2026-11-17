@@ -70,6 +70,14 @@ lv_color_t light_color(const cJSON *state);
  */
 void open_light_popup(WidgetContext &ctx, const std::string &entity_id, const std::string &name, const char *icon);
 
+// ── Claude detail views (claude_detail.cpp) ──────────────────────────────────
+
+/**
+ * @description Opens a full-screen Claude detail view ("session", "usage" or "limits") and asks the
+ * PC companion for its data. The view deletes itself when its sheet closes.
+ */
+void open_claude_detail(WidgetContext &ctx, const std::string &view, const std::string &id);
+
 // ── LVGL helpers ─────────────────────────────────────────────────────────────
 
 /**
