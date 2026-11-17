@@ -345,13 +345,15 @@ void App::open_claude_ask(const cJSON *ask, int position, int count) {
   if (services_.wake) services_.wake();
   lv_display_trigger_activity(nullptr);
 
-  // Closing without an answer (tap outside) dismisses every pending approval: Claude Code asks in the
-  // terminal once they time out, and a session row brings them back
+  // Closing without an answer (tap outside) hands every pending approval back to the terminal
   lv_obj_t *panel = open_sheet(420, 330, [this] {
     claude_sheet_ = false;
     const cJSON *asks = json::get(bus_.get("pc/claude_asks"), "asks");
-    for (int i = 0; cJSON_IsArray(asks) && i < cJSON_GetArraySize(asks); i++)
-      claude_dismissed_.insert(json::str(cJSON_GetArrayItem(asks, i), "id"));
+    for (int i = 0; cJSON_IsArray(asks) && i < cJSON_GetArraySize(asks); i++) {
+      const std::string id = json::str(cJSON_GetArrayItem(asks, i), "id");
+      if (!claude_dismissed_.insert(id).second) continue;
+      if (services_.pc_claude_answer) services_.pc_claude_answer(id, "ask");
+    }
   });
   claude_sheet_ = true;
   claude_ask_id_ = json::str(ask, "id");
@@ -422,7 +424,7 @@ void App::open_claude_ask(const cJSON *ask, int position, int count) {
 
 void App::answer_claude_ask(bool allow) {
   const std::string id = claude_ask_id_;
-  if (!services_.pc_claude_answer || !services_.pc_claude_answer(id, allow)) toast("PC non connecté");
+  if (!services_.pc_claude_answer || !services_.pc_claude_answer(id, allow ? "allow" : "deny")) toast("PC non connecté");
   // Answered: only this approval leaves the queue, the next one shows right away
   claude_dismissed_.insert(id);
   sheet_on_close_ = nullptr;

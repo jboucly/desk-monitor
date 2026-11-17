@@ -57,10 +57,10 @@ struct Services {
   std::function<void(const std::string &path, std::function<void(std::string body)> done)> ha_fetch;
 
   /**
-   * @description Answers a Claude Code approval request through the PC companion.
-   * Returns false when no PC is connected.
+   * @description Answers a Claude Code approval request through the PC companion: "allow", "deny",
+   * or "ask" (let Claude Code ask in the terminal). Returns false when no PC is connected.
    */
-  std::function<bool(const std::string &id, bool allow)> pc_claude_answer;
+  std::function<bool(const std::string &id, const char *decision)> pc_claude_answer;
 
   /**
    * @description Wakes the screen up when it sleeps (backlight off). LVGL thread.

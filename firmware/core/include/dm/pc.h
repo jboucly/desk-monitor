@@ -74,9 +74,10 @@ class PcSession {
 
   /**
    * @description Answers a Claude Code approval request of the paired PC.
+   * @param decision "allow", "deny", or "ask" (Claude Code asks in the terminal).
    * @returns False when no paired PC is connected.
    */
-  bool send_claude_answer(const std::string &id, bool allow);
+  bool send_claude_answer(const std::string &id, const char *decision);
 
  private:
   using Clock = std::chrono::steady_clock;

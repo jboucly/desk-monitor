@@ -344,9 +344,9 @@ int main(int argc, char **argv) {
     printf("[mock PC] action %s\n", dm::json::print(action).c_str());
     return true;
   };
-  services.pc_claude_answer = [&pc, &bus, mock_pc](const std::string &id, bool allow) {
-    if (!mock_pc) return pc.send_claude_answer(id, allow);
-    printf("[mock PC] claude %s %s\n", id.c_str(), allow ? "allow" : "deny");
+  services.pc_claude_answer = [&pc, &bus, mock_pc](const std::string &id, const char *decision) {
+    if (!mock_pc) return pc.send_claude_answer(id, decision);
+    printf("[mock PC] claude %s %s\n", id.c_str(), decision);
     g_mock_answered.insert(id);
     post_mock_claude_asks(bus);
     return true;

@@ -213,13 +213,13 @@ bool PcSession::send_media(const std::string &command) {
   return true;
 }
 
-bool PcSession::send_claude_answer(const std::string &id, bool allow) {
+bool PcSession::send_claude_answer(const std::string &id, const char *decision) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
     if (state_ != State::Ready) return false;
     cJSON *msg = message("claude_answer");
     cJSON_AddStringToObject(msg, "id", id.c_str());
-    cJSON_AddBoolToObject(msg, "allow", allow);
+    cJSON_AddStringToObject(msg, "decision", decision);
     send_locked(msg);
   }
   flush();

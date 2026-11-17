@@ -99,7 +99,9 @@ extern "C" void app_main(void) {
   static dm::PcSession pc(bus, settings, [] { return esp_random(); });
   services.pc_action = [](const cJSON *action) { return pc.send_action(action); };
   services.pc_media = [](const std::string &command) { return pc.send_media(command); };
-  services.pc_claude_answer = [](const std::string &id, bool allow) { return pc.send_claude_answer(id, allow); };
+  services.pc_claude_answer = [](const std::string &id, const char *decision) {
+    return pc.send_claude_answer(id, decision);
+  };
   services.wake = dm::esp32::display_wake;
   services.ha_fetch = dm::esp32::ha_fetch;
 

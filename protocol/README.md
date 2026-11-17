@@ -114,7 +114,7 @@ media {title, artist, …}         →                            (when the now 
 action_result {id, ok, error?}   →                            (an error shows as a toast)
 claude {…}                       →                            (Claude Code sessions and usage, when they change)
 claude_asks {asks}               →                            (pending approvals, when the list changes)
-                                  ← claude_answer {id, allow} (the user answered an approval)
+                                  ← claude_answer {id, decision} (allow, deny, or ask in the terminal)
 ping                             →
                                   ← pong
 ```
@@ -170,4 +170,4 @@ The plan limits come from the Claude Code status line (`rate_limits`) when the r
 | `limits` | optional: `{five_hour: {pct, resets_at?}, week: {pct, resets_at?}, at, source}`, `source` = `statusline` or `desktop`, `at` = Unix time of the reading |
 | `desktop` | true while the Claude desktop app runs |
 
-`claude_asks` lists the approvals Claude Code waits for, oldest first: `{asks: [{id, project, tool, detail}]}`, where `detail` is the command, the file or the URL (200 characters at most). The screen wakes up and shows the first one. `claude_answer {id, allow}` answers it. An approval that is answered in the terminal, or that waits more than about 100 s, leaves the list, and Claude Code then asks in the terminal as usual.
+`claude_asks` lists the approvals Claude Code waits for, oldest first: `{asks: [{id, project, tool, detail}]}`, where `detail` is the command, the file or the URL (200 characters at most). The screen wakes up and shows the first one. `claude_answer {id, decision}` answers it: `allow`, `deny`, or `ask` when the user closed the popup without choosing (Claude Code then asks in the terminal at once). An approval that is answered in the terminal, or that waits more than about 100 s, leaves the list, and Claude Code then asks in the terminal as usual.
