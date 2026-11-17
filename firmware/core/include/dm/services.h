@@ -55,6 +55,17 @@ struct Services {
    * background. `done` runs on a worker thread with the body, or an empty string on failure.
    */
   std::function<void(const std::string &path, std::function<void(std::string body)> done)> ha_fetch;
+
+  /**
+   * @description Answers a Claude Code approval request through the PC companion.
+   * Returns false when no PC is connected.
+   */
+  std::function<bool(const std::string &id, bool allow)> pc_claude_answer;
+
+  /**
+   * @description Wakes the screen up when it sleeps (backlight off). LVGL thread.
+   */
+  std::function<void()> wake;
 };
 
 }  // namespace dm

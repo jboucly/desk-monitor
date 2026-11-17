@@ -16,6 +16,7 @@
 #include <mutex>
 #include <random>
 #include <sstream>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
@@ -96,11 +97,13 @@ void run_for(uint32_t ms) {
   }
 }
 
+void post_mock_claude_asks(dm::Bus &bus);
+
 /**
  * @description Executes one scripted command: page=N, tap=X,Y, long=X,Y, swipe=X1,Y1,X2,Y2, wait=MS,
- * shot=FILE.png, bench=N.
+ * shot=FILE.png, bench=N, claude_ask (fake Claude Code approvals from the mock PC).
  */
-bool run_command(dm::App &app, const std::string &command) {
+bool run_command(dm::App &app, dm::Bus &bus, const std::string &command) {
   const auto eq = command.find('=');
   const std::string verb = command.substr(0, eq), arg = eq == std::string::npos ? "" : command.substr(eq + 1);
   int x = 0, y = 0;
@@ -132,6 +135,9 @@ bool run_command(dm::App &app, const std::string &command) {
     lv_refr_now(nullptr);
     if (!sim::write_png_rgb565(arg, g_frame, dm::theme::SCREEN_W, dm::theme::SCREEN_H)) return false;
     printf("[sim] wrote %s\n", arg.c_str());
+  } else if (verb == "claude_ask") {
+    post_mock_claude_asks(bus);
+    run_for(100);
   } else if (verb == "bench") {
     // Full-screen redraws, like every frame of a page swipe (same breakdown as the device logs at boot)
     printf("[sim] bench: %s\n", app.benchmark(std::stoi(arg)).c_str());
@@ -193,6 +199,45 @@ void post_mock_cover(dm::Bus &bus) {
                                    R"("app":"Plexamp","playing":true,"duration":214,"elapsed":71,"color":"#F0A35E"})"));
 }
 
+// Approvals of the mock PC that were answered on the screen
+std::set<std::string> g_mock_answered;
+
+/**
+ * @description Fake Claude Code approvals waiting for an answer, without the answered ones.
+ */
+void post_mock_claude_asks(dm::Bus &bus) {
+  cJSON *root = cJSON_CreateObject();
+  cJSON *asks = cJSON_AddArrayToObject(root, "asks");
+  const char *const ASKS[] = {
+      R"({"id":"a1","project":"desk-monitor","tool":"Bash","detail":"idf.py -p /dev/cu.usbmodem1101 flash monitor"})",
+      R"({"id":"a2","project":"api-gateway","tool":"WebFetch","detail":"https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-reference/peripherals/lcd/rgb_lcd.html"})",
+  };
+  for (const char *ask : ASKS) {
+    cJSON *item = cJSON_Parse(ask);
+    if (g_mock_answered.count(dm::json::str(item, "id"))) cJSON_Delete(item);
+    else cJSON_AddItemToArray(asks, item);
+  }
+  bus.post("pc/claude_asks", root);
+}
+
+/**
+ * @description Fake Claude Code activity of the mock PC: three sessions, a week of usage and the plan limits.
+ */
+void post_mock_claude(dm::Bus &bus) {
+  const double now = static_cast<double>(time(nullptr));
+  char text[1400];
+  snprintf(text, sizeof text,
+           R"({"desktop":true,"sessions":[)"
+           R"({"id":"s1","name":"Pages Claude sur l'ecran","project":"desk-monitor","surface":"vscode","state":"waiting","since":%.0f,"tool":"Bash","context":84200,"tokens":2310000},)"
+           R"({"id":"s2","name":"Refacto du client HTTP","project":"api-gateway","surface":"cli","state":"working","since":%.0f,"tool":"Edit","context":131000,"tokens":5120000},)"
+           R"({"id":"s3","name":"Revue de la PR 42","project":"website","surface":"desktop","state":"idle","since":%.0f,"context":22400,"tokens":410000}],)"
+           R"("today":{"tokens":7840000,"cost":12.4},"week":{"tokens":38200000,"cost":61.7},)"
+           R"("days":[4100000,6900000,2300000,9800000,5400000,1900000,7840000],)"
+           R"("limits":{"five_hour":{"pct":42,"resets_at":%.0f},"week":{"pct":78,"resets_at":%.0f},"at":%.0f,"source":"statusline"}})",
+           now - 95, now - 400, now - 1900, now + 2 * 3600 + 900, now + 3 * 86400, now - 30);
+  bus.post("pc/claude", cJSON_Parse(text));
+}
+
 /**
  * @description Fake PC companion (headless runs and --mock-pc): connected, with drifting metrics.
  */
@@ -200,7 +245,10 @@ void post_mock_pc(dm::Bus &bus, int step) {
   if (step == 0) {
     bus.post("sys/pc", cJSON_Parse(R"({"state":"connected","name":"MacBook Pro"})"));
     post_mock_cover(bus);
+    post_mock_claude(bus);
   }
+  // An approval shows up a few seconds after start in interactive runs
+  if (step == 5) post_mock_claude_asks(bus);
   const double wave = (step % 20) / 20.0;
   char metrics[320];
   snprintf(metrics, sizeof metrics,
@@ -226,7 +274,7 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[i], "--no-window")) no_window = true;
     else if (!strcmp(argv[i], "--mock-pc")) mock_pc = true;
     else {
-      fprintf(stderr, "usage: %s [--port N] [--no-window] [--mock-pc] [--do page=N|tap=X,Y|long=X,Y|swipe=X1,Y1,X2,Y2|wait=MS|shot=FILE.png|bench=N]...\n",
+      fprintf(stderr, "usage: %s [--port N] [--no-window] [--mock-pc] [--do page=N|tap=X,Y|long=X,Y|swipe=X1,Y1,X2,Y2|wait=MS|shot=FILE.png|bench=N|claude_ask]...\n",
               argv[0]);
       return 2;
     }
@@ -296,6 +344,15 @@ int main(int argc, char **argv) {
     printf("[mock PC] action %s\n", dm::json::print(action).c_str());
     return true;
   };
+  services.pc_claude_answer = [&pc, &bus, mock_pc](const std::string &id, bool allow) {
+    if (!mock_pc) return pc.send_claude_answer(id, allow);
+    printf("[mock PC] claude %s %s\n", id.c_str(), allow ? "allow" : "deny");
+    g_mock_answered.insert(id);
+    post_mock_claude_asks(bus);
+    return true;
+  };
+  // The simulator has no sleep: nothing to wake
+  services.wake = [] {};
 
   dm::App app(bus, services, storage, read_file(DM_DEFAULT_LAYOUT_PATH));
   app.on_entities_changed = [&](const std::set<std::string> &entities) {
@@ -311,7 +368,7 @@ int main(int argc, char **argv) {
     bus.post("weather", cJSON_Parse(CANNED_WEATHER));
     run_for(200);
     for (const auto &command : commands) {
-      if (!run_command(app, command)) {
+      if (!run_command(app, bus, command)) {
         fprintf(stderr, "[sim] bad command: %s\n", command.c_str());
         return 1;
       }

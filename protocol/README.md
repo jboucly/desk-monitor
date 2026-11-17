@@ -80,6 +80,8 @@ Data sources publish on the bus, and widgets subscribe to it (`firmware/core/inc
 | `pc` | `metrics` fields (see PC link), `{}` when the PC is gone | `PcSession` |
 | `pc/media` | `media` fields (see PC link), `{}` when nothing plays or the PC is gone | `PcSession` |
 | `pc/media_art` | `{"id", "w", "h", "data"}` (RGB565, base64) | `PcSession` |
+| `pc/claude` | `claude` fields (see PC link), `{}` when the PC is gone | `PcSession` |
+| `pc/claude_asks` | `{"asks": [...]}` pending Claude Code approvals (see PC link), `{}` when the PC is gone | `PcSession` |
 | `ha_art/<entity_id>` | same shape, decoded from the player's `entity_picture` (JPEG) | media widget, through `Services::ha_fetch` |
 
 ## PC link (WebSocket)
@@ -110,6 +112,9 @@ media {title, artist, …}         →                            (when the now 
                                   ← media_cmd {cmd}           (toggle, next, prev)
                                   ← action {id, action}       (a shortcut was tapped)
 action_result {id, ok, error?}   →                            (an error shows as a toast)
+claude {…}                       →                            (Claude Code sessions and usage, when they change)
+claude_asks {asks}               →                            (pending approvals, when the list changes)
+                                  ← claude_answer {id, allow} (the user answered an approval)
 ping                             →
                                   ← pong
 ```
@@ -139,3 +144,30 @@ Errors look like `{"type": "error", "code": "bad_code" | "pair_expired", "messag
 `media_art` carries the cover: `w` x `h` pixels (160 x 160) in RGB565 little-endian, base64 in `data` (about 68 KB). It is sent only when the cover changes. On macOS the companion reads the now playing with the vendored `mediaremote-adapter` (`companion/vendor/`).
 
 `action` carries the shortcut's `action` object from the layout (`keys`, `launch`, `url`). The companion runs it and answers with `action_result`.
+
+### Claude Code
+
+The companion follows the Claude Code sessions of the PC (CLI, IDE extensions, the desktop app's Code tab) and sends them to the screen. It reads three sources:
+
+- the live session registry of Claude Code, `~/.claude/sessions/<pid>.json` (one file per running session);
+- the transcripts, `~/.claude/projects/**/*.jsonl`, for the tokens;
+- the hooks it installs in `~/.claude/settings.json` (HTTP hooks to `http://127.0.0.1:47823`), for the approvals and the live state.
+
+The plan limits come from the Claude Code status line (`rate_limits`) when the relay is installed, else from the desktop app's `plan-usage-history.json`. Chats of claude.ai and of the desktop app are not visible: only the plan limits count them.
+
+`claude` is a full snapshot, sent after `welcome` and when something changes (once a second at most). Texts are ASCII (the screen fonts are Latin-1).
+
+| Field | Meaning |
+| --- | --- |
+| `sessions` | up to 6, the most recent first: `{id, name, project, surface, state, since, tool?, model?, context, tokens}` |
+| `sessions[].surface` | `cli`, `vscode`, `jetbrains`, `desktop` or `other` |
+| `sessions[].state` | `working`, `waiting` (an approval or an answer is expected) or `idle` |
+| `sessions[].since` | Unix time (s) of the last state change |
+| `sessions[].context` | tokens in the context window (input + cache of the last answer) |
+| `sessions[].tokens` | tokens used by the session (input + output + cache) |
+| `today`, `week` | `{tokens, cost}`, cost in US dollars, an estimate at API prices |
+| `days` | 7 daily token totals, oldest first, today last |
+| `limits` | optional: `{five_hour: {pct, resets_at?}, week: {pct, resets_at?}, at, source}`, `source` = `statusline` or `desktop`, `at` = Unix time of the reading |
+| `desktop` | true while the Claude desktop app runs |
+
+`claude_asks` lists the approvals Claude Code waits for, oldest first: `{asks: [{id, project, tool, detail}]}`, where `detail` is the command, the file or the URL (200 characters at most). The screen wakes up and shows the first one. `claude_answer {id, allow}` answers it. An approval that is answered in the terminal, or that waits more than about 100 s, leaves the list, and Claude Code then asks in the terminal as usual.

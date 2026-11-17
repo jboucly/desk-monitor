@@ -22,6 +22,9 @@ std::unique_ptr<Widget> create_shortcut(lv_obj_t *parent, const WidgetSpec &spec
 std::unique_ptr<Widget> create_pc_metrics(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_pc_gauge(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_media(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
+std::unique_ptr<Widget> create_claude_sessions(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
+std::unique_ptr<Widget> create_claude_usage(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
+std::unique_ptr<Widget> create_claude_limits(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 
 // ── Home Assistant helpers ───────────────────────────────────────────────────
 

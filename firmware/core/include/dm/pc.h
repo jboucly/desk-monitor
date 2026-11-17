@@ -72,6 +72,12 @@ class PcSession {
    */
   bool send_media(const std::string &command);
 
+  /**
+   * @description Answers a Claude Code approval request of the paired PC.
+   * @returns False when no paired PC is connected.
+   */
+  bool send_claude_answer(const std::string &id, bool allow);
+
  private:
   using Clock = std::chrono::steady_clock;
   enum class State { Closed, Unpaired, Ready };

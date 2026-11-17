@@ -8,8 +8,10 @@ namespace dm {
 
 namespace {
 
-const char *const KNOWN_TYPES[] = {"clock",    "weather", "ha_toggle",  "ha_light", "ha_sensor",
-                                   "ha_gauge", "shortcut", "pc_metrics", "pc_gauge", "media"};
+const char *const KNOWN_TYPES[] = {"clock",           "weather",      "ha_toggle",    "ha_light",
+                                   "ha_sensor",       "ha_gauge",     "shortcut",     "pc_metrics",
+                                   "pc_gauge",        "media",        "claude_sessions", "claude_usage",
+                                   "claude_limits"};
 
 const char *const ACTION_KINDS[] = {"ha", "keys", "launch", "url"};
 

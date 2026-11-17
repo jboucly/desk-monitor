@@ -137,6 +137,11 @@ void PcSession::on_message(uint32_t connection, const std::string &text) {
       cJSON *copy = cJSON_Duplicate(root.get(), true);
       cJSON_DeleteItemFromObject(copy, "type");
       bus_.post(type == "media" ? "pc/media" : "pc/media_art", copy);
+    } else if ((type == "claude" || type == "claude_asks") && state_ == State::Ready) {
+      // Claude Code sessions and usage, and the approvals waiting for an answer
+      cJSON *copy = cJSON_Duplicate(root.get(), true);
+      cJSON_DeleteItemFromObject(copy, "type");
+      bus_.post(type == "claude" ? "pc/claude" : "pc/claude_asks", copy);
     } else if (type == "action_result" && state_ == State::Ready) {
       if (!json::boolean(root.get(), "ok", true)) {
         cJSON *toast = cJSON_CreateObject();
@@ -208,6 +213,19 @@ bool PcSession::send_media(const std::string &command) {
   return true;
 }
 
+bool PcSession::send_claude_answer(const std::string &id, bool allow) {
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (state_ != State::Ready) return false;
+    cJSON *msg = message("claude_answer");
+    cJSON_AddStringToObject(msg, "id", id.c_str());
+    cJSON_AddBoolToObject(msg, "allow", allow);
+    send_locked(msg);
+  }
+  flush();
+  return true;
+}
+
 void PcSession::send_locked(cJSON *msg) {
   outgoing_.push_back(json::print(msg));
   cJSON_Delete(msg);
@@ -236,6 +254,8 @@ void PcSession::set_state_locked(State state) {
   if (state != State::Ready) {
     bus_.post("pc", cJSON_CreateObject());
     bus_.post("pc/media", cJSON_CreateObject());
+    bus_.post("pc/claude", cJSON_CreateObject());
+    bus_.post("pc/claude_asks", cJSON_CreateObject());
   }
 }
 
