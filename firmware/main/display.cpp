@@ -409,4 +409,9 @@ void display_show() {
   if (!g_asleep) backlight_fade_in(g_brightness);
 }
 
+void display_wake() {
+  // The sleep task redraws, then turns the backlight on (within half a second)
+  if (g_asleep) g_wake_request = true;
+}
+
 }  // namespace dm::esp32

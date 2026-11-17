@@ -22,4 +22,10 @@ void display_configure(int brightness_pct, int sleep_minutes);
  */
 void display_show();
 
+/**
+ * @description Wakes the screen up when it sleeps, without a touch (e.g. a Claude Code approval).
+ * Safe from any task.
+ */
+void display_wake();
+
 }  // namespace dm::esp32
