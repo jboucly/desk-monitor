@@ -106,6 +106,10 @@ export interface Status {
   uptime: number;
   heap_internal?: number;
   heap_psram?: number;
+  /**
+   * @description Why the screen last restarted (device only): "power_on", "panic", "brownout", "task_wdt"…
+   */
+  reset_reason?: string;
 }
 
 /**

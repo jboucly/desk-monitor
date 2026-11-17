@@ -57,6 +57,7 @@ export function SystemView({ onError, onSaved }: { onError: (message: string) =>
               <tr><td>Adresse IP</td><td>{status.ip || '—'}</td></tr>
               {status.rssi !== undefined && <tr><td>Signal Wi-Fi</td><td>{status.rssi} dBm</td></tr>}
               <tr><td>Allumé depuis</td><td>{formatUptime(status.uptime)}</td></tr>
+              {status.reset_reason && <tr><td>Dernier redémarrage</td><td>{status.reset_reason}</td></tr>}
               <tr><td>Mémoire interne libre</td><td>{kib(status.heap_internal)}</td></tr>
               <tr><td>PSRAM libre</td><td>{kib(status.heap_psram)}</td></tr>
             </tbody>

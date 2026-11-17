@@ -13,6 +13,7 @@
 #include "esp_log.h"
 #include "esp_lvgl_port.h"
 #include "esp_random.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "ha_client.h"
 #include "http_server.h"
@@ -31,6 +32,31 @@ namespace {
 const char *TAG = "main";
 
 /**
+ * @description Why the chip last restarted, as a short name ("panic", "brownout", "task_wdt"…). Shown in
+ * GET /api/status so that a crash can be diagnosed without a serial console.
+ */
+const char *reset_reason() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON: return "power_on";
+    case ESP_RST_EXT: return "external";
+    case ESP_RST_SW: return "software";
+    case ESP_RST_PANIC: return "panic";
+    case ESP_RST_INT_WDT: return "int_wdt";
+    case ESP_RST_TASK_WDT: return "task_wdt";
+    case ESP_RST_WDT: return "wdt";
+    case ESP_RST_DEEPSLEEP: return "deep_sleep";
+    case ESP_RST_BROWNOUT: return "brownout";
+    case ESP_RST_SDIO: return "sdio";
+    case ESP_RST_USB: return "usb";
+    case ESP_RST_JTAG: return "jtag";
+    case ESP_RST_EFUSE: return "efuse";
+    case ESP_RST_PWR_GLITCH: return "power_glitch";
+    case ESP_RST_CPU_LOCKUP: return "cpu_lockup";
+    default: return "unknown";
+  }
+}
+
+/**
  * @description JSON returned by GET /api/status.
  */
 std::string status_json() {
@@ -40,6 +66,7 @@ std::string status_json() {
   cJSON_AddStringToObject(status, "ip", dm::esp32::network_ip().c_str());
   cJSON_AddNumberToObject(status, "rssi", dm::esp32::network_rssi());
   cJSON_AddNumberToObject(status, "uptime", static_cast<double>(esp_timer_get_time() / 1000000));
+  cJSON_AddStringToObject(status, "reset_reason", reset_reason());
   cJSON_AddNumberToObject(status, "heap_internal", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
   cJSON_AddNumberToObject(status, "heap_psram", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
   std::string out = dm::json::print(status);
@@ -115,5 +142,5 @@ extern "C" void app_main(void) {
     if (changes & dm::Settings::DISPLAY) dm::esp32::display_configure(s.brightness, s.sleep_minutes);
   };
 
-  ESP_LOGI(TAG, "Desk Monitor %s started", esp_app_get_description()->version);
+  ESP_LOGI(TAG, "Desk Monitor %s started (last reset: %s)", esp_app_get_description()->version, reset_reason());
 }
