@@ -49,9 +49,9 @@ Pages are configured **on the fly** from a web editor served by the screen itsel
 | PC gauge | One PC measure: CPU, RAM, GPU, GPU memory, disk or temperature |
 | Music | What the computer plays (Music, Spotify, Chrome, Safari…) with cover art, progress and controls; otherwise the chosen Home Assistant player |
 
-| Claude sessions | Running Claude Code sessions (CLI, IDE, desktop app's Code tab): waiting, working or idle, tool in use, context size |
-| Claude tokens | Tokens of the day and of the week, with an estimated cost at API prices and a 7-day histogram |
-| Claude limits | The plan's 5-hour and weekly limits, with their reset time |
+| Claude sessions | Running Claude Code sessions (CLI, IDE, desktop app's Code tab): waiting, working or idle, tool in use, context size, running subagents. A tap shows the session in full screen: tokens by kind, subagents, last tools |
+| Claude tokens | Tokens of the day and of the week, with an estimated cost at API prices and a 7-day histogram. A tap shows 30 days by model, today by hour and the busiest projects |
+| Claude limits | The plan's 5-hour and weekly limits, with their reset time. A tap shows the countdown, the pace and a 7-day curve |
 
 The PC widgets, the computer's music and the Claude widgets need the companion app.
 

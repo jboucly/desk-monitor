@@ -46,9 +46,9 @@ Les pages se configurent **à la volée** depuis un éditeur web servi par l'éc
 | Jauge PC | Une mesure du PC : CPU, RAM, GPU, mémoire GPU, disque ou température |
 | Musique | Ce que joue l'ordinateur (Musique, Spotify, Chrome, Safari…) avec pochette, progression et commandes ; sinon le lecteur Home Assistant choisi |
 
-| Sessions Claude | Sessions Claude Code en cours (CLI, IDE, onglet Code de l'app de bureau) : en attente, au travail ou inactives, outil utilisé, taille du contexte |
-| Tokens Claude | Tokens du jour et de la semaine, avec un coût estimé au tarif de l'API et un histogramme sur 7 jours |
-| Limites Claude | Limites du forfait sur 5 heures et sur la semaine, avec l'heure de remise à zéro |
+| Sessions Claude | Sessions Claude Code en cours (CLI, IDE, onglet Code de l'app de bureau) : en attente, au travail ou inactives, outil utilisé, taille du contexte, sous-agents en cours. Un appui affiche la session en plein écran : tokens par type, sous-agents, derniers outils |
+| Tokens Claude | Tokens du jour et de la semaine, avec un coût estimé au tarif de l'API et un histogramme sur 7 jours. Un appui affiche 30 jours par modèle, la journée heure par heure et les projets les plus gourmands |
+| Limites Claude | Limites du forfait sur 5 heures et sur la semaine, avec l'heure de remise à zéro. Un appui affiche le compte à rebours, le rythme et une courbe sur 7 jours |
 
 Les widgets PC, la musique de l'ordinateur et les widgets Claude ont besoin de l'application compagnon.
 
