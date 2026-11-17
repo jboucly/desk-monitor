@@ -295,6 +295,7 @@ async fn session(
     let mut media_updates = media.updates.clone();
     let mut claude_snapshot = claude.snapshot.clone();
     let mut claude_asks = claude.asks.clone();
+    let mut claude_detail = claude.detail.clone();
     // Cover already on the screen during this connection
     let mut sent_art: Option<String> = None;
     let (mut write, mut read) = socket.split();
@@ -367,6 +368,11 @@ async fn session(
             }
             Ok(()) = claude_snapshot.changed(), if media_synced => Some(claude_snapshot.borrow_and_update().clone()),
             Ok(()) = claude_asks.changed(), if media_synced => Some(claude_asks.borrow_and_update().clone()),
+            // Data of the detail view open on the screen, if any
+            Ok(()) = claude_detail.changed(), if media_synced => {
+                let detail = claude_detail.borrow_and_update().clone();
+                detail.get("view").is_some().then_some(detail)
+            }
             Some(cmd) = commands.recv() => match cmd {
                 Command::StartPairing => Some(json!({ "type": "pair_start" })),
                 Command::SubmitCode(code) => Some(json!({ "type": "pair", "code": code.trim() })),
@@ -471,6 +477,11 @@ fn handle_message(
             if let Some(cmd) = msg.get("cmd").and_then(Value::as_str) {
                 media.command(cmd);
             }
+            None
+        }
+        "claude_view" => {
+            let id = msg.get("id").and_then(Value::as_str).unwrap_or("");
+            claude.set_view(msg.get("view").and_then(Value::as_str), id);
             None
         }
         "claude_answer" => {

@@ -69,6 +69,7 @@ async fn statusline(State(shared): State<Arc<Shared>>, headers: HeaderMap, Json(
         return Err(StatusCode::UNAUTHORIZED);
     }
     if let Some(limits) = super::statusline_limits(&input["rate_limits"]) {
+        shared.limits_history.lock().unwrap().record(&limits);
         *shared.statusline_limits.lock().unwrap() = Some(limits);
         shared.wake();
     }

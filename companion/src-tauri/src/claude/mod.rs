@@ -8,10 +8,12 @@
 //! - the desktop app's plan limits (`desktop.rs`) and the status line's (`rate_limits`).
 //!
 //! A collector thread merges them into the `claude` snapshot, and the pending approvals make the
-//! `claude_asks` message. The link task sends both to the screen when they change.
+//! `claude_asks` message. While the screen shows a detail view (`claude_view`), the collector also
+//! builds its `claude_detail`. The link task sends them to the screen when they change.
 
 pub mod install;
 mod desktop;
+mod limits;
 mod server;
 mod sessions;
 mod usage;
@@ -84,6 +86,10 @@ pub struct Shared {
     hooks: Mutex<Hooks>,
     asks: Mutex<Vec<Ask>>,
     statusline_limits: Mutex<Option<Value>>,
+    /// Status line readings of the plan limits, for the limits view
+    limits_history: Mutex<limits::History>,
+    /// Detail view open on the screen: "session" (with the session id), "usage" or "limits"
+    view: Mutex<Option<(String, String)>>,
     next_ask: AtomicU64,
     screen: AtomicBool,
     asks_tx: watch::Sender<Value>,
@@ -171,6 +177,8 @@ pub struct Claude {
     pub snapshot: watch::Receiver<Value>,
     /// `claude_asks` message
     pub asks: watch::Receiver<Value>,
+    /// `claude_detail` message of the open view; without a `view` key when none is open
+    pub detail: watch::Receiver<Value>,
 }
 
 impl Claude {
@@ -189,11 +197,20 @@ impl Claude {
         self.shared.publish_asks(&asks);
     }
 
+    /// Detail view the screen opened (`claude_view`): "session", "usage", "limits", or None when it
+    /// closed. Its data comes on `detail`.
+    pub fn set_view(&self, view: Option<&str>, id: &str) {
+        let view = view.filter(|v| matches!(*v, "session" | "usage" | "limits")).map(|v| (v.to_string(), id.to_string()));
+        *self.shared.view.lock().unwrap() = view;
+        self.shared.wake();
+    }
+
     /// The link tells whether a screen is connected. Without one, waiting approvals go back to the
     /// terminal.
     pub fn set_screen(&self, connected: bool) {
         self.shared.screen.store(connected, Ordering::Relaxed);
         if !connected {
+            *self.shared.view.lock().unwrap() = None;
             let mut asks = self.shared.asks.lock().unwrap();
             asks.iter_mut().for_each(|a| a.resolve(Decision::Ask));
             asks.clear();
@@ -211,34 +228,38 @@ impl Claude {
     }
 }
 
-/// Starts the hook server and the collector. `token` is the secret the hooks send.
-pub fn start(token: String) -> Claude {
-    let (claude, wake_rx, snapshot_tx) = create(token);
+/// Starts the hook server and the collector. `token` is the secret the hooks send; `data_dir` is
+/// the companion's config folder, where the limits history is kept.
+pub fn start(token: String, data_dir: Option<PathBuf>) -> Claude {
+    let (claude, wake_rx, snapshot_tx, detail_tx) = create(token, data_dir.map(|dir| dir.join("claude-limits.json")));
     tauri::async_runtime::spawn(server::serve(claude.shared.clone(), PORT));
     let collector = claude.shared.clone();
     std::thread::Builder::new()
         .name("claude-collector".into())
-        .spawn(move || collect(collector, wake_rx, snapshot_tx))
+        .spawn(move || collect(collector, wake_rx, snapshot_tx, detail_tx))
         .expect("cannot start the Claude collector");
     claude
 }
 
 /// The shared state and its channels, without the tasks.
-fn create(token: String) -> (Claude, mpsc::Receiver<()>, watch::Sender<Value>) {
+fn create(token: String, history: Option<PathBuf>) -> (Claude, mpsc::Receiver<()>, watch::Sender<Value>, watch::Sender<Value>) {
     let (asks_tx, asks) = watch::channel(json!({ "type": "claude_asks", "asks": [] }));
     let (snapshot_tx, snapshot) = watch::channel(json!({ "type": "claude", "sessions": [] }));
+    let (detail_tx, detail) = watch::channel(json!({ "type": "claude_detail" }));
     let (wake_tx, wake_rx) = mpsc::channel();
     let shared = Arc::new(Shared {
         token,
         hooks: Mutex::new(Hooks::default()),
         asks: Mutex::new(Vec::new()),
         statusline_limits: Mutex::new(None),
+        limits_history: Mutex::new(limits::History::load(history)),
+        view: Mutex::new(None),
         next_ask: AtomicU64::new(1),
         screen: AtomicBool::new(false),
         asks_tx,
         wake_tx: Mutex::new(wake_tx),
     });
-    (Claude { shared, snapshot, asks }, wake_rx, snapshot_tx)
+    (Claude { shared, snapshot, asks, detail }, wake_rx, snapshot_tx, detail_tx)
 }
 
 /// Folder of the Claude Code user data (`~/.claude`).
@@ -253,7 +274,7 @@ fn now() -> i64 {
 }
 
 /// Collector loop: every second, or sooner after a hook event.
-fn collect(shared: Arc<Shared>, wake: mpsc::Receiver<()>, snapshot_tx: watch::Sender<Value>) {
+fn collect(shared: Arc<Shared>, wake: mpsc::Receiver<()>, snapshot_tx: watch::Sender<Value>, detail_tx: watch::Sender<Value>) {
     let Some(root) = claude_dir() else {
         log::warn!("no home folder: Claude Code sessions are not followed");
         return;
@@ -277,21 +298,102 @@ fn collect(shared: Arc<Shared>, wake: mpsc::Receiver<()>, snapshot_tx: watch::Se
             last_desktop = Some(Instant::now());
         }
         let live = sessions::read_registry(&root.join("sessions"), &mut system);
-        let snapshot = {
+        let view = shared.view.lock().unwrap().clone();
+        let (snapshot, detail) = {
             let mut hooks = shared.hooks.lock().unwrap();
             hooks.prune(now());
             let waiting: Vec<String> = shared.asks.lock().unwrap().iter().map(|a| a.session.clone()).collect();
             let statusline = shared.statusline_limits.lock().unwrap().clone();
-            build_snapshot(&live, &hooks, &waiting, &usage, &desktop, statusline, now())
+            let snapshot = build_snapshot(&live, &hooks, &waiting, &usage, &desktop, statusline, now());
+            let detail = match view.as_ref().map(|(v, id)| (v.as_str(), id.as_str())) {
+                Some(("session", id)) => session_detail(&snapshot, id, &live, &hooks, &usage),
+                Some(("usage", _)) => Some(json!({ "view": "usage" }).merge(usage.usage_detail(chrono::Local::now().date_naive()))),
+                Some(("limits", _)) => {
+                    let history = shared.limits_history.lock().unwrap();
+                    Some(limits::detail(snapshot.get("limits"), history.samples(), &desktop.history, now()))
+                }
+                _ => None,
+            };
+            (snapshot, detail)
         };
-        snapshot_tx.send_if_modified(|current| {
-            let changed = *current != snapshot;
-            if changed {
-                *current = snapshot;
-            }
-            changed
-        });
+        let mut detail = detail.unwrap_or_else(|| json!({}));
+        detail["type"] = json!("claude_detail");
+        for (tx, value) in [(&snapshot_tx, snapshot), (&detail_tx, detail)] {
+            tx.send_if_modified(|current| {
+                let changed = *current != value;
+                if changed {
+                    *current = value;
+                }
+                changed
+            });
+        }
     }
+}
+
+/// Adds the keys of another JSON object.
+trait Merge {
+    fn merge(self, other: Value) -> Value;
+}
+
+impl Merge for Value {
+    fn merge(mut self, other: Value) -> Value {
+        if let (Some(target), Value::Object(source)) = (self.as_object_mut(), other) {
+            target.extend(source);
+        }
+        self
+    }
+}
+
+/// The session view: the session as in the snapshot (found by its short id), with its tokens by
+/// kind, its subagents and its last tool calls.
+fn session_detail(snapshot: &Value, short_id: &str, live: &[sessions::Live], hooks: &Hooks, usage: &usage::Usage) -> Option<Value> {
+    let item = snapshot["sessions"].as_array()?.iter().find(|s| s["id"] == short_id)?.clone();
+    let id = live.iter().map(|l| &l.id).chain(hooks.sessions.keys()).find(|id| id.starts_with(short_id))?.clone();
+    let tokens = usage.session_detail(&id);
+    let total = tokens.input + tokens.output + tokens.cache_read + tokens.cache_write;
+    let context = item["context"].as_u64().unwrap_or(0);
+    let subagents: Vec<Value> = usage
+        .subagents(&id)
+        .iter()
+        .take(6)
+        .map(|agent| {
+            json!({
+                "type": screen_text(&agent.kind, 30),
+                "description": screen_text(&agent.description, 80),
+                "running": agent.running,
+                "tokens": tokens.agents.get(&agent.id).copied().unwrap_or(0),
+            })
+        })
+        .collect();
+    let tools: Vec<Value> = hooks.sessions.get(&id).map_or_else(Vec::new, |hook| {
+        hook.tools
+            .iter()
+            .rev()
+            .map(|call| {
+                json!({
+                    "name": screen_text(&tool_label(&call.tool), 24),
+                    "detail": screen_text(&call.detail, 80),
+                    "status": call.status,
+                    "at": call.at,
+                })
+            })
+            .collect()
+    });
+    let round = |cost: f64| (cost * 100.0).round() / 100.0;
+    Some(item.merge(json!({
+        "view": "session",
+        // A context past 200k tokens means the 1M window
+        "context_max": if context > 200_000 { 1_000_000 } else { 200_000 },
+        "tokens": {
+            "in": tokens.input, "out": tokens.output,
+            "cache_read": tokens.cache_read, "cache_write": tokens.cache_write,
+        },
+        "total": total,
+        "cost": round(tokens.cost),
+        "started": tokens.started,
+        "subagents": subagents,
+        "tools": tools,
+    })))
 }
 
 /// One session as the screen shows it, before sorting.
@@ -391,6 +493,10 @@ fn build_snapshot(
             }
             if let Some(model) = stats.map(|s| usage::model_name(&s.model)).filter(|m| !m.is_empty()) {
                 item["model"] = json!(model);
+            }
+            let running = usage.subagents(&row.id).iter().filter(|a| a.running).count();
+            if running > 0 {
+                item["subagents"] = json!(running);
             }
             item
         })
@@ -517,7 +623,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn answers_an_approval_from_the_screen() {
-        let (claude, _wake, _snapshot) = create("secret".into());
+        let (claude, _wake, _snapshot, _detail) = create("secret".into(), None);
         let port = 47900 + (std::process::id() % 90) as u16;
         tokio::spawn(server::serve(claude.shared.clone(), port));
         tokio::time::sleep(Duration::from_millis(200)).await;
@@ -546,7 +652,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn releases_an_approval_settled_in_the_terminal() {
-        let (claude, _wake, _snapshot) = create("secret".into());
+        let (claude, _wake, _snapshot, _detail) = create("secret".into(), None);
         let port = 47900 + (std::process::id() % 90) as u16 + 1;
         tokio::spawn(server::serve(claude.shared.clone(), port));
         tokio::time::sleep(Duration::from_millis(200)).await;
@@ -565,7 +671,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn removes_an_approval_whose_request_was_dropped() {
-        let (claude, _wake, _snapshot) = create("secret".into());
+        let (claude, _wake, _snapshot, _detail) = create("secret".into(), None);
         let port = 47900 + (std::process::id() % 90) as u16 + 2;
         tokio::spawn(server::serve(claude.shared.clone(), port));
         tokio::time::sleep(Duration::from_millis(200)).await;
@@ -587,6 +693,31 @@ mod tests {
         assert!(cleared.is_ok(), "the approval stayed on the screen");
     }
 
+    #[test]
+    fn builds_the_session_view_from_the_hooks() {
+        let mut hooks = Hooks::default();
+        let at = now();
+        let event = |name: &str, command: &str| {
+            json!({ "hook_event_name": name, "session_id": "0123456789abcdef", "cwd": "/p/desk", "tool_name": "Bash", "tool_input": { "command": command } })
+        };
+        hooks.apply(&event("UserPromptSubmit", ""), at);
+        hooks.apply(&event("PreToolUse", "ls"), at);
+        hooks.apply(&event("PostToolUse", "ls"), at);
+        hooks.apply(&event("PreToolUse", "cargo test"), at);
+        let usage = usage::Usage::default();
+        let snapshot = build_snapshot(&[], &hooks, &[], &usage, &desktop::Desktop::default(), None, at);
+        assert_eq!(snapshot["sessions"][0]["id"], "01234567");
+
+        let view = session_detail(&snapshot, "01234567", &[], &hooks, &usage).unwrap();
+        assert_eq!(view["view"], "session");
+        assert_eq!(view["state"], "working");
+        assert_eq!(view["project"], "desk");
+        let tools = view["tools"].as_array().unwrap();
+        assert_eq!((tools[0]["detail"].as_str(), tools[0]["status"].as_str()), (Some("cargo test"), Some("run")));
+        assert_eq!(tools[1]["status"], "ok");
+        assert!(session_detail(&snapshot, "nope", &[], &hooks, &usage).is_none());
+    }
+
     /// Manual check against this computer's Claude Code data:
     /// `cargo test local_snapshot -- --ignored --nocapture`.
     #[test]
@@ -601,8 +732,18 @@ mod tests {
         let mut desktop = desktop::Desktop::default();
         desktop.refresh(&mut system);
         let live = sessions::read_registry(&root.join("sessions"), &mut system);
-        let snapshot = build_snapshot(&live, &Hooks::default(), &[], &usage, &desktop, None, now());
+        let hooks = Hooks::default();
+        let snapshot = build_snapshot(&live, &hooks, &[], &usage, &desktop, None, now());
         println!("{}", serde_json::to_string_pretty(&snapshot).unwrap());
+
+        // The three detail views, with their size in the WebSocket frame
+        let usage_view = usage.usage_detail(chrono::Local::now().date_naive());
+        let limits_view = limits::detail(snapshot.get("limits"), &[], &desktop.history, now());
+        let first = snapshot["sessions"][0]["id"].as_str().unwrap_or("");
+        let session_view = session_detail(&snapshot, first, &live, &hooks, &usage).unwrap_or_default();
+        for (name, view) in [("usage", &usage_view), ("limits", &limits_view), ("session", &session_view)] {
+            println!("{name} view: {} bytes\n{}", view.to_string().len(), serde_json::to_string_pretty(view).unwrap());
+        }
     }
 
     #[test]

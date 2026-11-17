@@ -131,7 +131,7 @@ pub fn run() {
             if config.ensure_claude_token() {
                 store.save(&config);
             }
-            let claude = claude::start(config.claude_token.clone());
+            let claude = claude::start(config.claude_token.clone(), app.path().app_config_dir().ok());
             app.manage(claude.clone());
             let link = link::start(app.handle().clone(), store, media, claude);
             app.manage(link);

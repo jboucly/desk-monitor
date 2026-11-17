@@ -2,7 +2,7 @@
 //! refined by the events of the hooks (state, tool in use).
 
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 
@@ -75,6 +75,21 @@ fn parse_registry(value: &Value) -> Option<Live> {
     })
 }
 
+/// Tool calls kept by session, for the detail view.
+const MAX_TOOLS: usize = 8;
+
+/// One tool call seen by the hooks.
+#[derive(Clone, Debug)]
+pub struct ToolCall {
+    /// Tool name as Claude Code gives it ("Bash", "mcp__github__create_issue"…)
+    pub tool: String,
+    pub detail: String,
+    /// "run", then "ok", "fail", "denied", or "stopped" when the turn ended first
+    pub status: &'static str,
+    /// Unix seconds of the call
+    pub at: i64,
+}
+
 /// What the hooks told about a session.
 #[derive(Clone, Debug)]
 pub struct HookState {
@@ -84,6 +99,8 @@ pub struct HookState {
     pub cwd: String,
     /// Unix seconds of the last event, to forget sessions whose end was missed
     pub seen: i64,
+    /// Last tool calls, newest last
+    pub tools: VecDeque<ToolCall>,
 }
 
 /// States of the sessions, from their hook events.
@@ -107,6 +124,7 @@ impl Hooks {
             tool: String::new(),
             cwd: String::new(),
             seen: now,
+            tools: VecDeque::new(),
         });
         entry.seen = now;
         if let Some(cwd) = event["cwd"].as_str() {
@@ -117,6 +135,11 @@ impl Hooks {
             "UserPromptSubmit" | "PostToolUse" | "PostToolUseFailure" | "PermissionDenied" => Some(State::Working),
             "PreToolUse" => {
                 entry.tool = event["tool_name"].as_str().unwrap_or("").to_string();
+                let detail = super::tool_detail(&entry.tool, &event["tool_input"], &entry.cwd);
+                entry.tools.push_back(ToolCall { tool: entry.tool.clone(), detail, status: "run", at: now });
+                if entry.tools.len() > MAX_TOOLS {
+                    entry.tools.pop_front();
+                }
                 Some(State::Working)
             }
             "PermissionRequest" => Some(State::Waiting),
@@ -124,6 +147,19 @@ impl Hooks {
             "Notification" if event["notification_type"] == "idle_prompt" => Some(State::Idle),
             _ => None,
         };
+        // The end of a tool call settles the last running call of that tool
+        let settled = match name {
+            "PostToolUse" => Some("ok"),
+            "PostToolUseFailure" => Some("fail"),
+            "PermissionDenied" => Some("denied"),
+            _ => None,
+        };
+        if let Some(status) = settled {
+            let tool = event["tool_name"].as_str().unwrap_or("");
+            if let Some(call) = entry.tools.iter_mut().rev().find(|c| c.status == "run" && c.tool == tool) {
+                call.status = status;
+            }
+        }
         if let Some(state) = next {
             if state != entry.state {
                 entry.state = state;
@@ -131,6 +167,10 @@ impl Hooks {
             }
             if state == State::Idle {
                 entry.tool.clear();
+                // Refused in Claude Code's dialog or interrupted: the call never ended
+                for call in entry.tools.iter_mut().filter(|c| c.status == "run") {
+                    call.status = "stopped";
+                }
             }
         }
     }
@@ -174,8 +214,13 @@ mod tests {
         assert_eq!(hooks.sessions["s1"].since, 10);
         hooks.apply(&event("PermissionRequest"), 12);
         assert_eq!(hooks.sessions["s1"].state, State::Waiting);
+        hooks.apply(&event("PostToolUse"), 13);
+        assert_eq!(hooks.sessions["s1"].tools[0].status, "ok");
+        hooks.apply(&event("PreToolUse"), 14);
         hooks.apply(&event("Stop"), 20);
         assert_eq!(hooks.sessions["s1"].state, State::Idle);
+        let tools = &hooks.sessions["s1"].tools;
+        assert_eq!((tools.len(), tools[1].status, tools[1].at), (2, "stopped", 14));
         assert!(hooks.sessions["s1"].tool.is_empty());
         hooks.apply(&event("SessionEnd"), 30);
         assert!(hooks.sessions.is_empty());

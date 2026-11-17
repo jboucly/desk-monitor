@@ -3,27 +3,76 @@
 //! Each answer of the model is an `assistant` line with `message.usage`. A streamed answer is written
 //! on several lines with the same `message.id`: the last one wins. Files are read incrementally (an
 //! offset per file), so that a scan only parses the lines added since the previous one.
+//!
+//! Subagents write their own transcripts in `<project>/<session>/subagents/agent-<id>.jsonl`, next to
+//! an `agent-<id>.meta.json` (type, description, finished).
 
-use chrono::{DateTime, Local, NaiveDate};
-use serde_json::Value;
+use chrono::{DateTime, Local, NaiveDate, Timelike};
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-/// Days kept: the week shown on the screen, plus a margin for the time zone.
-const KEEP_DAYS: i64 = 8;
+/// Days kept: the 30 days of the usage view, plus a margin for the time zone.
+const KEEP_DAYS: i64 = 31;
+
+/// Days of the usage view.
+const DETAIL_DAYS: u64 = 30;
+
+/// Model families with their own color on the screen; the others are summed as "Autres".
+const MAX_FAMILIES: usize = 4;
+
+/// A subagent counts as running when its transcript moved in the last minutes.
+const SUBAGENT_IDLE: Duration = Duration::from_secs(10 * 60);
 
 /// One answer of the model.
 struct Answer {
     session: String,
     day: NaiveDate,
     time: i64,
-    tokens: u64,
+    input: u64,
+    output: u64,
+    cache_read: u64,
+    cache_write: u64,
     cost: f64,
     /// Tokens in the context window (input + cache), for the main conversation only
     context: Option<u64>,
     model: String,
+    project: String,
+    /// Subagent that made the answer
+    agent: Option<String>,
+}
+
+impl Answer {
+    fn tokens(&self) -> u64 {
+        self.input + self.output + self.cache_read + self.cache_write
+    }
+}
+
+/// Tokens of one session by kind, for its detail view.
+#[derive(Clone, Debug, Default)]
+pub struct SessionDetail {
+    pub input: u64,
+    pub output: u64,
+    pub cache_read: u64,
+    pub cache_write: u64,
+    pub cost: f64,
+    /// Time of the first answer (Unix seconds)
+    pub started: i64,
+    /// Tokens by subagent id
+    pub agents: HashMap<String, u64>,
+}
+
+/// A subagent of a session, from its meta file.
+#[derive(Clone, Debug)]
+pub struct Subagent {
+    pub id: String,
+    pub kind: String,
+    pub description: String,
+    pub running: bool,
+    /// Last write of its transcript (Unix seconds)
+    pub active: i64,
 }
 
 /// Tokens and estimated cost of a period.
@@ -56,6 +105,8 @@ pub struct Usage {
     answers: HashMap<String, Answer>,
     /// Conversation titles written by Claude Code (`ai-title` lines), by session
     titles: HashMap<String, String>,
+    /// Project folder of each session's transcript, where its subagents are
+    folders: HashMap<String, PathBuf>,
     /// Totals by day and by session, rebuilt after a scan that found new answers
     days: HashMap<NaiveDate, Total>,
     sessions: HashMap<String, SessionUsage>,
@@ -69,6 +120,12 @@ impl Usage {
         collect_jsonl(root, cutoff, &mut paths, 0);
         let mut changed = false;
         for (path, modified) in paths {
+            // Main transcript: <project folder>/<session>.jsonl
+            if path.parent().and_then(Path::file_name).is_some_and(|n| n != "subagents") {
+                if let (Some(session), Some(folder)) = (path.file_stem(), path.parent()) {
+                    self.folders.insert(session.to_string_lossy().into_owned(), folder.to_path_buf());
+                }
+            }
             let state = self.files.entry(path.clone()).or_default();
             if state.modified == Some(modified) {
                 continue;
@@ -125,16 +182,22 @@ impl Usage {
             + read as f64 * price.cache_read)
             / 1e6;
         let sidechain = entry["isSidechain"].as_bool().unwrap_or(false);
+        let project = entry["cwd"].as_str().map(super::sessions::project_of).unwrap_or_default();
         self.answers.insert(
             id.to_string(),
             Answer {
                 session,
                 day: time.with_timezone(&Local).date_naive(),
                 time: time.timestamp(),
-                tokens: input + output + read + written,
+                input,
+                output,
+                cache_read: read,
+                cache_write: written,
                 cost,
                 context: (!sidechain).then_some(input + read + written),
                 model,
+                project,
+                agent: entry["agentId"].as_str().filter(|_| sidechain).map(str::to_string),
             },
         );
         true
@@ -151,10 +214,10 @@ impl Usage {
         self.sessions.clear();
         for answer in self.answers.values() {
             let day = self.days.entry(answer.day).or_default();
-            day.tokens += answer.tokens;
+            day.tokens += answer.tokens();
             day.cost += answer.cost;
             let session = self.sessions.entry(answer.session.clone()).or_default();
-            session.tokens += answer.tokens;
+            session.tokens += answer.tokens();
             if let Some(context) = answer.context {
                 if answer.time >= session.last {
                     session.last = answer.time;
@@ -179,6 +242,132 @@ impl Usage {
 
     pub fn title(&self, id: &str) -> Option<&str> {
         self.titles.get(id).map(String::as_str)
+    }
+
+    /// Tokens of one session by kind, and by subagent.
+    pub fn session_detail(&self, id: &str) -> SessionDetail {
+        let mut detail = SessionDetail { started: i64::MAX, ..Default::default() };
+        for answer in self.answers.values().filter(|a| a.session == id) {
+            detail.input += answer.input;
+            detail.output += answer.output;
+            detail.cache_read += answer.cache_read;
+            detail.cache_write += answer.cache_write;
+            detail.cost += answer.cost;
+            detail.started = detail.started.min(answer.time);
+            if let Some(agent) = &answer.agent {
+                *detail.agents.entry(agent.clone()).or_default() += answer.tokens();
+            }
+        }
+        if detail.started == i64::MAX {
+            detail.started = 0;
+        }
+        detail
+    }
+
+    /// The subagents of a session, newest first, from their meta files.
+    pub fn subagents(&self, id: &str) -> Vec<Subagent> {
+        let Some(folder) = self.folders.get(id) else { return Vec::new() };
+        let Ok(entries) = std::fs::read_dir(folder.join(id).join("subagents")) else { return Vec::new() };
+        let mut found = Vec::new();
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else { continue };
+            let Some(agent) = name.strip_suffix(".meta.json").and_then(|n| n.strip_prefix("agent-")) else { continue };
+            let Some(meta) = std::fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()) else {
+                continue;
+            };
+            let transcript = path.with_file_name(format!("agent-{agent}.jsonl"));
+            let modified = std::fs::metadata(&transcript).and_then(|m| m.modified()).or_else(|_| entry.metadata().and_then(|m| m.modified()));
+            let recent = modified.as_ref().is_ok_and(|m| m.elapsed().map_or(true, |age| age < SUBAGENT_IDLE));
+            found.push(Subagent {
+                id: agent.to_string(),
+                kind: meta["agentType"].as_str().unwrap_or("Agent").to_string(),
+                description: meta["description"].as_str().unwrap_or("").to_string(),
+                running: !meta["finished"].as_bool().unwrap_or(false) && recent,
+                active: modified.ok().and_then(|m| m.duration_since(SystemTime::UNIX_EPOCH).ok()).map_or(0, |d| d.as_secs() as i64),
+            });
+        }
+        found.sort_by(|a, b| b.running.cmp(&a.running).then(b.active.cmp(&a.active)));
+        found
+    }
+
+    /// The usage view: 30 days by model family, today by hour, the busiest projects, and the totals of
+    /// today, 7 days and 30 days.
+    pub fn usage_detail(&self, today: NaiveDate) -> Value {
+        let first = today - chrono::Days::new(DETAIL_DAYS - 1);
+        let week_start = today - chrono::Days::new(6);
+        let family = |model: &str| model_name(model).split(' ').next().unwrap_or("").to_string();
+
+        // A session belongs to the project it started in: its working folder moves with `cd`
+        let mut started_in: HashMap<&str, (i64, &str)> = HashMap::new();
+        for answer in self.answers.values().filter(|a| !a.project.is_empty()) {
+            let first = started_in.entry(answer.session.as_str()).or_insert((answer.time, answer.project.as_str()));
+            if answer.time < first.0 {
+                *first = (answer.time, answer.project.as_str());
+            }
+        }
+
+        // Families ranked by tokens over the 30 days
+        let mut by_family: HashMap<String, u64> = HashMap::new();
+        let mut by_project: HashMap<String, Total> = HashMap::new();
+        let mut hours = [0u64; 24];
+        let (mut today_total, mut week, mut month) = (Total::default(), Total::default(), Total::default());
+        for answer in self.answers.values().filter(|a| a.day >= first && a.day <= today) {
+            let tokens = answer.tokens();
+            *by_family.entry(family(&answer.model)).or_default() += tokens;
+            if let Some((_, name)) = started_in.get(answer.session.as_str()) {
+                let project = by_project.entry(name.to_string()).or_default();
+                project.tokens += tokens;
+                project.cost += answer.cost;
+            }
+            let add = |total: &mut Total| {
+                total.tokens += tokens;
+                total.cost += answer.cost;
+            };
+            add(&mut month);
+            if answer.day >= week_start {
+                add(&mut week);
+            }
+            if answer.day == today {
+                add(&mut today_total);
+                if let Some(time) = DateTime::from_timestamp(answer.time, 0) {
+                    hours[time.with_timezone(&Local).hour() as usize] += tokens;
+                }
+            }
+        }
+        let mut families: Vec<(String, u64)> = by_family.into_iter().filter(|(name, _)| !name.is_empty()).collect();
+        families.sort_by_key(|a| std::cmp::Reverse(a.1));
+        families.truncate(MAX_FAMILIES);
+        let names: Vec<String> = families.into_iter().map(|(name, _)| name).collect();
+
+        // One entry per day: total, cost, and tokens by family (the named ones, then the others)
+        let mut days: Vec<(Total, Vec<u64>)> = vec![(Total::default(), vec![0; names.len() + 1]); DETAIL_DAYS as usize];
+        for answer in self.answers.values().filter(|a| a.day >= first && a.day <= today) {
+            let index = (answer.day - first).num_days() as usize;
+            let (total, split) = &mut days[index];
+            total.tokens += answer.tokens();
+            total.cost += answer.cost;
+            let slot = names.iter().position(|n| *n == family(&answer.model)).unwrap_or(names.len());
+            split[slot] += answer.tokens();
+        }
+
+        let mut projects: Vec<(String, Total)> = by_project.into_iter().collect();
+        projects.sort_by_key(|a| std::cmp::Reverse(a.1.tokens));
+        projects.truncate(5);
+
+        let round = |cost: f64| (cost * 100.0).round() / 100.0;
+        let total = |t: Total| json!({ "tokens": t.tokens, "cost": round(t.cost) });
+        json!({
+            "models": names,
+            "days": days.iter().map(|(t, split)| json!({ "tokens": t.tokens, "cost": round(t.cost), "m": split })).collect::<Vec<_>>(),
+            "hours": hours,
+            "projects": projects.iter().map(|(name, t)| json!({
+                "name": super::screen_text(name, 40), "tokens": t.tokens, "cost": round(t.cost)
+            })).collect::<Vec<_>>(),
+            "today": total(today_total),
+            "week": total(week),
+            "month": total(month),
+        })
     }
 }
 
