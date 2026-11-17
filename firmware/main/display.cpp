@@ -118,6 +118,7 @@ std::atomic<int> g_sleep_minutes{5};
 std::atomic<bool> g_asleep{false};
 std::atomic<bool> g_wake_request{false};
 lv_indev_t *g_touch = nullptr;
+esp_lcd_touch_handle_t g_touch_handle = nullptr;
 std::atomic<bool> g_shown{false};  // the backlight stays off until the first frame is drawn
 
 /**
@@ -135,10 +136,25 @@ void redraw_and_wait() {
   vTaskDelay(pdMS_TO_TICKS(150));
 }
 
+/**
+ * @description Converts a backlight percentage into a 13-bit LEDC duty.
+ */
+uint32_t backlight_duty(int pct) { return (8191u * static_cast<uint32_t>(pct)) / 100u; }
+
+/**
+ * @description Sets the backlight level at once (the fade API is used so that it never races a fade).
+ */
 void backlight_set(int pct) {
-  const uint32_t duty = (8191u * static_cast<uint32_t>(pct)) / 100u;
-  ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
-  ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+  ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, backlight_duty(pct), 0);
+}
+
+/**
+ * @description Ramps the backlight up instead of switching it on at once. A step from 0 to full brightness
+ * is a current spike on the 5 V rail, and on wake-up it adds to the Wi-Fi peaks and the full redraw: a
+ * voltage dip there resets the chip (brownout).
+ */
+void backlight_fade_in(int pct) {
+  ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, backlight_duty(pct), 250, LEDC_FADE_NO_WAIT);
 }
 
 void backlight_init() {
@@ -156,6 +172,32 @@ void backlight_init() {
   channel.timer_sel = LEDC_TIMER_0;
   channel.duty = 0;
   ESP_ERROR_CHECK(ledc_channel_config(&channel));
+  ESP_ERROR_CHECK(ledc_fade_func_install(0));
+}
+
+/**
+ * @description Touch read callback, replacing esp_lvgl_port's one: that one wraps the I2C reads in
+ * ESP_ERROR_CHECK, so a single failed transfer with the GT911 aborted and rebooted the screen (seen at
+ * wake-up). Here an error only drops the sample: the touch reads as released and the next poll retries.
+ * Runs in the LVGL task.
+ */
+void touch_read(lv_indev_t *, lv_indev_data_t *data) {
+  static uint32_t errors = 0;
+  data->state = LV_INDEV_STATE_RELEASED;
+  esp_err_t err = esp_lcd_touch_read_data(g_touch_handle);
+  esp_lcd_touch_point_data_t points[CONFIG_ESP_LCD_TOUCH_MAX_POINTS] = {};
+  uint8_t count = 0;
+  if (err == ESP_OK) err = esp_lcd_touch_get_data(g_touch_handle, points, &count, CONFIG_ESP_LCD_TOUCH_MAX_POINTS);
+  if (err != ESP_OK) {
+    // Rate-limited: a dead bus would otherwise flood the log at the polling rate
+    if (errors++ % 100 == 0) ESP_LOGW(TAG, "touch read failed (%s), %u errors", esp_err_to_name(err), (unsigned)errors);
+    return;
+  }
+  if (count > 0) {
+    data->point.x = points[0].x;
+    data->point.y = points[0].y;
+    data->state = LV_INDEV_STATE_PRESSED;
+  }
 }
 
 /**
@@ -185,7 +227,7 @@ void sleep_task(void *) {
         lvgl_port_unlock();
       }
       redraw_and_wait();
-      backlight_set(g_brightness);
+      backlight_fade_in(g_brightness);
       continue;
     }
     const int minutes = g_sleep_minutes;
@@ -323,6 +365,8 @@ void display_init() {
   touch_io_config.dc_bit_offset = 0;
   touch_io_config.lcd_cmd_bits = 16;
   touch_io_config.flags.disable_control_phase = 1;
+  // Finite timeout: the default waits forever, and a stuck transfer would freeze the LVGL task
+  touch_io_config.transaction_timeout_ms = 50;
   esp_lcd_panel_io_handle_t touch_io = nullptr;
   ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(bus, &touch_io_config, &touch_io));
 
@@ -339,7 +383,12 @@ void display_init() {
     lvgl_port_touch_cfg_t touch_cfg = {};
     touch_cfg.disp = display;
     touch_cfg.handle = touch;
+    g_touch_handle = touch;
     g_touch = lvgl_port_add_touch(&touch_cfg);
+    if (g_touch && lvgl_port_lock(0)) {
+      lv_indev_set_read_cb(g_touch, touch_read);
+      lvgl_port_unlock();
+    }
   } else {
     ESP_LOGE(TAG, "GT911 not found, the screen will not react to touch");
   }
@@ -357,7 +406,7 @@ void display_configure(int brightness_pct, int sleep_minutes) {
 void display_show() {
   redraw_and_wait();
   g_shown = true;
-  if (!g_asleep) backlight_set(g_brightness);
+  if (!g_asleep) backlight_fade_in(g_brightness);
 }
 
 }  // namespace dm::esp32
