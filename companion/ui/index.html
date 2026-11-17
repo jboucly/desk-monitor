@@ -48,6 +48,24 @@
         <p class="hint">Vide = automatique. Une adresse IP marche aussi, et <code>localhost:8081</code> pour le simulateur.</p>
       </section>
 
+      <section class="card">
+        <h2>Claude Code</h2>
+        <label class="check">
+          <input type="checkbox" id="claude-hooks" />
+          Sessions et autorisations sur l’écran
+        </label>
+        <p class="hint">
+          Ajoute des hooks à <code>~/.claude/settings.json</code>. Les demandes d’autorisation réveillent l’écran, et tu
+          y réponds directement.
+        </p>
+        <label class="check">
+          <input type="checkbox" id="claude-statusline" />
+          Limites du forfait depuis la status line
+        </label>
+        <p class="hint">Pour le terminal : ta status line actuelle reste affichée. Sinon, les limites viennent de l’app Claude.</p>
+        <p class="muted" id="claude-message"></p>
+      </section>
+
       <section class="card" id="accessibility-card" hidden>
         <h2>Raccourcis clavier</h2>
         <p class="muted">macOS doit autoriser Desk Monitor à simuler des touches.</p>

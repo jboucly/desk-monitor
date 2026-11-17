@@ -17,9 +17,28 @@ pub struct Config {
     /// Last IP:port that answered, tried first so that a slow name lookup does not delay the link.
     #[serde(default)]
     pub last_address: String,
+    /// Secret the Claude Code hooks send to the local hook server (generated once).
+    #[serde(default)]
+    pub claude_token: String,
 }
 
 impl Config {
+    /// Creates the hook secret on first use.
+    pub fn ensure_claude_token(&mut self) -> bool {
+        if !self.claude_token.is_empty() {
+            return false;
+        }
+        use std::hash::{BuildHasher, Hasher};
+        // RandomState is seeded from the OS random source: two of them give 128 random bits
+        let part = || {
+            let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+            hasher.write_u128(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos());
+            hasher.finish()
+        };
+        self.claude_token = format!("{:016x}{:016x}", part(), part());
+        true
+    }
+
     /// Address to connect to, falling back to the mDNS name.
     pub fn host_or_default(&self) -> String {
         if self.host.trim().is_empty() {

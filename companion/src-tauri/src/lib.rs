@@ -2,6 +2,7 @@
 //! and runs the shortcuts tapped on it.
 
 mod actions;
+mod claude;
 mod config;
 mod editor;
 mod link;
@@ -73,6 +74,31 @@ async fn open_editor(app: AppHandle) -> Result<(), String> {
     editor::open(&app, &url)
 }
 
+/// Claude Code integration shown in the window.
+#[derive(serde::Serialize)]
+struct ClaudeState {
+    #[serde(flatten)]
+    install: claude::install::InstallState,
+    sessions: usize,
+}
+
+#[tauri::command]
+fn claude_state(claude: State<claude::Claude>) -> ClaudeState {
+    ClaudeState { install: claude::install::state(), sessions: claude.session_count() }
+}
+
+/// "Claude Code" switches of the window: the hooks (sessions and approvals) and the status line relay
+/// (plan limits).
+#[tauri::command]
+fn set_claude(claude: State<claude::Claude>, part: String, enabled: bool) -> Result<ClaudeState, String> {
+    match part.as_str() {
+        "hooks" => claude::install::set_hooks(enabled, claude.token())?,
+        "statusline" => claude::install::set_statusline(enabled, claude.token())?,
+        _ => return Err(format!("unknown part {part}")),
+    }
+    Ok(claude_state(claude))
+}
+
 /// Escape key in the overlay.
 #[tauri::command]
 fn hide_overlay(window: WebviewWindow) {
@@ -93,7 +119,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| overlay::show(app)))
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
-        .invoke_handler(tauri::generate_handler![link_state, start_pairing, submit_code, set_host, forget, accessibility, hide_overlay, open_editor])
+        .invoke_handler(tauri::generate_handler![link_state, start_pairing, submit_code, set_host, forget, accessibility, hide_overlay, open_editor, claude_state, set_claude])
         .setup(|app| {
             // Menu bar app: no Dock icon on macOS
             #[cfg(target_os = "macos")]
@@ -101,7 +127,13 @@ pub fn run() {
 
             let store = config::ConfigStore::new(app.path().app_config_dir()?);
             let media = media::start(media_adapter_dir(app.handle()));
-            let link = link::start(app.handle().clone(), store, media);
+            let mut config = store.load();
+            if config.ensure_claude_token() {
+                store.save(&config);
+            }
+            let claude = claude::start(config.claude_token.clone());
+            app.manage(claude.clone());
+            let link = link::start(app.handle().clone(), store, media, claude);
             app.manage(link);
             app.manage(overlay::Overlay::default());
             if let Some(window) = app.get_webview_window("main") {

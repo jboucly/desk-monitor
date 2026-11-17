@@ -42,6 +42,38 @@ async function refreshAccessibility() {
   $('accessibility-card').hidden = await invoke('accessibility', { prompt: false });
 }
 
+/**
+ * @description Renders the Claude Code switches and the number of sessions followed.
+ * @param {{hooks: boolean, statusline: boolean, error: string, sessions: number}} state
+ */
+function renderClaude(state) {
+  $('claude-hooks').checked = state.hooks;
+  $('claude-statusline').checked = state.statusline;
+  const count = state.sessions === 1 ? '1 session en cours' : `${state.sessions} sessions en cours`;
+  $('claude-message').textContent = state.error || (state.hooks ? count : '');
+}
+
+/**
+ * @description Reads the Claude Code state again (the settings may have changed outside the app).
+ */
+async function refreshClaude() {
+  renderClaude(await invoke('claude_state'));
+}
+
+for (const [id, part] of [
+  ['claude-hooks', 'hooks'],
+  ['claude-statusline', 'statusline'],
+]) {
+  $(id).addEventListener('change', async (event) => {
+    try {
+      renderClaude(await invoke('set_claude', { part, enabled: event.target.checked }));
+    } catch (error) {
+      $('claude-message').textContent = String(error);
+      refreshClaude();
+    }
+  });
+}
+
 $('pair-button').addEventListener('click', () => invoke('start_pairing'));
 
 $('editor-button').addEventListener('click', () => {
@@ -103,4 +135,6 @@ listen('link-state', (event) => render(event.payload));
 invoke('link_state').then(render);
 invoke('plugin:autostart|is_enabled').then((enabled) => ($('autostart').checked = enabled));
 refreshAccessibility();
+refreshClaude();
 window.addEventListener('focus', refreshAccessibility);
+window.addEventListener('focus', refreshClaude);
