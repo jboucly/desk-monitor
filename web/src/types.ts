@@ -14,6 +14,8 @@ export type WidgetType =
   | 'ha_cover'
   | 'ha_slider'
   | 'ha_select'
+  | 'ha_list'
+  | 'ha_history'
   | 'shortcut'
   | 'pc_metrics'
   | 'pc_gauge'
@@ -67,6 +69,19 @@ export interface Rule {
   icon?: string;
   color?: string;
   active?: boolean;
+}
+
+/**
+ * @description One entity (or template) of an ha_list, with its own name, icon, rules and actions.
+ */
+export interface ListItem {
+  entity?: string;
+  template?: string;
+  name?: string;
+  icon?: string;
+  rules?: Rule[];
+  tap_action?: Action;
+  hold_action?: Action;
 }
 
 /**

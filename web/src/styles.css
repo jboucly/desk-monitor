@@ -851,3 +851,13 @@ button.destructive {
 .template-test .error {
   color: var(--danger);
 }
+
+/* Collapsible items of the ha_list inspector */
+details.rule > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+details.rule > summary::-webkit-details-marker {
+  display: none;
+}

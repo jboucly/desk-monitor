@@ -3,7 +3,7 @@ import { CATALOG, PC_METRICS, ENTITY_DOMAINS, entityIcon, fits } from '../catalo
 import { useState } from 'preact/hooks';
 
 import { api } from '../api';
-import type { Action, Gesture, HaEntity, Page, Props, Widget, WidgetType } from '../types';
+import type { Action, Gesture, HaEntity, ListItem, Page, Props, Widget, WidgetType } from '../types';
 import { GRID } from '../types';
 import { Field } from './Field';
 import { EntityPicker, IconPicker } from './Pickers';
@@ -12,7 +12,7 @@ import { RulesEditor } from './RulesEditor';
 /**
  * @description Home Assistant tiles with an icon and display rules.
  */
-const HA_TILES: string[] = ['ha_light', 'ha_toggle', 'ha_sensor', 'ha_climate', 'ha_cover', 'ha_slider', 'ha_select'];
+const HA_TILES: string[] = ['ha_light', 'ha_toggle', 'ha_sensor', 'ha_climate', 'ha_cover', 'ha_slider', 'ha_select', 'ha_history'];
 
 interface InspectorProps {
   widget: Widget;
@@ -229,6 +229,75 @@ function TemplateField({ value, onChange }: { value: string; onChange: (v: strin
 }
 
 /**
+ * @description Items of an ha_list: each one an entity or a template, with its name, icon, rules and actions.
+ */
+function ListItemsEditor({ items, entities, onChange }: { items: ListItem[]; entities: HaEntity[] | null; onChange: (items: ListItem[]) => void }) {
+  const update = (index: number, patch: Partial<ListItem>) => {
+    const next = { ...items[index], ...patch };
+    for (const key of Object.keys(patch) as (keyof ListItem)[]) if (next[key] === undefined || next[key] === '') delete next[key];
+    onChange(items.map((item, i) => (i === index ? next : item)));
+  };
+  const move = (index: number, delta: number) => {
+    const next = [...items];
+    const [item] = next.splice(index, 1);
+    next.splice(index + delta, 0, item);
+    onChange(next);
+  };
+  return (
+    <div class="rules">
+      <h3>Éléments</h3>
+      {items.map((item, i) => (
+        <details class="rule" key={i} open={!item.entity && !item.template}>
+          <summary class="rule-head">
+            <span class="ellipsis">{item.name || item.entity || (item.template ? 'Template' : `Élément ${i + 1}`)}</span>
+            <button type="button" class="ghost" title="Monter" disabled={i === 0} onClick={() => move(i, -1)}>
+              ↑
+            </button>
+            <button type="button" class="ghost" title="Descendre" disabled={i === items.length - 1} onClick={() => move(i, 1)}>
+              ↓
+            </button>
+            <button type="button" class="ghost" title="Supprimer" disabled={items.length === 1} onClick={() => onChange(items.filter((_, j) => j !== i))}>
+              ✕
+            </button>
+          </summary>
+          <Field label="Entité (ou un template ci-dessous)">
+            <EntityPicker value={item.entity ?? ''} entities={entities} onChange={(v) => update(i, { entity: v })} />
+          </Field>
+          <TemplateField value={item.template ?? ''} onChange={(template) => update(i, { template })} />
+          <div class="row">
+            <Field label="Nom (vide = nom HA)">
+              <input value={item.name ?? ''} onInput={(e) => update(i, { name: e.currentTarget.value })} />
+            </Field>
+            <Field label="Icône">
+              <IconPicker value={item.icon ?? ''} placeholder={entityIcon(item.entity ?? '')} onChange={(v) => update(i, { icon: v || undefined })} />
+            </Field>
+          </div>
+          <RulesEditor rules={item.rules} entities={entities} onChange={(rules) => update(i, { rules })} />
+          {(['tap_action', 'hold_action'] as Gesture[]).map((gesture) => (
+            <ActionEditor
+              key={gesture}
+              tile
+              label={gesture === 'tap_action' ? 'Appui' : 'Appui long'}
+              defaultLabel={gesture === 'tap_action' ? 'selon l’entité' : 'réglages'}
+              action={item[gesture]}
+              entities={entities}
+              onChange={(action) => update(i, { [gesture]: action })}
+            />
+          ))}
+        </details>
+      ))}
+      <button type="button" disabled={items.length >= 12} onClick={() => onChange([...items, { entity: '' }])}>
+        + Ajouter une entité
+      </button>
+      <small class="hint">
+        En pastilles, une entité est verte quand elle va bien : binary_sensor allumé (ou éteint pour fuite, fumée, problème…),
+        interrupteur allumé, capteur disponible. Une règle « Carte colorée : Non » la marque en panne, « Oui » la marque OK.
+      </small>
+    </div>
+  );
+}
+
+/**
  * @description Form of the selected widget: size, then the props of its type.
  */
 export function Inspector({ widget, page, entities, onChange, onDelete }: InspectorProps) {
@@ -317,7 +386,7 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
         </div>
       )}
 
-      {HA_TILES.includes(widget.type) && (
+      {HA_TILES.includes(widget.type) && widget.type !== 'ha_history' && (
         <RulesEditor rules={p.rules} entities={entities} onChange={(rules) => set({ rules })} />
       )}
 
@@ -383,6 +452,51 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
       )}
       {(widget.type === 'ha_toggle' || widget.type === 'ha_light') && (
         <small class="hint">Appui long : réglages de l’entité (lumière, volet, ventilateur, thermostat, curseur, liste).</small>
+      )}
+
+      {widget.type === 'ha_list' && (
+        <>
+          <Field label="Titre">
+            <input value={p.name ?? ''} placeholder="Statut" onInput={(e) => set({ name: e.currentTarget.value || undefined })} />
+          </Field>
+          <Field label="Affichage">
+            <select value={p.mode ?? 'rows'} onChange={(e) => set({ mode: e.currentTarget.value })}>
+              <option value="rows">Lignes (icône, nom, état)</option>
+              <option value="badges">Pastilles vert / rouge (statut de services)</option>
+            </select>
+          </Field>
+          <ListItemsEditor items={(p.items as ListItem[]) ?? []} entities={entities} onChange={(items) => set({ items })} />
+        </>
+      )}
+
+      {widget.type === 'ha_history' && (
+        <>
+          <div class="row">
+            <Field label="Durée (heures)">
+              <NumberInput value={p.hours ?? 24} onChange={(v) => set({ hours: Math.max(1, Math.min(168, v ?? 24)) })} />
+            </Field>
+            <Field label="Couleur">
+              <input type="color" value={p.color ?? '#7C9CFF'} onInput={(e) => set({ color: e.currentTarget.value.toUpperCase() })} />
+            </Field>
+          </div>
+          <div class="row">
+            <Field label="Unité (vide = HA)">
+              <input value={p.unit ?? ''} onInput={(e) => set({ unit: e.currentTarget.value || undefined })} />
+            </Field>
+            <Field label="Décimales">
+              <NumberInput value={p.decimals} onChange={(v) => set({ decimals: v })} />
+            </Field>
+          </div>
+          <div class="row">
+            <Field label="Axe min (vide = auto)">
+              <NumberInput value={p.min} onChange={(v) => set({ min: v })} />
+            </Field>
+            <Field label="Axe max (vide = auto)">
+              <NumberInput value={p.max} onChange={(v) => set({ max: v })} />
+            </Field>
+          </div>
+          <small class="hint">Historique de Home Assistant (1 à 168 h), réduit à 96 points et rechargé toutes les 5 minutes.</small>
+        </>
       )}
 
       {widget.type === 'media' && (

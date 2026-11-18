@@ -77,6 +77,25 @@ class HaSession {
   void render_template(const std::string &tpl, std::function<void(bool ok, std::string text)> callback);
 
   /**
+   * @description Fetches the history of an entity over the last `hours` and publishes it on
+   * "ha_hist/<entity>/<hours>" as {"t0", "t1", "v": [HISTORY_POINTS values, null before the first one]}.
+   * Dropped when not connected or when the clock is not set yet.
+   */
+  void request_history(const std::string &entity, int hours);
+
+  /**
+   * @description Reduces state changes ([{"s", "lu"}…], "lu" in Unix seconds) to `buckets` values between
+   * t0 and t1: the average of the numeric states inside each bucket, else the last value before it
+   * (HA only records changes). Returns the {"t0", "t1", "v"} object published by request_history().
+   */
+  static cJSON *history_series(const cJSON *changes, double t0, double t1, int buckets);
+
+  /**
+   * @description Number of values of a history series.
+   */
+  static constexpr int HISTORY_POINTS = 96;
+
+  /**
    * @description Short stable key of a template, used in its bus key ("ha_tpl/<key>").
    */
   static std::string template_key(const std::string &tpl);

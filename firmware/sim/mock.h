@@ -41,6 +41,12 @@ class MockHome {
   bool render(const std::string &tpl, std::string &out);
 
   /**
+   * @description Publishes a made-up history of a numeric entity on "ha_hist/<entity>/<hours>"
+   * (a daily wave plus noise around its current value).
+   */
+  void request_history(const std::string &entity_id, int hours);
+
+  /**
    * @description Entity list in the format of GET /api/ha/entities.
    */
   std::string entity_list_json() const;

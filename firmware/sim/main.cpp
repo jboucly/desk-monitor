@@ -416,6 +416,10 @@ int main(int argc, char **argv) {
   std::random_device entropy;
   dm::PcSession pc(bus, settings, [&entropy] { return static_cast<uint32_t>(entropy()); });
   // Home Assistant pictures: the mock player's cover comes from sim/assets
+  services.ha_history = [&](const std::string &entity, int hours) {
+    std::lock_guard<std::mutex> lock(home_mutex);
+    home.request_history(entity, hours);
+  };
   services.ha_fetch = [](const std::string &path, std::function<void(std::string)> done) {
     std::thread([path, done = std::move(done)] {
       std::string body;

@@ -60,7 +60,7 @@
       "properties": {
         "id": { "type": "string" },
         "type": {
-          "enum": ["clock", "weather", "ha_toggle", "ha_light", "ha_sensor", "ha_gauge", "ha_climate", "ha_cover", "ha_slider", "ha_select", "shortcut", "pc_metrics", "pc_gauge", "media", "claude_sessions", "claude_usage", "claude_limits"]
+          "enum": ["clock", "weather", "ha_toggle", "ha_light", "ha_sensor", "ha_gauge", "ha_climate", "ha_cover", "ha_slider", "ha_select", "ha_list", "ha_history", "shortcut", "pc_metrics", "pc_gauge", "media", "claude_sessions", "claude_usage", "claude_limits"]
         },
         "x": { "type": "integer", "minimum": 0, "maximum": 3 },
         "y": { "type": "integer", "minimum": 0, "maximum": 3 },
@@ -73,6 +73,8 @@
         { "if": { "properties": { "type": { "const": "weather" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_weather" } } } },
         { "if": { "properties": { "type": { "enum": ["ha_toggle", "ha_light"] } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_entity" } }, "required": ["props"] } },
         { "if": { "properties": { "type": { "enum": ["ha_climate", "ha_cover", "ha_slider", "ha_select"] } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_entity" } }, "required": ["props"] } },
+        { "if": { "properties": { "type": { "const": "ha_list" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_list" } }, "required": ["props"] } },
+        { "if": { "properties": { "type": { "const": "ha_history" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_history" } }, "required": ["props"] } },
         { "if": { "properties": { "type": { "const": "ha_sensor" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_sensor" } }, "required": ["props"] } },
         { "if": { "properties": { "type": { "const": "ha_gauge" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_gauge" } }, "required": ["props"] } },
         { "if": { "properties": { "type": { "const": "shortcut" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_shortcut" } }, "required": ["props"] } },
@@ -129,6 +131,52 @@
         "rules": { "$ref": "#/$defs/rules" },
         "tap_action": { "$ref": "#/$defs/tile_action" },
         "hold_action": { "$ref": "#/$defs/tile_action" }
+      }
+    },
+    "props_list": {
+      "type": "object",
+      "required": ["items"],
+      "properties": {
+        "name": { "type": "string", "description": "Title of the tile." },
+        "mode": {
+          "enum": ["rows", "badges"],
+          "default": "rows",
+          "description": "rows: icon, name and state per line. badges: green/red pills with a problem count (service status)."
+        },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 3, "default": 1 },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "anyOf": [{ "required": ["entity"] }, { "required": ["template"] }],
+            "properties": {
+              "entity": { "$ref": "#/$defs/entity_id" },
+              "template": { "type": "string", "maxLength": 1000 },
+              "name": { "type": "string" },
+              "icon": { "$ref": "#/$defs/icon" },
+              "rules": { "$ref": "#/$defs/rules", "description": "In a list, a rule's active says whether the item is fine (true) or a problem (false)." },
+              "tap_action": { "$ref": "#/$defs/tile_action" },
+              "hold_action": { "$ref": "#/$defs/tile_action" }
+            }
+          }
+        }
+      }
+    },
+    "props_history": {
+      "type": "object",
+      "required": ["entity"],
+      "properties": {
+        "entity": { "$ref": "#/$defs/entity_id" },
+        "name": { "type": "string" },
+        "icon": { "$ref": "#/$defs/icon" },
+        "hours": { "type": "integer", "minimum": 1, "maximum": 168, "default": 24 },
+        "unit": { "type": "string" },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 3, "default": 1 },
+        "min": { "type": "number", "description": "Bottom of the Y axis (default: from the data)." },
+        "max": { "type": "number", "description": "Top of the Y axis (default: from the data)." },
+        "color": { "$ref": "#/$defs/color" }
       }
     },
     "rule_values": {

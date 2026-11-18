@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
 #include "dm/rules.h"
 
@@ -14,13 +15,16 @@ const char *const KNOWN_TYPES[] = {"clock",           "weather",      "ha_toggle
                                    "ha_sensor",       "ha_gauge",     "shortcut",     "pc_metrics",
                                    "pc_gauge",        "media",        "claude_sessions", "claude_usage",
                                    "claude_limits",   "ha_climate",   "ha_cover",     "ha_slider",
-                                   "ha_select"};
+                                   "ha_select",       "ha_list",      "ha_history"};
 
 const char *const ACTION_KINDS[] = {"ha", "keys", "launch", "url"};
 
 // Templates are stored in the layout and sent to HA at every connection
 constexpr size_t MAX_TEMPLATE = 1000;
 constexpr size_t MAX_TEMPLATES = 16;
+
+// Items of an ha_list: each is a subscription and a row to draw
+constexpr int MAX_LIST_ITEMS = 12;
 
 /**
  * @description Parses "#RRGGBB" into 0xRRGGBB. Returns false on a malformed color.
@@ -65,34 +69,73 @@ std::string check_action(const cJSON *action, bool tile) {
 }
 
 /**
- * @description Checks the props each widget type needs. Returns an error message, or empty when valid.
+ * @description The objects of a widget that name an entity or a template: its props, plus each of the
+ * `items` of an ha_list. Rules, actions and templates are read from each of them.
  */
-std::string check_props(const WidgetSpec &w) {
-  // A sensor may show a template instead of an entity
-  const char *tpl = json::str(w.props, "template");
-  if (strlen(tpl) > MAX_TEMPLATE) return "template trop long (" + std::to_string(MAX_TEMPLATE) + " caractères au plus)";
-  if (w.type == "ha_sensor" && *tpl && !*json::str(w.props, "entity")) return {};
-  const bool needs_entity = w.type == "ha_toggle" || w.type == "ha_light" || w.type == "ha_sensor" || w.type == "ha_gauge" ||
-                            w.type == "ha_climate" || w.type == "ha_cover" || w.type == "ha_slider" ||
-                            w.type == "ha_select";
-  if (needs_entity) {
-    const char *entity = json::str(w.props, "entity");
-    if (!strchr(entity, '.')) return "entité Home Assistant manquante";
-  }
-  if (const cJSON *rules = json::get(w.props, "rules")) {
+std::vector<const cJSON *> entity_holders(const cJSON *props) {
+  std::vector<const cJSON *> out = {props};
+  const cJSON *item = nullptr;
+  cJSON_ArrayForEach(item, json::get(props, "items")) out.push_back(item);
+  return out;
+}
+
+/**
+ * @description Checks the template, rules and gesture actions of one entity holder.
+ */
+std::string check_holder(const cJSON *holder) {
+  if (strlen(json::str(holder, "template")) > MAX_TEMPLATE)
+    return "template trop long (" + std::to_string(MAX_TEMPLATE) + " caractères au plus)";
+  if (const cJSON *rules = json::get(holder, "rules")) {
     Rules parsed;
     std::string error;
     if (!parsed.parse(rules, error)) return error;
+  }
+  for (const char *gesture : {"tap_action", "hold_action"}) {
+    const cJSON *action = json::get(holder, gesture);
+    if (!action) continue;
+    if (std::string problem = check_action(action, true); !problem.empty())
+      return std::string(!strcmp(gesture, "tap_action") ? "appui" : "appui long") + " : " + problem;
+  }
+  return {};
+}
+
+/**
+ * @description Checks the props each widget type needs. Returns an error message, or empty when valid.
+ */
+std::string check_props(const WidgetSpec &w) {
+  const char *entity = json::str(w.props, "entity");
+  // A sensor may show a template instead of an entity
+  const bool sensor_template = w.type == "ha_sensor" && *json::str(w.props, "template") && !*entity;
+  const bool needs_entity = w.type == "ha_toggle" || w.type == "ha_light" || w.type == "ha_sensor" || w.type == "ha_gauge" ||
+                            w.type == "ha_climate" || w.type == "ha_cover" || w.type == "ha_slider" ||
+                            w.type == "ha_select" || w.type == "ha_history";
+  if (needs_entity && !sensor_template && !strchr(entity, '.')) return "entité Home Assistant manquante";
+  if (w.type == "ha_list") {
+    const cJSON *items = json::get(w.props, "items");
+    const int count = cJSON_GetArraySize(items);
+    if (!cJSON_IsArray(items) || count < 1) return "liste vide (au moins une entité)";
+    if (count > MAX_LIST_ITEMS) return "liste trop longue (" + std::to_string(MAX_LIST_ITEMS) + " entités au plus)";
+    int index = 0;
+    const cJSON *item = nullptr;
+    cJSON_ArrayForEach(item, items) {
+      index++;
+      if (!strchr(json::str(item, "entity"), '.') && !*json::str(item, "template"))
+        return "élément " + std::to_string(index) + " : entité ou template manquant";
+    }
+  }
+  if (w.type == "ha_history") {
+    const double hours = json::num(w.props, "hours", 24);
+    if (hours < 1 || hours > 168) return "durée de l'historique : 1 à 168 heures";
   }
   if (w.type == "shortcut") {
     if (std::string problem = check_action(json::get(w.props, "action"), false); !problem.empty())
       return "raccourci : " + problem;
   }
-  for (const char *gesture : {"tap_action", "hold_action"}) {
-    const cJSON *action = json::get(w.props, gesture);
-    if (!action) continue;
-    if (std::string problem = check_action(action, true); !problem.empty())
-      return std::string(!strcmp(gesture, "tap_action") ? "appui" : "appui long") + " : " + problem;
+  int index = 0;
+  for (const cJSON *holder : entity_holders(w.props)) {
+    if (std::string problem = check_holder(holder); !problem.empty())
+      return index == 0 ? problem : "élément " + std::to_string(index) + " : " + problem;
+    index++;
   }
   return {};
 }
@@ -205,7 +248,8 @@ std::set<std::string> Layout::ha_templates() const {
   std::set<std::string> out;
   for (const auto &page : pages)
     for (const auto &w : page.widgets)
-      if (const char *tpl = json::str(w.props, "template"); *tpl) out.insert(tpl);
+      for (const cJSON *holder : entity_holders(w.props))
+        if (const char *tpl = json::str(holder, "template"); *tpl) out.insert(tpl);
   return out;
 }
 
@@ -213,14 +257,16 @@ std::set<std::string> Layout::ha_entities() const {
   std::set<std::string> out;
   for (const auto &page : pages) {
     for (const auto &w : page.widgets) {
-      if (const char *entity = json::str(w.props, "entity"); *entity) out.insert(entity);
-      // Rules may test other entities: they need their states too (validated by parse())
-      Rules rules;
-      std::string ignored;
-      if (rules.parse(json::get(w.props, "rules"), ignored)) out.merge(rules.entities());
-      // Entities named by actions: an "ha" call (states not needed, but kept as before) or a toggle of another entity
-      for (const char *prop : {"action", "tap_action", "hold_action"}) {
-        if (const char *entity = json::str(json::get(w.props, prop), "entity_id"); strchr(entity, '.')) out.insert(entity);
+      for (const cJSON *holder : entity_holders(w.props)) {
+        if (const char *entity = json::str(holder, "entity"); *entity) out.insert(entity);
+        // Rules may test other entities: they need their states too (validated by parse())
+        Rules rules;
+        std::string ignored;
+        if (rules.parse(json::get(holder, "rules"), ignored)) out.merge(rules.entities());
+        // Entities named by actions: an "ha" call or a toggle / popup of another entity
+        for (const char *prop : {"action", "tap_action", "hold_action"}) {
+          if (const char *entity = json::str(json::get(holder, prop), "entity_id"); strchr(entity, '.')) out.insert(entity);
+        }
       }
     }
   }

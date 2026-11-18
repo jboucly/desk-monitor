@@ -28,6 +28,15 @@ export const CATALOG: Record<WidgetType, WidgetInfo> = {
   ha_cover: { label: 'Volet HA', icon: 'window-shutter', w: 2, h: 1, available: true, defaults: () => ({ entity: '' }) },
   ha_slider: { label: 'Curseur HA', icon: 'tune-variant', w: 2, h: 1, available: true, defaults: () => ({ entity: '' }) },
   ha_select: { label: 'Liste de choix HA', icon: 'format-list-bulleted', w: 2, h: 1, available: true, defaults: () => ({ entity: '' }) },
+  ha_list: {
+    label: 'Liste d’entités HA',
+    icon: 'server',
+    w: 4,
+    h: 2,
+    available: true,
+    defaults: () => ({ name: 'Services', mode: 'badges', items: [{ entity: '' }] }),
+  },
+  ha_history: { label: 'Historique HA', icon: 'chart-line', w: 2, h: 2, available: true, defaults: () => ({ entity: '', hours: 24 }) },
   shortcut: {
     label: 'Raccourci',
     icon: 'rocket-launch',
@@ -140,6 +149,7 @@ export const ENTITY_DOMAINS: Partial<Record<WidgetType, string[]>> = {
   ha_cover: ['cover'],
   ha_slider: ['input_number', 'number', 'light', 'fan', 'media_player', 'cover'],
   ha_select: ['input_select', 'select', 'fan'],
+  ha_history: ['sensor', 'input_number', 'number'],
 };
 
 /**

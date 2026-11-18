@@ -130,6 +130,7 @@
 {"robot-outline", "\xF3\xB1\x99\xBA"},
 {"shield-alert-outline", "\xF3\xB0\xBB\x8D"},
 {"chart-bar", "\xF3\xB0\x84\xA8"},
+{"chart-line", "\xF3\xB0\x84\xAA"},
 {"timer-sand", "\xF3\xB0\x94\x9F"},
 {"history", "\xF3\xB0\x8B\x9A"},
 {"weather-sunny", "\xF3\xB0\x96\x99"},

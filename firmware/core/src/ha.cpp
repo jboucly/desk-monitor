@@ -1,7 +1,11 @@
 #include "dm/ha.h"
 
+#include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <ctime>
+#include <vector>
 
 namespace dm {
 
@@ -172,6 +176,69 @@ void HaSession::render_template(const std::string &tpl, std::function<void(bool 
     send_locked(msg);
   }
   flush();
+}
+
+void HaSession::request_history(const std::string &entity, int hours) {
+  const time_t now = time(nullptr);
+  if (now < 1600000000) return;  // no SNTP answer yet: the start time would be wrong
+  const double t1 = static_cast<double>(now), t0 = t1 - hours * 3600.0;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!authenticated_) return;
+    char start[32];
+    const time_t from = static_cast<time_t>(t0);
+    struct tm utc;
+    gmtime_r(&from, &utc);
+    strftime(start, sizeof start, "%Y-%m-%dT%H:%M:%SZ", &utc);
+    cJSON *msg = cJSON_CreateObject();
+    cJSON_AddStringToObject(msg, "type", "history/history_during_period");
+    cJSON_AddStringToObject(msg, "start_time", start);
+    cJSON *ids = cJSON_AddArrayToObject(msg, "entity_ids");
+    cJSON_AddItemToArray(ids, cJSON_CreateString(entity.c_str()));
+    // Compact answer: [{"s", "lu"}…] without attributes
+    cJSON_AddBoolToObject(msg, "minimal_response", true);
+    cJSON_AddBoolToObject(msg, "no_attributes", true);
+    cJSON_AddBoolToObject(msg, "significant_changes_only", false);
+    const std::string key = "ha_hist/" + entity + "/" + std::to_string(hours);
+    send_locked(msg, [this, entity, key, t0, t1](cJSON *result) {
+      if (!result) return;
+      bus_.post(key, history_series(json::get(result, entity.c_str()), t0, t1, HISTORY_POINTS));
+      cJSON_Delete(result);
+    });
+  }
+  flush();
+}
+
+cJSON *HaSession::history_series(const cJSON *changes, double t0, double t1, int buckets) {
+  std::vector<double> sum(buckets, 0);
+  std::vector<int> count(buckets, 0);
+  double before = NAN;  // last value before t0 (HA starts with the state at t0)
+  const double width = (t1 - t0) / buckets;
+  const cJSON *change = nullptr;
+  cJSON_ArrayForEach(change, changes) {
+    const char *s = json::str(change, "s");
+    char *end = nullptr;
+    const double value = strtod(s, &end);
+    if (end == s || *end != '\0' || !std::isfinite(value)) continue;  // "unavailable", "on"…
+    const double at = json::num(change, "lu", t0);
+    if (at < t0) {
+      before = value;
+      continue;
+    }
+    const int bucket = std::min(buckets - 1, static_cast<int>((at - t0) / width));
+    sum[bucket] += value;
+    count[bucket]++;
+  }
+  cJSON *series = cJSON_CreateObject();
+  cJSON_AddNumberToObject(series, "t0", t0);
+  cJSON_AddNumberToObject(series, "t1", t1);
+  cJSON *values = cJSON_AddArrayToObject(series, "v");
+  double last = before;
+  for (int i = 0; i < buckets; i++) {
+    if (count[i]) last = sum[i] / count[i];
+    cJSON_AddItemToArray(values, std::isnan(last) ? cJSON_CreateNull() : cJSON_CreateNumber(last));
+  }
+  return series;
 }
 
 std::string HaSession::template_key(const std::string &tpl) {

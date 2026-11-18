@@ -195,6 +195,28 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
           )}
         </div>
       );
+    case 'ha_list':
+      return (
+        <div class="face face-sensor">
+          <span class="muted small ellipsis">{p.name || (p.mode === 'badges' ? 'Statut' : 'Liste')}</span>
+          <span class="small ellipsis">
+            {((p.items ?? []) as { entity?: string; name?: string }[])
+              .map((item) => (p.mode === 'badges' ? '● ' : '') + (item.name || item.entity || '…'))
+              .join(p.mode === 'badges' ? '  ' : ' · ')}
+          </span>
+        </div>
+      );
+    case 'ha_history':
+      return (
+        <div class="face face-sensor">
+          <span class="small ellipsis">
+            <Icon name="chart-line" size={14} color={p.color || theme.accent} /> {p.name || p.entity || 'Historique'}
+          </span>
+          <svg viewBox="0 0 100 30" preserveAspectRatio="none" style={{ width: '100%', height: '50%' }}>
+            <polyline points="0,22 15,18 30,20 45,10 60,8 75,14 90,12 100,16" fill="none" stroke={p.color || theme.accent} stroke-width="2" />
+          </svg>
+        </div>
+      );
     case 'ha_slider':
       return (
         <div class="face face-sensor">

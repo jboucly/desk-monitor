@@ -23,6 +23,8 @@ std::unique_ptr<Widget> create_ha_climate(lv_obj_t *parent, const WidgetSpec &sp
 std::unique_ptr<Widget> create_ha_cover(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_ha_slider(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_ha_select(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
+std::unique_ptr<Widget> create_ha_list(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
+std::unique_ptr<Widget> create_ha_history(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_ha_gauge(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_shortcut(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_pc_metrics(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);

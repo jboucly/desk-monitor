@@ -23,6 +23,8 @@ Widgets cannot overlap or leave the grid. The firmware validates every layout ag
 | `ha_cover` | `entity` (`cover`), `name`, `icon`, `rules` | Home Assistant. Status ("Ouvert à 40 %"); from 2 columns open/close buttons, plus stop from 3 columns or 2 rows. A tap opens the popup (buttons, position and tilt sliders when supported) |
 | `ha_slider` | `entity`, `name`, `icon`, `rules` | Home Assistant. A slider for `input_number`/`number` (`set_value`), a light's brightness, a fan's speed (`set_percentage`), a media player's volume (`volume_set`) or a cover's position. Sent on release |
 | `ha_select` | `entity` (`input_select`, `select`, or a `fan`'s presets), `name`, `icon`, `rules` | Home Assistant. Shows the current option; a tap opens the list (`select_option` / `set_preset_mode`) |
+| `ha_list` | `name`, `mode` (`rows` / `badges`), `decimals`, `items` (1 to 12: `entity` or `template`, `name`, `icon`, `rules`, `tap_action`, `hold_action`) | Home Assistant. `rows`: icon, name and state per line (a tap toggles what can be toggled, opens the popup of thermostats, sliders and lists). `badges`: green/red pills and "N en panne" (service status). An item is fine when a `binary_sensor` is on (off for alarm classes: problem, smoke, moisture…), a switch-like entity is on, anything else is available; a rule's `active` overrides it (true = fine, false = problem) |
+| `ha_history` | `entity`, `name`, `icon`, `hours` (1-168, default 24), `unit`, `decimals`, `min`, `max`, `color` | Home Assistant `history/history_during_period`, reduced to 96 points on the screen and fetched again every 5 minutes; the last point follows the live state |
 | `ha_gauge` | `entity`, `name`, `min`, `max`, `unit`, `decimals`, `warn`, `crit` | Home Assistant |
 | `shortcut` | `name`, `icon`, `color`, `action` | `ha` action over Wi-Fi, other kinds via the PC |
 | `pc_metrics` | `name` (default: the PC's name) | PC companion |
@@ -39,7 +41,7 @@ Every Home Assistant tile also accepts `tap_action` and `hold_action`, which rep
 
 ### Rules
 
-Every Home Assistant tile except `ha_gauge` accepts `rules`: up to 12 display rules, evaluated on the screen at every state change. The first rule whose `when` matches applies (`firmware/core/src/rules.cpp`).
+Every Home Assistant tile except `ha_gauge` and `ha_history` accepts `rules` (`ha_list`: per item): up to 12 display rules, evaluated on the screen at every state change. The first rule whose `when` matches applies (`firmware/core/src/rules.cpp`).
 
 ```json
 "rules": [
@@ -116,6 +118,7 @@ Data sources publish on the bus, and widgets subscribe to it (`firmware/core/inc
 | `pc/claude_asks` | `{"asks": [...]}` pending Claude Code approvals (see PC link), `{}` when the PC is gone | `PcSession` |
 | `pc/claude_detail` | `claude_detail` fields of the open detail view (see PC link), `{}` when the PC is gone | `PcSession` |
 | `ha_tpl/<key>` | `{"s": result, "a": {}}`, or `{"s": "unavailable", "error"}`; `key` = FNV-1a hash of the template (`HaSession::template_key`) | `HaSession` (`render_template`) |
+| `ha_hist/<entity_id>/<hours>` | `{"t0", "t1", "v": [96 numbers or null]}` | `HaSession::request_history` (asked by `Services::ha_history`) |
 | `ha_art/<entity_id>` | same shape, decoded from the player's `entity_picture` (JPEG) | media widget, through `Services::ha_fetch` |
 
 ## PC link (WebSocket)

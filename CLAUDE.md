@@ -92,6 +92,7 @@ Anything that is not hardware or transport goes in `core/`: HA protocol logic, w
 **Home Assistant.** `dm::HaSession` (core) implements the WebSocket API protocol:
 
 - auth, `subscribe_entities` limited to `Layout::ha_entities()`, merging of compressed diffs, `call_service`, and `config/entity_registry/list_for_display` for the editor;
+- `history/history_during_period` for `ha_history` (`request_history`, reduced to 96 points by `history_series`, published on `ha_hist/<entity>/<hours>`);
 - `render_template` subscriptions for the layout's templates (`Layout::ha_templates()`, published on `ha_tpl/<key>`), plus one-shot renders for `POST /api/ha/template`;
 - the transport lives in `main/ha_client.cpp` (esp_websocket_client, frame reassembly);
 - the simulator replaces HA with `sim::MockHome`.

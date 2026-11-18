@@ -210,8 +210,8 @@ const char *CANNED_WEATHER = R"({"current":{"temperature_2m":13.4,"apparent_temp
 
 void MockHome::set_entities(const std::set<std::string> &entities) {
   for (const auto &id : entities) {
-    if (states_.count(id)) continue;
-    states_[id] = dm::json::own(initial_state(id));
+    // An entity may already exist without having been published (created by a template or a history request)
+    if (!states_.count(id)) states_[id] = dm::json::own(initial_state(id));
     publish(id);
   }
 }
@@ -388,6 +388,28 @@ void MockHome::publish_templates() {
     cJSON_AddObjectToObject(state, "a");
     bus_.post("ha_tpl/" + dm::HaSession::template_key(tpl), state);
   }
+}
+
+void MockHome::request_history(const std::string &entity_id, int hours) {
+  const double now = static_cast<double>(time(nullptr)), t0 = now - hours * 3600.0;
+  const double base = atof(dm::json::str(state_of(entity_id), "s"));
+  // One change every few minutes, like a real sensor: 200 changes over the period
+  cJSON *changes = cJSON_CreateArray();
+  for (int i = 0; i < 200; i++) {
+    const double at = t0 + (now - t0) * i / 200.0;
+    seed_ = seed_ * 1103515245u + 12345u;
+    const double noise = ((seed_ >> 16) % 100) / 100.0 - 0.5;
+    const double value = base + 2.5 * std::sin((at / 86400.0) * 2 * M_PI) + noise;
+    cJSON *change = cJSON_CreateObject();
+    char text[16];
+    snprintf(text, sizeof text, "%.1f", value);
+    cJSON_AddStringToObject(change, "s", text);
+    cJSON_AddNumberToObject(change, "lu", at);
+    cJSON_AddItemToArray(changes, change);
+  }
+  bus_.post("ha_hist/" + entity_id + "/" + std::to_string(hours),
+            dm::HaSession::history_series(changes, t0, now, dm::HaSession::HISTORY_POINTS));
+  cJSON_Delete(changes);
 }
 
 const cJSON *MockHome::state_of(const std::string &entity_id) {
