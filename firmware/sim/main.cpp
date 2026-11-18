@@ -454,6 +454,10 @@ int main(int argc, char **argv) {
     std::lock_guard<std::mutex> lock(home_mutex);
     home.set_entities(entities);
   };
+  app.on_templates_changed = [&](const std::set<std::string> &templates) {
+    std::lock_guard<std::mutex> lock(home_mutex);
+    home.set_templates(templates);
+  };
   app.start();
   post_status(bus);
   if (mock_pc) post_mock_pc(bus, 0);
@@ -523,6 +527,10 @@ int main(int argc, char **argv) {
   api.ha_entities = [&] {
     std::lock_guard<std::mutex> lock(home_mutex);
     return home.entity_list_json();
+  };
+  api.ha_render = [&](const std::string &tpl, std::string &out) {
+    std::lock_guard<std::mutex> lock(home_mutex);
+    return home.render(tpl, out);
   };
   static httplib::Server server;
   server.set_mount_point("/", DM_WEB_DIST_PATH);

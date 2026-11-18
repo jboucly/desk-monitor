@@ -9,6 +9,7 @@
 #include <initializer_list>
 #include <thread>
 
+#include "dm/ha.h"
 #include "dm/weather.h"
 #include "lvgl.h"
 
@@ -366,6 +367,80 @@ void MockHome::tick() {
 
 void MockHome::publish(const std::string &entity_id) {
   bus_.post("ha/" + entity_id, cJSON_Duplicate(states_[entity_id].get(), true));
+  publish_templates();
+}
+
+void MockHome::set_templates(const std::set<std::string> &templates) {
+  templates_ = templates;
+  publish_templates();
+}
+
+void MockHome::publish_templates() {
+  for (const auto &tpl : templates_) {
+    std::string out;
+    cJSON *state = cJSON_CreateObject();
+    if (render(tpl, out)) {
+      cJSON_AddStringToObject(state, "s", out.c_str());
+    } else {
+      cJSON_AddStringToObject(state, "s", "unavailable");
+      cJSON_AddStringToObject(state, "error", out.c_str());
+    }
+    cJSON_AddObjectToObject(state, "a");
+    bus_.post("ha_tpl/" + dm::HaSession::template_key(tpl), state);
+  }
+}
+
+const cJSON *MockHome::state_of(const std::string &entity_id) {
+  auto it = states_.find(entity_id);
+  if (it == states_.end()) it = states_.emplace(entity_id, dm::json::own(initial_state(entity_id))).first;
+  return it->second.get();
+}
+
+bool MockHome::render(const std::string &tpl, std::string &out) {
+  out.clear();
+  // Text of the first quoted argument after `from`
+  auto quoted = [](const std::string &expr, size_t from, size_t &end) -> std::string {
+    const size_t open = expr.find_first_of("'\"", from);
+    if (open == std::string::npos) return {};
+    const size_t close = expr.find(expr[open], open + 1);
+    if (close == std::string::npos) return {};
+    end = close + 1;
+    return expr.substr(open + 1, close - open - 1);
+  };
+  size_t pos = 0;
+  while (pos < tpl.size()) {
+    const size_t expr_open = tpl.find("{{", pos), block_open = tpl.find("{%", pos);
+    const size_t open = std::min(expr_open, block_open);
+    if (open == std::string::npos) {
+      out += tpl.substr(pos);
+      break;
+    }
+    out += tpl.substr(pos, open - pos);
+    const bool block = open == block_open;
+    const size_t close = tpl.find(block ? "%}" : "}}", open + 2);
+    if (close == std::string::npos) {
+      out = "TemplateSyntaxError: unexpected end of template (simulateur)";
+      return false;
+    }
+    if (!block) {
+      const std::string expr = tpl.substr(open + 2, close - open - 2);
+      size_t end = 0;
+      if (expr.find("state_attr(") != std::string::npos) {
+        const std::string id = quoted(expr, expr.find("state_attr("), end);
+        const std::string attr = quoted(expr, end, end);
+        const cJSON *value = cJSON_GetObjectItem(cJSON_GetObjectItem(state_of(id), "a"), attr.c_str());
+        out += cJSON_IsString(value) ? value->valuestring : value ? dm::json::print(value) : "None";
+      } else if (expr.find("states(") != std::string::npos) {
+        out += dm::json::str(state_of(quoted(expr, expr.find("states("), end)), "s");
+      } else {
+        // Anything else is shown as typed, trimmed
+        const size_t a = expr.find_first_not_of(' '), b = expr.find_last_not_of(' ');
+        if (a != std::string::npos) out += expr.substr(a, b - a + 1);
+      }
+    }
+    pos = close + 2;
+  }
+  return true;
 }
 
 void fetch_weather(dm::Bus &bus, double lat, double lon, const std::string &name) {

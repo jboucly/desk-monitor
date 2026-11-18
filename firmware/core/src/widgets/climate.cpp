@@ -510,7 +510,7 @@ class ClimatePopup {
 // ── Tile ─────────────────────────────────────────────────────────────────────
 
 /**
- * @description Thermostat tile. A tap (or a long press) opens the popup; on tiles with room, −/+ change
+ * @description Thermostat tile. A tap (or a long press) opens the popup unless the layout sets other actions; on tiles with room, −/+ change
  * the target directly. A 1-column tile shows the current temperature only.
  *
  *   2×1: [bubble] name / status          [−] 21,0° [+]   (buttons from 3 columns)
@@ -527,8 +527,8 @@ class ClimateTile : public Widget {
 
     root = theme::make_card(parent);
     lv_obj_add_flag(root, LV_OBJ_FLAG_CLICKABLE);
-    bind_event<ClimateTile, &ClimateTile::on_open>(root, LV_EVENT_SHORT_CLICKED, this);
-    bind_event<ClimateTile, &ClimateTile::on_open>(root, LV_EVENT_LONG_PRESSED, this);
+    bind_event<ClimateTile, &ClimateTile::on_gesture>(root, LV_EVENT_SHORT_CLICKED, this);
+    bind_event<ClimateTile, &ClimateTile::on_gesture>(root, LV_EVENT_LONG_PRESSED, this);
 
     if (narrow_) {
       // Same arrangement as the toggle tiles: bubble, value top right, name at the bottom
@@ -673,10 +673,14 @@ class ClimateTile : public Widget {
     }
   }
 
-  void on_open(lv_event_t *) {
+  /**
+   * @description Tap or long press: the layout's tap_action/hold_action, by default the thermostat popup.
+   */
+  void on_gesture(lv_event_t *e) {
+    const bool hold = lv_event_get_code(e) == LV_EVENT_LONG_PRESSED;
     const cJSON *state = ctx_.bus.get("ha/" + entity_);
-    if (is_unavailable(state)) return;
-    open_climate_popup(ctx_, entity_, entity_name(spec_.props, state, entity_), base_icon());
+    run_tile_action(ctx_, spec_.props, hold ? "hold_action" : "tap_action", "more_info", entity_,
+                    entity_name(spec_.props, state, entity_), base_icon());
   }
 
   static void on_step(lv_event_t *e) {

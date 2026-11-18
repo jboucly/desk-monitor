@@ -63,6 +63,11 @@ class Layout {
   std::set<std::string> ha_entities() const;
 
   /**
+   * @description Every Home Assistant template (`template` prop) a widget shows, rendered live by HA.
+   */
+  std::set<std::string> ha_templates() const;
+
+  /**
    * @description Compact JSON of the layout as it was accepted.
    */
   const std::string &source() const { return source_; }

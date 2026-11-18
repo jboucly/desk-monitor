@@ -46,6 +46,12 @@ class Api {
   std::function<std::string()> ha_entities;
 
   /**
+   * @description Blocking one-shot render of a template for the editor. Returns false with a French
+   * message in `out` when it fails, else true with the rendered text.
+   */
+  std::function<bool(const std::string &tpl, std::string &out)> ha_render;
+
+  /**
    * @description Builds a {"error": message} response.
    */
   static HttpResponse error(int status, const std::string &message);

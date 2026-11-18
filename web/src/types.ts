@@ -25,11 +25,24 @@ export type WidgetType =
 /**
  * @description What a shortcut does: Home Assistant over Wi-Fi, or the paired PC companion over the local network.
  */
-export type Action =
+export type Action = (
   | { kind: 'ha'; domain: string; service: string; entity_id?: string; data?: Record<string, unknown> }
   | { kind: 'keys'; keys: string }
   | { kind: 'launch'; target: string }
-  | { kind: 'url'; url: string };
+  | { kind: 'url'; url: string }
+  | { kind: 'toggle' | 'more_info'; entity_id?: string }
+  | { kind: 'none' }
+) & {
+  /**
+   * @description Asks before running: true for a default question, or the question to show.
+   */
+  confirm?: boolean | string;
+};
+
+/**
+ * @description Gesture of a Home Assistant tile that the layout can override.
+ */
+export type Gesture = 'tap_action' | 'hold_action';
 
 /**
  * @description Condition of a display rule. Every field set must hold; an empty condition always matches.

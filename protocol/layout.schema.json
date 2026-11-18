@@ -102,14 +102,21 @@
         "entity": { "$ref": "#/$defs/entity_id" },
         "name": { "type": "string" },
         "icon": { "$ref": "#/$defs/icon" },
-        "rules": { "$ref": "#/$defs/rules" }
+        "rules": { "$ref": "#/$defs/rules" },
+        "tap_action": { "$ref": "#/$defs/tile_action" },
+        "hold_action": { "$ref": "#/$defs/tile_action" }
       }
     },
     "props_sensor": {
       "type": "object",
-      "required": ["entity"],
+      "anyOf": [{ "required": ["entity"] }, { "required": ["template"] }],
       "properties": {
         "entity": { "$ref": "#/$defs/entity_id" },
+        "template": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Home Assistant (Jinja) template shown instead of an entity, rendered live by HA (render_template). 16 templates at most per layout."
+        },
         "name": { "type": "string" },
         "icon": { "$ref": "#/$defs/icon" },
         "unit": { "type": "string", "description": "Overrides unit_of_measurement." },
@@ -119,7 +126,9 @@
           "default": "auto",
           "description": "duration: a timestamp shows the time elapsed since (\"12 j 4 h\"), a number is a duration in its unit. auto: duration when HA's device_class is timestamp or duration."
         },
-        "rules": { "$ref": "#/$defs/rules" }
+        "rules": { "$ref": "#/$defs/rules" },
+        "tap_action": { "$ref": "#/$defs/tile_action" },
+        "hold_action": { "$ref": "#/$defs/tile_action" }
       }
     },
     "rule_values": {
@@ -197,6 +206,26 @@
         "action": { "$ref": "#/$defs/action" }
       }
     },
+    "confirm": {
+      "description": "Asks on the screen before running: true for \"<name> : confirmer ?\", or the question to show.",
+      "type": ["boolean", "string"]
+    },
+    "tile_action": {
+      "description": "What a tap (tap_action) or a long press (hold_action) on a Home Assistant tile does, instead of its default. toggle and more_info act on entity_id, else on the tile's entity.",
+      "oneOf": [
+        { "$ref": "#/$defs/action" },
+        {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": { "enum": ["toggle", "more_info"] },
+            "entity_id": { "$ref": "#/$defs/entity_id" },
+            "confirm": { "$ref": "#/$defs/confirm" }
+          }
+        },
+        { "type": "object", "required": ["kind"], "properties": { "kind": { "const": "none" } } }
+      ]
+    },
     "action": {
       "description": "What a shortcut does. 'ha' runs through Wi-Fi; the others are sent to the paired PC companion over the local network (PC link). The kind list is meant to grow (e.g. a whitelisted 'shell' kind).",
       "oneOf": [
@@ -235,7 +264,8 @@
             "url": { "type": "string" }
           }
         }
-      ]
+      ],
+      "properties": { "confirm": { "$ref": "#/$defs/confirm" } }
     }
   }
 }

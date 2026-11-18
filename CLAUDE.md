@@ -76,6 +76,7 @@ Anything that is not hardware or transport goes in `core/`: HA protocol logic, w
 - Don't call virtual methods from base constructors. `EntityTile::start()` exists for that reason.
 - Popups use `App::open_sheet()` (top layer). They own themselves, are deleted on close, and unsubscribe with the token returned by `Bus::subscribe`.
 - Home Assistant tiles take display `rules` (`include/dm/rules.h`, no LVGL so `layout.cpp` validates them too) through `RuleBinding` (`widgets/common.h`): bind the rules before subscribing to the entity, because the bus calls listeners right away.
+- Tile gestures go through `run_tile_action()` (`widgets/actions.cpp`): the layout's `tap_action`/`hold_action`, else the tile's default; `confirm` opens a confirmation sheet. Inner `lv_obj` containers of a clickable card must drop `LV_OBJ_FLAG_CLICKABLE`, or they swallow the taps.
 - `open_more_info()` (`widgets/controls.cpp`) opens the popup of an entity's domain (light, climate, cover, fan, slider, select list); shared LVGL pieces (sliders, round buttons, chips) are in `widgets/ui.cpp`.
 
 **Theme (`core/src/theme.cpp`).** Three card styles, chosen by `theme.style` in the layout:
@@ -91,6 +92,7 @@ Anything that is not hardware or transport goes in `core/`: HA protocol logic, w
 **Home Assistant.** `dm::HaSession` (core) implements the WebSocket API protocol:
 
 - auth, `subscribe_entities` limited to `Layout::ha_entities()`, merging of compressed diffs, `call_service`, and `config/entity_registry/list_for_display` for the editor;
+- `render_template` subscriptions for the layout's templates (`Layout::ha_templates()`, published on `ha_tpl/<key>`), plus one-shot renders for `POST /api/ha/template`;
 - the transport lives in `main/ha_client.cpp` (esp_websocket_client, frame reassembly);
 - the simulator replaces HA with `sim::MockHome`.
 

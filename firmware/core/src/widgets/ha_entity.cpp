@@ -5,6 +5,7 @@
 #include <ctime>
 
 #include "common.h"
+#include "dm/ha.h"
 #include "dm/util.h"
 
 namespace dm::widgets {
@@ -112,15 +113,19 @@ class EntityTile : public Widget {
   }
 
   /**
-   * @description Opens the control popup of the entity's domain (light, cover, fan, thermostat…).
+   * @description Long press: the layout's hold_action, by default the control popup of the entity's domain.
    */
   void on_long_press(lv_event_t *) {
-    if (is_unavailable(state_json_)) return;
-    open_more_info(ctx_, entity_, entity_name(spec_.props, state_json_, entity_), icon_name());
+    run_tile_action(ctx_, spec_.props, "hold_action", "more_info", entity_, entity_name(spec_.props, state_json_, entity_),
+                    icon_name());
   }
 
-  virtual void on_click(lv_event_t *) {
-    if (!is_unavailable(state_json_)) toggle_entity(ctx_.services, entity_, state_json_);
+  /**
+   * @description Tap: the layout's tap_action, by default a toggle.
+   */
+  void on_click(lv_event_t *) {
+    run_tile_action(ctx_, spec_.props, "tap_action", "toggle", entity_, entity_name(spec_.props, state_json_, entity_),
+                    icon_name());
   }
 
   const char *icon_name() const {
@@ -165,8 +170,12 @@ class LightTile : public EntityTile {
  */
 class SensorTile : public Widget {
  public:
-  SensorTile(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx) : spec_(spec) {
+  SensorTile(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx) : ctx_(ctx), spec_(spec) {
     entity_ = json::str(spec.props, "entity");
+    // A template (rendered by HA) replaces the entity: its result arrives like a state, {"s": text}
+    const std::string tpl = json::str(spec.props, "template");
+    key_ = tpl.empty() ? "ha/" + entity_ : "ha_tpl/" + HaSession::template_key(tpl);
+    if (!tpl.empty()) entity_.clear();
     decimals_ = static_cast<int>(json::num(spec.props, "decimals", 1));
     format_ = json::str(spec.props, "format", "auto");
     const bool big = spec.h >= 2 && spec.w >= 2;
@@ -174,11 +183,12 @@ class SensorTile : public Widget {
     root = theme::make_card(parent);
     lv_obj_t *head = lv_obj_create(root);
     lv_obj_remove_style_all(head);
+    lv_obj_remove_flag(head, LV_OBJ_FLAG_CLICKABLE);  // taps go to the card
     lv_obj_set_size(head, lv_pct(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(head, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(head, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(head, 6, 0);
-    icon_name_ = json::str(spec.props, "icon", default_entity_icon(entity_));
+    icon_name_ = json::str(spec.props, "icon", entity_.empty() ? "home-assistant" : default_entity_icon(entity_));
     icon_ = theme::make_icon(head, &dm_icons_18, icon_name_.c_str(), theme::accent());
     name_ = theme::make_label(head, &dm_font_14, theme::text2());
     lv_obj_set_flex_grow(name_, 1);
@@ -186,6 +196,7 @@ class SensorTile : public Widget {
 
     lv_obj_t *row = lv_obj_create(root);
     lv_obj_remove_style_all(row);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);  // taps go to the card
     lv_obj_set_size(row, lv_pct(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
@@ -195,20 +206,27 @@ class SensorTile : public Widget {
     unit_ = theme::make_label(row, &dm_font_16, theme::text2());
     lv_obj_set_style_pad_bottom(unit_, big ? 6 : 3, 0);
 
+    // A sensor only reacts to touch when the layout gives it an action
+    if (has_tile_action(spec.props, "tap_action") || has_tile_action(spec.props, "hold_action")) {
+      lv_obj_add_flag(root, LV_OBJ_FLAG_CLICKABLE);
+      bind_event<SensorTile, &SensorTile::on_gesture>(root, LV_EVENT_SHORT_CLICKED, this);
+      bind_event<SensorTile, &SensorTile::on_gesture>(root, LV_EVENT_LONG_PRESSED, this);
+    }
+
     // Rules first: the bus calls the entity listener right away when it already has a state
     rules_.bind(spec.props, ctx.bus, [this] {
       if (last_) render(last_.get());
     });
-    ctx.bus.subscribe("ha/" + entity_, [this](const cJSON *state) {
+    ctx.bus.subscribe(key_, [this](const cJSON *state) {
       last_ = json::own(cJSON_Duplicate(state, true));
       render(state);
     });
-    lv_label_set_text(name_, entity_name(spec.props, nullptr, entity_).c_str());
+    lv_label_set_text(name_, display_name(nullptr).c_str());
   }
 
  private:
   void render(const cJSON *state) {
-    const std::string name = entity_name(spec_.props, state, entity_);
+    const std::string name = display_name(state);
     lv_label_set_text(name_, name.c_str());
     const char *raw = json::str(state, "s");
     const char *unit = json::str(spec_.props, "unit", json::str(json::get(state, "a"), "unit_of_measurement"));
@@ -244,6 +262,20 @@ class SensorTile : public Widget {
     lv_label_set_text(unit_, unit);
   }
 
+  void on_gesture(lv_event_t *e) {
+    const bool hold = lv_event_get_code(e) == LV_EVENT_LONG_PRESSED;
+    run_tile_action(ctx_, spec_.props, hold ? "hold_action" : "tap_action", "none", entity_, display_name(last_.get()),
+                    icon_name_.c_str());
+  }
+
+  /**
+   * @description Name of the tile; a template without a "name" prop is called "Template".
+   */
+  std::string display_name(const cJSON *state) const {
+    if (entity_.empty()) return json::str(spec_.props, "name", "Template");
+    return entity_name(spec_.props, state, entity_);
+  }
+
   /**
    * @description Seconds to show as a duration, or NaN for a plain value. A timestamp (e.g. Proxmox's
    * "Temps de fonctionnement", the boot time) gives the time elapsed since; a duration sensor is converted
@@ -274,8 +306,10 @@ class SensorTile : public Widget {
     if (++ticks_ % 60 == 0 && last_) render(last_.get());
   }
 
+  WidgetContext &ctx_;
   WidgetSpec spec_;
   std::string entity_;
+  std::string key_;  // bus key: "ha/<entity>" or "ha_tpl/<key>"
   int decimals_ = 1;
   std::string format_;
   json::Ptr last_;

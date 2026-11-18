@@ -508,8 +508,8 @@ class ControlTile : public Widget {
       : ctx_(ctx), spec_(spec), entity_(json::str(spec.props, "entity")), custom_icon_(json::str(spec.props, "icon")) {
     root = theme::make_card(parent);
     lv_obj_add_flag(root, LV_OBJ_FLAG_CLICKABLE);
-    bind_event<ControlTile, &ControlTile::on_open>(root, LV_EVENT_SHORT_CLICKED, this);
-    bind_event<ControlTile, &ControlTile::on_open>(root, LV_EVENT_LONG_PRESSED, this);
+    bind_event<ControlTile, &ControlTile::on_gesture>(root, LV_EVENT_SHORT_CLICKED, this);
+    bind_event<ControlTile, &ControlTile::on_gesture>(root, LV_EVENT_LONG_PRESSED, this);
   }
 
   /**
@@ -580,10 +580,14 @@ class ControlTile : public Widget {
  private:
   void refresh(const cJSON *state) { render(state, rules_.match(state)); }
 
-  void on_open(lv_event_t *) {
+  /**
+   * @description Tap or long press: the layout's tap_action/hold_action, by default the control popup.
+   */
+  void on_gesture(lv_event_t *e) {
+    const bool hold = lv_event_get_code(e) == LV_EVENT_LONG_PRESSED;
     const cJSON *state = ctx_.bus.get("ha/" + entity_);
-    if (is_unavailable(state)) return;
-    open_more_info(ctx_, entity_, name(state), icon_for(state, nullptr));
+    run_tile_action(ctx_, spec_.props, hold ? "hold_action" : "tap_action", "more_info", entity_, name(state),
+                    icon_for(state, nullptr));
   }
 
   RuleBinding rules_;

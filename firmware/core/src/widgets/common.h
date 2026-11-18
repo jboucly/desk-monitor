@@ -113,6 +113,28 @@ void open_climate_popup(WidgetContext &ctx, const std::string &entity_id, const 
  */
 void open_claude_detail(WidgetContext &ctx, const std::string &view, const std::string &id);
 
+// ── Actions (actions.cpp) ────────────────────────────────────────────────────
+
+/**
+ * @description Runs an action: "toggle", "more_info" or "none" on an entity (the action's entity_id, else
+ * `entity`), an "ha" service call, or a PC kind ("keys", "launch", "url"). With `confirm` (true or a
+ * question) a sheet asks first.
+ * @param name Name used in the default question and the popups.
+ */
+void run_action(WidgetContext &ctx, const cJSON *action, const std::string &entity, const std::string &name, const char *icon);
+
+/**
+ * @description Runs the action of a gesture: the tile's `prop` ("tap_action" or "hold_action") when the
+ * layout sets one, else the `fallback` kind ("toggle", "more_info" or "none").
+ */
+void run_tile_action(WidgetContext &ctx, const cJSON *props, const char *prop, const char *fallback,
+                     const std::string &entity, const std::string &name, const char *icon);
+
+/**
+ * @description True when the layout sets this action prop on the tile.
+ */
+bool has_tile_action(const cJSON *props, const char *prop);
+
 // ── More info (controls.cpp) ─────────────────────────────────────────────────
 
 /**

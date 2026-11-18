@@ -54,6 +54,11 @@ class App {
   std::function<void(const std::set<std::string> &)> on_entities_changed;
 
   /**
+   * @description Called (from the LVGL thread) when the set of HA templates shown by the layout changes.
+   */
+  std::function<void(const std::set<std::string> &)> on_templates_changed;
+
+  /**
    * @description Opens a modal sheet on the top layer and returns its content panel. LVGL thread only.
    * @param on_close Called once when the sheet closes (tap outside, close button or close_sheet()).
    */
@@ -124,6 +129,7 @@ class App {
   std::unique_ptr<Layout> pending_;
   std::string current_json_;
   std::set<std::string> current_entities_;
+  std::set<std::string> current_templates_;  // LVGL thread only
 
   // LVGL thread state
   std::unique_ptr<Layout> layout_;

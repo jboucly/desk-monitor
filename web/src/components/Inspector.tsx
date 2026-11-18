@@ -1,6 +1,9 @@
 // Properties panel of the selected widget.
 import { CATALOG, PC_METRICS, ENTITY_DOMAINS, entityIcon, fits } from '../catalog';
-import type { Action, HaEntity, Page, Props, Widget } from '../types';
+import { useState } from 'preact/hooks';
+
+import { api } from '../api';
+import type { Action, Gesture, HaEntity, Page, Props, Widget, WidgetType } from '../types';
 import { GRID } from '../types';
 import { Field } from './Field';
 import { EntityPicker, IconPicker } from './Pickers';
@@ -37,36 +40,72 @@ function NumberInput(props: { value: number | undefined; step?: number; onChange
 }
 
 /**
- * @description Editor of a shortcut action (kind + its fields).
+ * @description Labels of the action kinds, PC kinds last.
  */
-function ActionEditor({ action, entities, onChange }: { action: Action; entities: HaEntity[] | null; onChange: (a: Action) => void }) {
-  const setKind = (kind: Action['kind']) => {
-    if (kind === 'ha') onChange({ kind, domain: 'light', service: 'toggle', entity_id: '' });
-    if (kind === 'keys') onChange({ kind, keys: '' });
-    if (kind === 'launch') onChange({ kind, target: '' });
-    if (kind === 'url') onChange({ kind, url: '' });
+const ACTION_LABELS: Record<Action['kind'], string> = {
+  toggle: 'Allumer / éteindre',
+  more_info: 'Ouvrir les réglages',
+  none: 'Rien',
+  ha: 'Service Home Assistant',
+  launch: 'Lancer une application (PC)',
+  url: 'Ouvrir une URL (PC)',
+  keys: 'Raccourci clavier (PC)',
+};
+
+/**
+ * @description Editor of an action (kind + its fields + confirmation). Tile gestures also offer toggle,
+ * settings popup and nothing, and "default" (no action in the layout) when `defaultLabel` is given.
+ */
+function ActionEditor(props: {
+  action: Action | undefined;
+  entities: HaEntity[] | null;
+  onChange: (a: Action | undefined) => void;
+  tile?: boolean;
+  label?: string;
+  defaultLabel?: string;
+}) {
+  const { action, entities, onChange } = props;
+  const setKind = (kind: Action['kind'] | 'default') => {
+    const confirm = action?.confirm;
+    if (kind === 'default') return onChange(undefined);
+    if (kind === 'ha') onChange({ kind, domain: 'light', service: 'toggle', entity_id: '', confirm });
+    if (kind === 'keys') onChange({ kind, keys: '', confirm });
+    if (kind === 'launch') onChange({ kind, target: '', confirm });
+    if (kind === 'url') onChange({ kind, url: '', confirm });
+    if (kind === 'toggle' || kind === 'more_info') onChange({ kind, confirm });
+    if (kind === 'none') onChange({ kind });
   };
+  const kinds = (Object.keys(ACTION_LABELS) as Action['kind'][]).filter(
+    (k) => props.tile || !['toggle', 'more_info', 'none'].includes(k),
+  );
   return (
     <>
-      <Field label="Action">
-        <select value={action.kind} onChange={(e) => setKind(e.currentTarget.value as Action['kind'])}>
-          <option value="launch">Lancer une application (PC)</option>
-          <option value="url">Ouvrir une URL (PC)</option>
-          <option value="keys">Raccourci clavier (PC)</option>
-          <option value="ha">Service Home Assistant</option>
+      <Field label={props.label ?? 'Action'}>
+        <select value={action?.kind ?? 'default'} onChange={(e) => setKind(e.currentTarget.value as Action['kind'] | 'default')}>
+          {props.defaultLabel && <option value="default">Par défaut : {props.defaultLabel}</option>}
+          {kinds.map((k) => (
+            <option key={k} value={k}>
+              {ACTION_LABELS[k]}
+            </option>
+          ))}
         </select>
       </Field>
-      {action.kind === 'launch' && (
+      {action && (action.kind === 'toggle' || action.kind === 'more_info') && (
+        <Field label="Autre entité (vide = celle du widget)">
+          <EntityPicker value={action.entity_id ?? ''} entities={entities} onChange={(v) => onChange({ ...action, entity_id: v || undefined })} />
+        </Field>
+      )}
+      {action?.kind === 'launch' && (
         <Field label="Application">
           <input value={action.target} placeholder="Spotify" onInput={(e) => onChange({ ...action, target: e.currentTarget.value })} />
         </Field>
       )}
-      {action.kind === 'url' && (
+      {action?.kind === 'url' && (
         <Field label="URL">
           <input value={action.url} placeholder="https://…" onInput={(e) => onChange({ ...action, url: e.currentTarget.value })} />
         </Field>
       )}
-      {action.kind === 'keys' && (
+      {action?.kind === 'keys' && (
         <Field label="Touches">
           <input
             value={action.keys}
@@ -81,7 +120,7 @@ function ActionEditor({ action, entities, onChange }: { action: Action; entities
           </small>
         </Field>
       )}
-      {action.kind === 'ha' && (
+      {action?.kind === 'ha' && (
         <>
           <div class="row">
             <Field label="Domaine">
@@ -112,8 +151,80 @@ function ActionEditor({ action, entities, onChange }: { action: Action; entities
           </Field>
         </>
       )}
-      {action.kind !== 'ha' && <small class="hint">Exécuté par l’application Desk Monitor de l’ordinateur appairé, quand elle est connectée.</small>}
+      {action && ['keys', 'launch', 'url'].includes(action.kind) && (
+        <small class="hint">Exécuté par l’application Desk Monitor de l’ordinateur appairé, quand elle est connectée.</small>
+      )}
+      {action && action.kind !== 'none' && (
+        <>
+          <label class="check">
+            <input
+              type="checkbox"
+              checked={!!action.confirm}
+              onChange={(e) => onChange({ ...action, confirm: e.currentTarget.checked ? true : undefined })}
+            />{' '}
+            Demander confirmation
+          </label>
+          {action.confirm && (
+            <Field label="Question (vide = « Nom : confirmer ? »)">
+              <input
+                value={typeof action.confirm === 'string' ? action.confirm : ''}
+                placeholder="Ouvrir la porte du garage ?"
+                onInput={(e) => onChange({ ...action, confirm: e.currentTarget.value || true })}
+              />
+            </Field>
+          )}
+        </>
+      )}
     </>
+  );
+}
+
+/**
+ * @description What a tap and a long press do by default, per Home Assistant tile type.
+ */
+const GESTURE_DEFAULTS: Partial<Record<WidgetType, Record<Gesture, string>>> = {
+  ha_toggle: { tap_action: 'allumer / éteindre', hold_action: 'réglages' },
+  ha_light: { tap_action: 'allumer / éteindre', hold_action: 'réglages' },
+  ha_sensor: { tap_action: 'rien', hold_action: 'rien' },
+  ha_climate: { tap_action: 'réglages', hold_action: 'réglages' },
+  ha_cover: { tap_action: 'réglages', hold_action: 'réglages' },
+  ha_slider: { tap_action: 'réglages', hold_action: 'réglages' },
+  ha_select: { tap_action: 'réglages', hold_action: 'réglages' },
+};
+
+/**
+ * @description Template field of a sensor, with a button that renders it once on Home Assistant.
+ */
+function TemplateField({ value, onChange }: { value: string; onChange: (v: string | undefined) => void }) {
+  const [preview, setPreview] = useState<{ ok: boolean; text: string } | null>(null);
+  const test = async () => {
+    try {
+      const { result } = await api.renderTemplate(value);
+      setPreview({ ok: true, text: result });
+    } catch (e) {
+      setPreview({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    }
+  };
+  return (
+    <Field label="Template Home Assistant (remplace l’entité)">
+      <textarea
+        rows={3}
+        spellcheck={false}
+        placeholder="{{ states('sensor.salon') | float | round(1) }}"
+        value={value}
+        onInput={(e) => {
+          setPreview(null);
+          onChange(e.currentTarget.value || undefined);
+        }}
+      />
+      <div class="row template-test">
+        <button type="button" disabled={!value.trim()} onClick={test}>
+          Tester
+        </button>
+        {preview && <span class={preview.ok ? 'small' : 'small error'}>{preview.text || '(vide)'}</span>}
+      </div>
+      <small class="hint">Rendu par Home Assistant et mis à jour en direct (Jinja). 16 templates au plus par layout.</small>
+    </Field>
   );
 }
 
@@ -163,9 +274,10 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
 
       {ENTITY_DOMAINS[widget.type] && (
         <>
-          <Field label="Entité">
+          <Field label={widget.type === 'ha_sensor' ? 'Entité (ou un template ci-dessous)' : 'Entité'}>
             <EntityPicker value={p.entity ?? ''} entities={entities} domains={ENTITY_DOMAINS[widget.type]} onChange={(v) => set({ entity: v })} />
           </Field>
+          {widget.type === 'ha_sensor' && <TemplateField value={p.template ?? ''} onChange={(template) => set({ template })} />}
           <Field label="Nom (vide = nom HA)">
             <input value={p.name ?? ''} onInput={(e) => set({ name: e.currentTarget.value || undefined })} />
           </Field>
@@ -207,6 +319,23 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
 
       {HA_TILES.includes(widget.type) && (
         <RulesEditor rules={p.rules} entities={entities} onChange={(rules) => set({ rules })} />
+      )}
+
+      {GESTURE_DEFAULTS[widget.type] && (
+        <div class="rules">
+          <h3>Actions</h3>
+          {(['tap_action', 'hold_action'] as Gesture[]).map((gesture) => (
+            <ActionEditor
+              key={gesture}
+              tile
+              label={gesture === 'tap_action' ? 'Appui' : 'Appui long'}
+              defaultLabel={GESTURE_DEFAULTS[widget.type]![gesture]}
+              action={p[gesture] as Action | undefined}
+              entities={entities}
+              onChange={(action) => set({ [gesture]: action })}
+            />
+          ))}
+        </div>
       )}
 
       {widget.type === 'ha_gauge' && (
@@ -354,7 +483,7 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
               <input type="color" value={p.color ?? '#7C9CFF'} onInput={(e) => set({ color: e.currentTarget.value.toUpperCase() })} />
             </Field>
           </div>
-          <ActionEditor action={p.action as Action} entities={entities} onChange={(action) => set({ action })} />
+          <ActionEditor action={p.action as Action} entities={entities} onChange={(action) => action && set({ action })} />
         </>
       )}
 

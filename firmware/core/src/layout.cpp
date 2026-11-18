@@ -18,6 +18,10 @@ const char *const KNOWN_TYPES[] = {"clock",           "weather",      "ha_toggle
 
 const char *const ACTION_KINDS[] = {"ha", "keys", "launch", "url"};
 
+// Templates are stored in the layout and sent to HA at every connection
+constexpr size_t MAX_TEMPLATE = 1000;
+constexpr size_t MAX_TEMPLATES = 16;
+
 /**
  * @description Parses "#RRGGBB" into 0xRRGGBB. Returns false on a malformed color.
  */
@@ -41,9 +45,33 @@ bool read_int(const cJSON *obj, const char *key, int &out) {
 }
 
 /**
+ * @description Checks an action. Tile gestures also accept "toggle", "more_info" and "none".
+ * Returns an error message, or empty when valid.
+ */
+std::string check_action(const cJSON *action, bool tile) {
+  const char *kind = json::str(action, "kind");
+  bool known = false;
+  for (const char *k : ACTION_KINDS) known |= strcmp(kind, k) == 0;
+  if (tile) for (const char *k : {"toggle", "more_info", "none"}) known |= strcmp(kind, k) == 0;
+  if (!known) return std::string("action inconnue \"") + kind + "\"";
+  if (!strcmp(kind, "ha") && (!*json::str(action, "domain") || !*json::str(action, "service")))
+    return "action HA incomplète (domain/service)";
+  if (!strcmp(kind, "keys") && !*json::str(action, "keys")) return "combinaison de touches vide";
+  if (!strcmp(kind, "launch") && !*json::str(action, "target")) return "application à lancer manquante";
+  if (!strcmp(kind, "url") && !*json::str(action, "url")) return "URL manquante";
+  const cJSON *confirm = json::get(action, "confirm");
+  if (confirm && !cJSON_IsBool(confirm) && !cJSON_IsString(confirm)) return "« confirm » attend true/false ou une question";
+  return {};
+}
+
+/**
  * @description Checks the props each widget type needs. Returns an error message, or empty when valid.
  */
 std::string check_props(const WidgetSpec &w) {
+  // A sensor may show a template instead of an entity
+  const char *tpl = json::str(w.props, "template");
+  if (strlen(tpl) > MAX_TEMPLATE) return "template trop long (" + std::to_string(MAX_TEMPLATE) + " caractères au plus)";
+  if (w.type == "ha_sensor" && *tpl && !*json::str(w.props, "entity")) return {};
   const bool needs_entity = w.type == "ha_toggle" || w.type == "ha_light" || w.type == "ha_sensor" || w.type == "ha_gauge" ||
                             w.type == "ha_climate" || w.type == "ha_cover" || w.type == "ha_slider" ||
                             w.type == "ha_select";
@@ -57,16 +85,14 @@ std::string check_props(const WidgetSpec &w) {
     if (!parsed.parse(rules, error)) return error;
   }
   if (w.type == "shortcut") {
-    const cJSON *action = json::get(w.props, "action");
-    const char *kind = json::str(action, "kind");
-    bool known = false;
-    for (const char *k : ACTION_KINDS) known |= strcmp(kind, k) == 0;
-    if (!known) return "action du raccourci inconnue";
-    if (!strcmp(kind, "ha") && (!*json::str(action, "domain") || !*json::str(action, "service")))
-      return "action HA incomplète (domain/service)";
-    if (!strcmp(kind, "keys") && !*json::str(action, "keys")) return "combinaison de touches vide";
-    if (!strcmp(kind, "launch") && !*json::str(action, "target")) return "application à lancer manquante";
-    if (!strcmp(kind, "url") && !*json::str(action, "url")) return "URL manquante";
+    if (std::string problem = check_action(json::get(w.props, "action"), false); !problem.empty())
+      return "raccourci : " + problem;
+  }
+  for (const char *gesture : {"tap_action", "hold_action"}) {
+    const cJSON *action = json::get(w.props, gesture);
+    if (!action) continue;
+    if (std::string problem = check_action(action, true); !problem.empty())
+      return std::string(!strcmp(gesture, "tap_action") ? "appui" : "appui long") + " : " + problem;
   }
   return {};
 }
@@ -165,8 +191,22 @@ std::unique_ptr<Layout> Layout::parse(const std::string &text, std::string &erro
     layout->pages.push_back(std::move(page));
   }
 
+  // Each template is a live subscription on the HA side
+  if (layout->ha_templates().size() > MAX_TEMPLATES) {
+    error = "trop de templates Home Assistant (" + std::to_string(MAX_TEMPLATES) + " au plus)";
+    return nullptr;
+  }
+
   layout->source_ = json::print(root);
   return layout;
+}
+
+std::set<std::string> Layout::ha_templates() const {
+  std::set<std::string> out;
+  for (const auto &page : pages)
+    for (const auto &w : page.widgets)
+      if (const char *tpl = json::str(w.props, "template"); *tpl) out.insert(tpl);
+  return out;
 }
 
 std::set<std::string> Layout::ha_entities() const {
@@ -178,9 +218,9 @@ std::set<std::string> Layout::ha_entities() const {
       Rules rules;
       std::string ignored;
       if (rules.parse(json::get(w.props, "rules"), ignored)) out.merge(rules.entities());
-      const cJSON *action = json::get(w.props, "action");
-      if (!strcmp(json::str(action, "kind"), "ha")) {
-        if (const char *entity = json::str(action, "entity_id"); strchr(entity, '.')) out.insert(entity);
+      // Entities named by actions: an "ha" call (states not needed, but kept as before) or a toggle of another entity
+      for (const char *prop : {"action", "tap_action", "hold_action"}) {
+        if (const char *entity = json::str(json::get(w.props, prop), "entity_id"); strchr(entity, '.')) out.insert(entity);
       }
     }
   }

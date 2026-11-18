@@ -64,6 +64,24 @@ class HaSession {
   void set_entities(const std::set<std::string> &entities);
 
   /**
+   * @description Changes the set of templates rendered live (one render_template subscription each).
+   * Every result is published on "ha_tpl/<template_key()>" as {"s": text}, or {"s": "unavailable",
+   * "error": message} when Home Assistant reports an error.
+   */
+  void set_templates(const std::set<std::string> &templates);
+
+  /**
+   * @description Renders a template once, for the editor's preview. The callback gets true and the text,
+   * or false and an error message. It runs on the socket thread (or at once when not connected).
+   */
+  void render_template(const std::string &tpl, std::function<void(bool ok, std::string text)> callback);
+
+  /**
+   * @description Short stable key of a template, used in its bus key ("ha_tpl/<key>").
+   */
+  static std::string template_key(const std::string &tpl);
+
+  /**
    * @description Calls a service. Dropped when not connected.
    * @param data Optional service data, owned by the session.
    */
@@ -83,6 +101,8 @@ class HaSession {
  private:
   void send_locked(cJSON *message, ResultCallback callback = nullptr);
   void subscribe_locked();
+  void subscribe_template_locked(const std::string &tpl);
+  void publish_template_locked(const std::string &tpl, const cJSON *event);
   void apply_event_locked(const cJSON *event);
   void publish_locked(const std::string &entity_id);
   void flush();
@@ -98,6 +118,9 @@ class HaSession {
   std::set<std::string> entities_;
   std::map<std::string, json::Ptr> states_;
   std::map<int, ResultCallback> pending_;
+  std::set<std::string> templates_;
+  std::map<int, std::string> template_subs_;  // render_template subscription id → template
+  std::map<int, std::function<void(bool, std::string)>> renders_;  // one-shot renders by id
 };
 
 }  // namespace dm

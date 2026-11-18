@@ -75,6 +75,8 @@ void App::start() {
   build_shell();
   build_pages();
   if (on_entities_changed) on_entities_changed(current_entities_);
+  current_templates_ = layout_->ha_templates();
+  if (on_templates_changed) on_templates_changed(current_templates_);
 
   // Bus dispatch and layout swaps run in the LVGL thread through this timer
   lv_timer_create(
@@ -137,6 +139,11 @@ void App::apply_pending_layout() {
     current_entities_ = entities;
   }
   if (changed && on_entities_changed) on_entities_changed(entities);
+  std::set<std::string> templates = layout_->ha_templates();
+  if (templates != current_templates_) {
+    current_templates_ = std::move(templates);
+    if (on_templates_changed) on_templates_changed(current_templates_);
+  }
 }
 
 void App::apply_background() {

@@ -50,6 +50,7 @@ export const api = {
   putSettings: (settings: Partial<Settings>) => request<Settings>('PUT', '/api/settings', settings),
   getStatus: () => request<Status>('GET', '/api/status'),
   getEntities: () => request<HaEntity[]>('GET', '/api/ha/entities'),
+  renderTemplate: (template: string) => request<{ result: string }>('POST', '/api/ha/template', { template }),
   reboot: () => request<{ ok: true }>('POST', '/api/reboot'),
 
   /**

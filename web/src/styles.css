@@ -841,3 +841,13 @@ button.destructive {
   height: 100%;
   border-radius: 7px;
 }
+
+/* Template preview of the sensor inspector */
+.template-test {
+  align-items: center;
+  margin-top: 6px;
+}
+
+.template-test .error {
+  color: var(--danger);
+}
