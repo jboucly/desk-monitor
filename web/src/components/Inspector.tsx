@@ -167,7 +167,7 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
         </>
       )}
 
-      {(widget.type === 'ha_light' || widget.type === 'ha_toggle' || widget.type === 'ha_sensor') && (
+      {(widget.type === 'ha_light' || widget.type === 'ha_toggle' || widget.type === 'ha_sensor' || widget.type === 'ha_climate') && (
         <Field label="Icône">
           <IconPicker value={p.icon ?? ''} placeholder={entityIcon(p.entity ?? '')} onChange={(v) => set({ icon: v || undefined })} />
         </Field>
@@ -200,7 +200,7 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
         </div>
       )}
 
-      {(widget.type === 'ha_light' || widget.type === 'ha_toggle' || widget.type === 'ha_sensor') && (
+      {(widget.type === 'ha_light' || widget.type === 'ha_toggle' || widget.type === 'ha_sensor' || widget.type === 'ha_climate') && (
         <RulesEditor rules={p.rules} entities={entities} onChange={(rules) => set({ rules })} />
       )}
 
@@ -223,6 +223,13 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
             </Field>
           </div>
         </>
+      )}
+
+      {widget.type === 'ha_climate' && (
+        <small class="hint">
+          Thermostat (climate) ou chauffe-eau (water_heater). Un appui ouvre les réglages : consigne, mode, préréglage, ventilation.
+          À partir de 3 colonnes ou 2 lignes, les boutons − et + changent la consigne directement.
+        </small>
       )}
 
       {widget.type === 'media' && (

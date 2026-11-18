@@ -19,6 +19,7 @@ std::unique_ptr<Widget> create_weather(lv_obj_t *parent, const WidgetSpec &spec,
 std::unique_ptr<Widget> create_ha_toggle(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_ha_light(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_ha_sensor(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
+std::unique_ptr<Widget> create_ha_climate(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_ha_gauge(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_shortcut(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_pc_metrics(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
@@ -93,6 +94,13 @@ class RuleBinding {
  * @description Opens the light control sheet (on/off, brightness, color wheel, white temperature).
  */
 void open_light_popup(WidgetContext &ctx, const std::string &entity_id, const std::string &name, const char *icon);
+
+// ── Climate popup (climate.cpp) ──────────────────────────────────────────────
+
+/**
+ * @description Opens the thermostat sheet of a climate or water_heater entity (target, mode, preset, fan).
+ */
+void open_climate_popup(WidgetContext &ctx, const std::string &entity_id, const std::string &name, const char *icon);
 
 // ── Claude detail views (claude_detail.cpp) ──────────────────────────────────
 

@@ -19,6 +19,7 @@ Widgets cannot overlap or leave the grid. The firmware validates every layout ag
 | `ha_toggle` | `entity`, `name`, `icon`, `rules` | Home Assistant |
 | `ha_light` | `entity`, `name`, `icon`, `rules` | Home Assistant. A long press opens the color/white/brightness popup |
 | `ha_sensor` | `entity`, `name`, `icon`, `unit`, `decimals`, `format` (`auto`, `number`, `duration`: e.g. a Proxmox uptime shown as "12 j 4 h"), `rules` | Home Assistant |
+| `ha_climate` | `entity` (`climate` or `water_heater`), `name`, `icon`, `rules` | Home Assistant. Shows the current temperature, the target and what the device does (`hvac_action`). A tap opens the thermostat popup (target dial, HVAC/operation mode, preset, fan mode). −/+ change the target on tiles of 3 columns or 2 rows; taps are grouped and sent 0.8 s after the last one. A `rules` text replaces the status line |
 | `ha_gauge` | `entity`, `name`, `min`, `max`, `unit`, `decimals`, `warn`, `crit` | Home Assistant |
 | `shortcut` | `name`, `icon`, `color`, `action` | `ha` action over Wi-Fi, other kinds via the PC |
 | `pc_metrics` | `name` (default: the PC's name) | PC companion |
@@ -27,7 +28,7 @@ Widgets cannot overlap or leave the grid. The firmware validates every layout ag
 
 ### Rules
 
-`ha_toggle`, `ha_light` and `ha_sensor` accept `rules`: up to 12 display rules, evaluated on the screen at every state change. The first rule whose `when` matches applies (`firmware/core/src/rules.cpp`).
+`ha_toggle`, `ha_light`, `ha_sensor` and `ha_climate` accept `rules`: up to 12 display rules, evaluated on the screen at every state change. The first rule whose `when` matches applies (`firmware/core/src/rules.cpp`).
 
 ```json
 "rules": [

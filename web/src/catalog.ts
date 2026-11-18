@@ -24,6 +24,7 @@ export const CATALOG: Record<WidgetType, WidgetInfo> = {
   ha_toggle: { label: 'Interrupteur HA', icon: 'toggle-switch', w: 1, h: 1, available: true, defaults: () => ({ entity: '' }) },
   ha_sensor: { label: 'Capteur HA', icon: 'thermometer', w: 2, h: 1, available: true, defaults: () => ({ entity: '', decimals: 1 }) },
   ha_gauge: { label: 'Jauge HA', icon: 'gauge', w: 2, h: 2, available: true, defaults: () => ({ entity: '', min: 0, max: 100, unit: '%' }) },
+  ha_climate: { label: 'Chauffage HA', icon: 'thermostat', w: 2, h: 2, available: true, defaults: () => ({ entity: '' }) },
   shortcut: {
     label: 'Raccourci',
     icon: 'rocket-launch',
@@ -106,7 +107,8 @@ export function entityIcon(entity: string): string {
     light: 'lightbulb',
     switch: 'power-socket-eu',
     fan: 'fan',
-    climate: 'thermometer',
+    climate: 'thermostat',
+    water_heater: 'water-boiler',
     cover: 'blinds',
     lock: 'lock',
     media_player: 'speaker',
@@ -124,9 +126,10 @@ export function entityIcon(entity: string): string {
  */
 export const ENTITY_DOMAINS: Partial<Record<WidgetType, string[]>> = {
   ha_light: ['light'],
-  ha_toggle: ['switch', 'light', 'fan', 'input_boolean', 'cover', 'lock', 'scene', 'script', 'automation', 'media_player'],
+  ha_toggle: ['switch', 'light', 'fan', 'input_boolean', 'cover', 'lock', 'scene', 'script', 'automation', 'media_player', 'climate', 'binary_sensor'],
   ha_sensor: ['sensor', 'binary_sensor', 'input_number', 'number'],
   ha_gauge: ['sensor', 'input_number', 'number'],
+  ha_climate: ['climate', 'water_heater'],
 };
 
 /**

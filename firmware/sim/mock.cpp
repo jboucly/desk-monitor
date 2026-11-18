@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstring>
 #include <ctime>
+#include <initializer_list>
 #include <thread>
 
 #include "dm/weather.h"
@@ -53,6 +54,31 @@ void update_rgb(cJSON *attrs) {
   cJSON_AddItemToArray(rgb, cJSON_CreateNumber(c.red));
   cJSON_AddItemToArray(rgb, cJSON_CreateNumber(c.green));
   cJSON_AddItemToArray(rgb, cJSON_CreateNumber(c.blue));
+}
+
+/**
+ * @description Adds a list of strings to an object.
+ */
+void add_strings(cJSON *obj, const char *key, std::initializer_list<const char *> values) {
+  cJSON *list = cJSON_AddArrayToObject(obj, key);
+  for (const char *v : values) cJSON_AddItemToArray(list, cJSON_CreateString(v));
+}
+
+/**
+ * @description Recomputes hvac_action from the mode and the temperatures, like a real thermostat reports it.
+ */
+void update_hvac_action(cJSON *state) {
+  cJSON *attrs = cJSON_GetObjectItem(state, "a");
+  const std::string mode = dm::json::str(state, "s");
+  const double current = dm::json::num(attrs, "current_temperature");
+  const double target = dm::json::num(attrs, "temperature", current);
+  const char *action = "idle";
+  if (mode == "off") action = "off";
+  else if ((mode == "heat" || mode == "auto") && current < target - 0.2) action = "heating";
+  else if ((mode == "cool" || mode == "auto") && current > target + 0.2) action = "cooling";
+  else if (mode == "dry") action = "drying";
+  else if (mode == "fan_only") action = "fan";
+  set_string(attrs, "hvac_action", action);
 }
 
 /**
@@ -111,6 +137,32 @@ cJSON *initial_state(const std::string &id) {
     snprintf(value, sizeof value, "%.1f", 15 + r * 75);
     cJSON_AddStringToObject(state, "s", value);
     cJSON_AddStringToObject(attrs, "unit_of_measurement", "%");
+  } else if (domain == "climate") {
+    // A heating thermostat; names with "clim" get an air conditioner with cooling and fan modes
+    const bool ac = id.find("clim", id.find('.')) != std::string::npos;
+    cJSON_AddStringToObject(state, "s", ac ? "cool" : "heat");
+    add_strings(attrs, "hvac_modes", ac ? std::initializer_list<const char *>{"off", "heat", "cool", "auto", "dry", "fan_only"}
+                                        : std::initializer_list<const char *>{"off", "heat", "auto"});
+    cJSON_AddNumberToObject(attrs, "min_temp", ac ? 16 : 7);
+    cJSON_AddNumberToObject(attrs, "max_temp", ac ? 30 : 28);
+    cJSON_AddNumberToObject(attrs, "target_temp_step", 0.5);
+    cJSON_AddNumberToObject(attrs, "current_temperature", ac ? 26.5 : 19.5);
+    cJSON_AddNumberToObject(attrs, "temperature", ac ? 24 : 21);
+    add_strings(attrs, "preset_modes", {"none", "eco", "comfort", "away", "boost"});
+    cJSON_AddStringToObject(attrs, "preset_mode", "comfort");
+    if (ac) {
+      add_strings(attrs, "fan_modes", {"auto", "low", "medium", "high"});
+      cJSON_AddStringToObject(attrs, "fan_mode", "auto");
+    }
+    update_hvac_action(state);
+  } else if (domain == "water_heater") {
+    cJSON_AddStringToObject(state, "s", "eco");
+    add_strings(attrs, "operation_list", {"off", "eco", "electric", "performance"});
+    cJSON_AddStringToObject(attrs, "operation_mode", "eco");
+    cJSON_AddNumberToObject(attrs, "min_temp", 40);
+    cJSON_AddNumberToObject(attrs, "max_temp", 65);
+    cJSON_AddNumberToObject(attrs, "current_temperature", 52);
+    cJSON_AddNumberToObject(attrs, "temperature", 55);
   } else {
     cJSON_AddStringToObject(state, "s", r < 0.5f ? "on" : "off");
   }
@@ -153,6 +205,28 @@ void MockHome::call(const std::string &domain, const std::string &service, const
     return;
   }
 
+  if (domain == "climate" || domain == "water_heater") {
+    const bool water = domain == "water_heater";
+    if (service == "turn_off") set_string(state, "s", "off");
+    if (service == "turn_on") set_string(state, "s", water ? "eco" : "heat");
+    if (service == "set_hvac_mode") set_string(state, "s", dm::json::str(data, "hvac_mode", "heat"));
+    if (service == "set_operation_mode") {
+      set_string(state, "s", dm::json::str(data, "operation_mode", "eco"));
+      set_string(attrs, "operation_mode", dm::json::str(state, "s"));
+    }
+    if (service == "set_preset_mode") set_string(attrs, "preset_mode", dm::json::str(data, "preset_mode", "none"));
+    if (service == "set_fan_mode") set_string(attrs, "fan_mode", dm::json::str(data, "fan_mode", "auto"));
+    if (service == "set_temperature") {
+      for (const char *key : {"temperature", "target_temp_low", "target_temp_high"})
+        if (const cJSON *v = cJSON_GetObjectItem(data, key); cJSON_IsNumber(v)) set_number(attrs, key, v->valuedouble);
+    }
+    if (!water) update_hvac_action(state);
+    printf("[mock HA] %s.%s %s %s\n", domain.c_str(), service.c_str(), entity_id.c_str(),
+           data ? dm::json::print(data).c_str() : "");
+    publish(entity_id);
+    return;
+  }
+
   bool turn_on = service == "turn_on" || (service == "toggle" && !on);
   if (service == "turn_off" || (service == "toggle" && on)) turn_on = false;
   if (dm::json::num(data, "brightness_pct", 1) == 0) turn_on = false;
@@ -183,7 +257,7 @@ void MockHome::call(const std::string &domain, const std::string &service, const
 std::string MockHome::entity_list_json() const {
   cJSON *list = cJSON_CreateArray();
   const char *extra[] = {"light.cuisine", "switch.imprimante_3d", "sensor.temperature_salon", "scene.soiree",
-                         "fan.ventilateur_bureau"};
+                         "fan.ventilateur_bureau", "climate.chauffage_bureau"};
   for (const auto &[id, state] : states_) {
     cJSON *item = cJSON_CreateObject();
     cJSON_AddStringToObject(item, "id", id.c_str());
@@ -203,6 +277,18 @@ std::string MockHome::entity_list_json() const {
 
 void MockHome::tick() {
   for (auto &[id, state] : states_) {
+    if (id.rfind("climate.", 0) == 0) {
+      // The room slowly moves towards the target while the thermostat runs
+      cJSON *attrs = cJSON_GetObjectItem(state.get(), "a");
+      const char *action = dm::json::str(attrs, "hvac_action");
+      const double current = dm::json::num(attrs, "current_temperature");
+      const double delta = !strcmp(action, "heating") ? 0.1 : !strcmp(action, "cooling") ? -0.1 : 0;
+      if (delta == 0) continue;
+      set_number(attrs, "current_temperature", std::round((current + delta) * 10) / 10);
+      update_hvac_action(state.get());
+      publish(id);
+      continue;
+    }
     if (id.rfind("sensor.", 0) != 0) continue;
     seed_ = seed_ * 1103515245u + 12345u;
     const double delta = ((seed_ >> 16) % 600) / 100.0 - 3.0;

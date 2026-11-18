@@ -10,6 +10,7 @@ export type WidgetType =
   | 'ha_light'
   | 'ha_sensor'
   | 'ha_gauge'
+  | 'ha_climate'
   | 'shortcut'
   | 'pc_metrics'
   | 'pc_gauge'

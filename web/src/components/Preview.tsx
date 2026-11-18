@@ -181,6 +181,20 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
           )}
         </div>
       );
+    case 'ha_climate':
+      return (
+        <div class="face face-entity">
+          <span class="bubble">
+            <Icon name={p.icon || entityIcon(p.entity || 'climate.x')} size={big ? 28 : 20} />
+          </span>
+          <span class="ellipsis">{p.name || p.entity || CATALOG[widget.type].label}</span>
+          {widget.w >= 2 && (
+            <span class="muted small">
+              {widget.w >= 3 || widget.h >= 2 ? '−  21,0°  +' : '21,0°'}
+            </span>
+          )}
+        </div>
+      );
     case 'ha_light':
     case 'ha_toggle':
       return (
