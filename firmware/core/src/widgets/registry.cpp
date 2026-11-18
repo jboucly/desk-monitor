@@ -14,6 +14,7 @@ WidgetFactory find_widget_factory(const std::string &type) {
       {"ha_climate", widgets::create_ha_climate}, {"ha_cover", widgets::create_ha_cover},
       {"ha_slider", widgets::create_ha_slider}, {"ha_select", widgets::create_ha_select},
       {"ha_list", widgets::create_ha_list},     {"ha_history", widgets::create_ha_history},
+      {"ha_alarm", widgets::create_ha_alarm},
       {"shortcut", widgets::create_shortcut},   {"pc_metrics", widgets::create_pc_metrics},
       {"pc_gauge", widgets::create_pc_gauge},   {"media", widgets::create_media},
       {"claude_sessions", widgets::create_claude_sessions},

@@ -47,6 +47,7 @@ void HaSession::on_close() {
     authenticated_ = false;
     subscription_id_ = 0;
     template_subs_.clear();
+    calls_.clear();
     outbox_.clear();
     failed.swap(pending_);
     renders.swap(renders_);
@@ -104,6 +105,16 @@ void HaSession::on_message(const std::string &text) {
       }
     } else if (!strcmp(type, "result")) {
       const int id = static_cast<int>(json::num(root.get(), "id"));
+      auto call = calls_.find(id);
+      if (call != calls_.end() && !json::boolean(root.get(), "success")) {
+        // A refused service call (wrong code, unknown service…) would otherwise fail silently
+        cJSON *toast = cJSON_CreateObject();
+        const std::string text = "Home Assistant : " +
+                                 std::string(json::str(json::get(root.get(), "error"), "message", call->second.c_str()));
+        cJSON_AddStringToObject(toast, "text", text.c_str());
+        bus_.post("sys/toast", toast);
+      }
+      if (call != calls_.end()) calls_.erase(call);
       // A template HA cannot parse fails at once, with the reason in error.message
       if (!json::boolean(root.get(), "success")) {
         const char *message = json::str(json::get(root.get(), "error"), "message", "erreur inconnue");
@@ -279,6 +290,7 @@ void HaSession::call_service(const std::string &domain, const std::string &servi
       cJSON *target = cJSON_AddObjectToObject(msg, "target");
       cJSON_AddStringToObject(target, "entity_id", entity_id.c_str());
     }
+    calls_[next_id_] = domain + "." + service;
     send_locked(msg);
   }
   flush();
@@ -376,6 +388,8 @@ void HaSession::apply_event_locked(const cJSON *event) {
     cJSON_AddStringToObject(state, "s", json::str(item, "s"));
     const cJSON *attrs = json::get(item, "a");
     cJSON_AddItemToObject(state, "a", attrs ? cJSON_Duplicate(attrs, true) : cJSON_CreateObject());
+    // Last state change, Unix seconds ("lc", or "lu" when both are equal and HA sent only one)
+    cJSON_AddNumberToObject(state, "lc", json::num(item, "lc", json::num(item, "lu", 0)));
     states_[item->string] = json::own(state);
     publish_locked(item->string);
   }
@@ -387,6 +401,10 @@ void HaSession::apply_event_locked(const cJSON *event) {
     const cJSON *plus = json::get(item, "+");
     if (const cJSON *s = json::get(plus, "s"); cJSON_IsString(s))
       cJSON_ReplaceItemInObject(state, "s", cJSON_CreateString(s->valuestring));
+    if (const cJSON *lc = json::get(plus, "lc"); cJSON_IsNumber(lc)) {
+      cJSON_DeleteItemFromObject(state, "lc");
+      cJSON_AddNumberToObject(state, "lc", lc->valuedouble);
+    }
     cJSON *attrs = cJSON_GetObjectItem(state, "a");
     const cJSON *attr = nullptr;
     cJSON_ArrayForEach(attr, json::get(plus, "a")) {

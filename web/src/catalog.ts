@@ -37,6 +37,7 @@ export const CATALOG: Record<WidgetType, WidgetInfo> = {
     defaults: () => ({ name: 'Services', mode: 'badges', items: [{ entity: '' }] }),
   },
   ha_history: { label: 'Historique HA', icon: 'chart-line', w: 2, h: 2, available: true, defaults: () => ({ entity: '', hours: 24 }) },
+  ha_alarm: { label: 'Alarme / serrure HA', icon: 'shield-home', w: 2, h: 1, available: true, defaults: () => ({ entity: '' }) },
   shortcut: {
     label: 'Raccourci',
     icon: 'rocket-launch',
@@ -127,6 +128,7 @@ export function entityIcon(entity: string): string {
     input_select: 'format-list-bulleted',
     select: 'format-list-bulleted',
     lock: 'lock',
+    alarm_control_panel: 'shield-home',
     media_player: 'speaker',
     scene: 'palette',
     script: 'rocket-launch',
@@ -150,6 +152,7 @@ export const ENTITY_DOMAINS: Partial<Record<WidgetType, string[]>> = {
   ha_slider: ['input_number', 'number', 'light', 'fan', 'media_player', 'cover'],
   ha_select: ['input_select', 'select', 'fan'],
   ha_history: ['sensor', 'input_number', 'number'],
+  ha_alarm: ['alarm_control_panel', 'lock'],
 };
 
 /**

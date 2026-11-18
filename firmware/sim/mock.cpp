@@ -94,6 +94,8 @@ cJSON *initial_state(const std::string &id) {
   for (char &c : friendly)
     if (c == '_') c = ' ';
   cJSON_AddStringToObject(attrs, "friendly_name", friendly.c_str());
+  // Last change somewhere in the past five hours
+  cJSON_AddNumberToObject(state, "lc", static_cast<double>(time(nullptr)) - r * 5 * 3600);
 
   if (domain == "light") {
     const bool on = r < 0.65f;
@@ -182,6 +184,20 @@ cJSON *initial_state(const std::string &id) {
     cJSON_AddNumberToObject(attrs, "percentage_step", 25);
     add_strings(attrs, "preset_modes", {"auto", "sleep", "nature"});
     cJSON_AddNullToObject(attrs, "preset_mode");
+  } else if (domain == "alarm_control_panel") {
+    // Code 1234, arming without code
+    cJSON_AddStringToObject(state, "s", "disarmed");
+    cJSON_AddStringToObject(attrs, "code_format", "number");
+    cJSON_AddBoolToObject(attrs, "code_arm_required", false);
+    cJSON_AddNumberToObject(attrs, "supported_features", 1 | 2 | 4);
+  } else if (domain == "lock") {
+    // Doors ("porte") have a code (1234) and can open the latch
+    const bool door = id.find("porte", id.find('.')) != std::string::npos;
+    cJSON_AddStringToObject(state, "s", "locked");
+    if (door) {
+      cJSON_AddStringToObject(attrs, "code_format", "number");
+      cJSON_AddNumberToObject(attrs, "supported_features", 1);
+    }
   } else if (domain == "water_heater") {
     cJSON_AddStringToObject(state, "s", "eco");
     add_strings(attrs, "operation_list", {"off", "eco", "electric", "performance"});
@@ -236,8 +252,28 @@ void MockHome::call(const std::string &domain, const std::string &service, const
   auto log_and_publish = [&] {
     printf("[mock HA] %s.%s %s %s\n", domain.c_str(), service.c_str(), entity_id.c_str(),
            data ? dm::json::print(data).c_str() : "");
+    set_number(state, "lc", static_cast<double>(time(nullptr)));
     publish(entity_id);
   };
+  if (domain == "alarm_control_panel" || domain == "lock") {
+    // Like HA: a wrong code is refused, and HaSession shows the message as a toast
+    const bool coded = cJSON_IsString(cJSON_GetObjectItem(attrs, "code_format"));
+    const bool needs = coded && (domain == "lock" || service == "alarm_disarm");
+    if (needs && strcmp(dm::json::str(data, "code"), "1234") != 0) {
+      printf("[mock HA] %s.%s %s refused: wrong code\n", domain.c_str(), service.c_str(), entity_id.c_str());
+      cJSON *toast = cJSON_CreateObject();
+      cJSON_AddStringToObject(toast, "text", "Home Assistant : Invalid code (simulateur : 1234)");
+      bus_.post("sys/toast", toast);
+      return;
+    }
+    if (service == "alarm_disarm") set_string(state, "s", "disarmed");
+    else if (service.rfind("alarm_arm_", 0) == 0) set_string(state, "s", ("armed_" + service.substr(10)).c_str());
+    else if (service == "lock") set_string(state, "s", "locked");
+    else if (service == "unlock") set_string(state, "s", "unlocked");
+    else if (service == "open") set_string(state, "s", "open");
+    else if (service == "toggle") set_string(state, "s", strcmp(dm::json::str(state, "s"), "locked") ? "locked" : "unlocked");
+    return log_and_publish();
+  }
   if (domain == "cover") {
     double position = dm::json::num(attrs, "current_position");
     if (service == "open_cover") position = 100;
@@ -316,6 +352,7 @@ void MockHome::call(const std::string &domain, const std::string &service, const
   }
   printf("[mock HA] %s.%s %s %s\n", domain.c_str(), service.c_str(), entity_id.c_str(),
          data ? dm::json::print(data).c_str() : "");
+  set_number(state, "lc", static_cast<double>(time(nullptr)));
   publish(entity_id);
 }
 

@@ -230,10 +230,11 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
       );
     case 'ha_cover':
     case 'ha_select':
+    case 'ha_alarm':
       return (
         <div class="face face-entity">
           <span class="bubble">
-            <Icon name={p.icon || entityIcon(p.entity || (widget.type === 'ha_cover' ? 'cover.x' : 'select.x'))} size={big ? 28 : 20} />
+            <Icon name={p.icon || entityIcon(p.entity || (widget.type === 'ha_cover' ? 'cover.x' : widget.type === 'ha_alarm' ? 'alarm_control_panel.x' : 'select.x'))} size={big ? 28 : 20} />
           </span>
           <span class="ellipsis">{p.name || p.entity || CATALOG[widget.type].label}</span>
           {widget.w >= 2 && <span class="muted small">{widget.type === 'ha_cover' ? '▲  ▼' : '▾'}</span>}

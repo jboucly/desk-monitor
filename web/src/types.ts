@@ -16,6 +16,7 @@ export type WidgetType =
   | 'ha_select'
   | 'ha_list'
   | 'ha_history'
+  | 'ha_alarm'
   | 'shortcut'
   | 'pc_metrics'
   | 'pc_gauge'

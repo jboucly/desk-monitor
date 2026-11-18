@@ -7,12 +7,12 @@ import type { Action, Gesture, HaEntity, ListItem, Page, Props, Widget, WidgetTy
 import { GRID } from '../types';
 import { Field } from './Field';
 import { EntityPicker, IconPicker } from './Pickers';
-import { RulesEditor } from './RulesEditor';
+import { ConditionFields, RulesEditor } from './RulesEditor';
 
 /**
  * @description Home Assistant tiles with an icon and display rules.
  */
-const HA_TILES: string[] = ['ha_light', 'ha_toggle', 'ha_sensor', 'ha_climate', 'ha_cover', 'ha_slider', 'ha_select', 'ha_history'];
+const HA_TILES: string[] = ['ha_light', 'ha_toggle', 'ha_sensor', 'ha_climate', 'ha_cover', 'ha_slider', 'ha_select', 'ha_history', 'ha_alarm'];
 
 interface InspectorProps {
   widget: Widget;
@@ -190,6 +190,7 @@ const GESTURE_DEFAULTS: Partial<Record<WidgetType, Record<Gesture, string>>> = {
   ha_cover: { tap_action: 'réglages', hold_action: 'réglages' },
   ha_slider: { tap_action: 'réglages', hold_action: 'réglages' },
   ha_select: { tap_action: 'réglages', hold_action: 'réglages' },
+  ha_alarm: { tap_action: 'clavier', hold_action: 'clavier' },
 };
 
 /**
@@ -435,6 +436,19 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
         </small>
       )}
 
+      {widget.type === 'ha_alarm' && (
+        <small class="hint">
+          Alarme (alarm_control_panel) ou serrure (lock). Un appui ouvre les commandes, avec un clavier quand l’entité demande un
+          code. Sur une tuile Interrupteur, une serrure sans code demande confirmation avant de se déverrouiller.
+        </small>
+      )}
+      {widget.type === 'ha_sensor' && (
+        <label class="check">
+          <input type="checkbox" checked={!!p.show_age} onChange={(e) => set({ show_age: e.currentTarget.checked || undefined })} /> Afficher
+          l’âge de la valeur (« il y a 5 min »)
+        </label>
+      )}
+
       {widget.type === 'ha_cover' && (
         <small class="hint">
           À partir de 2 colonnes, des boutons ouvrir/fermer (et stop dès 3 colonnes ou 2 lignes). Un appui ouvre la position et
@@ -600,6 +614,29 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
           <ActionEditor action={p.action as Action} entities={entities} onChange={(action) => action && set({ action })} />
         </>
       )}
+
+      <div class="rules">
+        <h3>Visibilité</h3>
+        <label class="check">
+          <input
+            type="checkbox"
+            checked={!!p.visible_if}
+            onChange={(e) => set({ visible_if: e.currentTarget.checked ? { entity: p.entity || undefined, is: 'on' } : undefined })}
+          />{' '}
+          Visible seulement si…
+        </label>
+        {p.visible_if && (
+          <>
+            <ConditionFields
+              when={p.visible_if}
+              entities={entities}
+              entityLabel={p.entity ? 'Entité testée (vide = celle du widget)' : 'Entité testée'}
+              onChange={(visible_if) => set({ visible_if: visible_if ?? {} })}
+            />
+            <small class="hint">Sinon la case reste vide sur l’écran (aussi tant que Home Assistant n’a pas répondu).</small>
+          </>
+        )}
+      </div>
 
       <button class="danger" onClick={onDelete}>
         Supprimer le widget

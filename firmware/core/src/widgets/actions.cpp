@@ -11,9 +11,16 @@ constexpr int CONFIRM_W = 380;
 constexpr int CONFIRM_H = 180;
 
 /**
- * @description Sends an action right away (the confirmation, if any, is done).
+ * @description Opens the "Confirmer ?" sheet and runs `run` on "Confirmer" (defined below).
  */
-void execute(WidgetContext &ctx, const cJSON *action, const std::string &entity, const std::string &name, const char *icon) {
+void confirm_then(WidgetContext &ctx, const std::string &question, std::function<void()> run);
+
+/**
+ * @description Sends an action. `confirmed` is true when a confirmation was already asked, so that an
+ * unlock does not ask twice.
+ */
+void execute(WidgetContext &ctx, const cJSON *action, const std::string &entity, const std::string &name, const char *icon,
+             bool confirmed) {
   const char *kind = json::str(action, "kind");
   if (!strcmp(kind, "none")) return;
   if (!strcmp(kind, "toggle") || !strcmp(kind, "more_info")) {
@@ -21,8 +28,19 @@ void execute(WidgetContext &ctx, const cJSON *action, const std::string &entity,
     const std::string target = *json::str(action, "entity_id") ? json::str(action, "entity_id") : entity;
     const cJSON *state = ctx.bus.get("ha/" + target);
     if (target.empty() || is_unavailable(state)) return;
-    if (!strcmp(kind, "toggle")) return toggle_entity(ctx.services, target, state);
-    if (!open_more_info(ctx, target, target == entity ? name : entity_name(nullptr, state, target), icon))
+    const std::string label = target == entity ? name : entity_name(nullptr, state, target);
+    if (!strcmp(kind, "toggle")) {
+      // Alarm panels and locks with a code are driven from the keypad
+      if (needs_keypad(target, state)) return open_keypad_sheet(ctx, target, label);
+      // Unlocking a door asks first, unless the action already did
+      if (entity_domain(target) == "lock" && !strcmp(json::str(state, "s"), "locked") && !confirmed) {
+        return confirm_then(ctx, "Déverrouiller " + label + " ?", [&ctx, target] {
+          ctx.services.ha_call("lock", "unlock", target, nullptr);
+        });
+      }
+      return toggle_entity(ctx.services, target, state);
+    }
+    if (!open_more_info(ctx, target, label, icon))
       ctx.app.toast("Pas de réglages pour cette entité");
     return;
   }
@@ -87,19 +105,24 @@ class ConfirmSheet {
   std::function<void()> run_;
 };
 
+void confirm_then(WidgetContext &ctx, const std::string &question, std::function<void()> run) {
+  if (!ctx.services.ha_call) return ctx.app.toast("Home Assistant non configuré");
+  new ConfirmSheet(ctx, question, std::move(run));  // owned by its sheet
+}
+
 }  // namespace
 
 void run_action(WidgetContext &ctx, const cJSON *action, const std::string &entity, const std::string &name, const char *icon) {
   const cJSON *confirm = json::get(action, "confirm");
   const bool ask = cJSON_IsTrue(confirm) || (cJSON_IsString(confirm) && *confirm->valuestring);
-  if (!ask) return execute(ctx, action, entity, name, icon);
+  if (!ask) return execute(ctx, action, entity, name, icon, false);
 
   // The layout (and the action in it) may be replaced while the sheet is open: keep copies
   json::Ptr copy = json::own(cJSON_Duplicate(action, true));
   const std::string question = cJSON_IsString(confirm) ? confirm->valuestring : name.empty() ? "Confirmer ?" : name + " : confirmer ?";
   const std::string icon_copy = icon ? icon : "";
   new ConfirmSheet(ctx, question, [&ctx, copy, entity, name, icon_copy] {  // owned by its sheet
-    execute(ctx, copy.get(), entity, name, icon_copy.empty() ? nullptr : icon_copy.c_str());
+    execute(ctx, copy.get(), entity, name, icon_copy.empty() ? nullptr : icon_copy.c_str(), true);
   });
 }
 
@@ -108,7 +131,7 @@ void run_tile_action(WidgetContext &ctx, const cJSON *props, const char *prop, c
   if (const cJSON *action = json::get(props, prop); cJSON_IsObject(action)) return run_action(ctx, action, entity, name, icon);
   cJSON *action = cJSON_CreateObject();
   cJSON_AddStringToObject(action, "kind", fallback);
-  execute(ctx, action, entity, name, icon);
+  execute(ctx, action, entity, name, icon, false);
   cJSON_Delete(action);
 }
 

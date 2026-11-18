@@ -1,4 +1,5 @@
 // Home Assistant entity tiles: ha_toggle, ha_light and ha_sensor.
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -193,6 +194,8 @@ class SensorTile : public Widget {
     name_ = theme::make_label(head, &dm_font_14, theme::text2());
     lv_obj_set_flex_grow(name_, 1);
     theme::single_line(name_);
+    // Optional age of the value ("il y a 5 min"), from HA's last change
+    if (json::boolean(spec.props, "show_age")) age_ = theme::make_label(head, &dm_font_14, theme::text3());
 
     lv_obj_t *row = lv_obj_create(root);
     lv_obj_remove_style_all(row);
@@ -231,6 +234,7 @@ class SensorTile : public Widget {
     const char *raw = json::str(state, "s");
     const char *unit = json::str(spec_.props, "unit", json::str(json::get(state, "a"), "unit_of_measurement"));
 
+    show_age(state);
     const Rule *rule = rules_.match(state);
     const bool ruled_icon = rule && !rule->icon.empty();
     lv_label_set_text(icon_, theme::icon(ruled_icon ? rule->icon.c_str() : icon_name_.c_str()));
@@ -304,6 +308,21 @@ class SensorTile : public Widget {
   void tick() override {
     // A time elapsed since boot moves on without any new state from HA: refresh once a minute
     if (++ticks_ % 60 == 0 && last_) render(last_.get());
+    else if (age_ && ticks_ % 20 == 0) show_age(last_.get());
+  }
+
+  /**
+   * @description "il y a 5 min" since the last state change (empty without a time or a set clock).
+   */
+  void show_age(const cJSON *state) {
+    if (!age_) return;
+    const double changed = json::num(state, "lc", 0), now = static_cast<double>(time(nullptr));
+    if (changed <= 0 || now < 1.6e9) return lv_label_set_text(age_, "");
+    const long seconds = static_cast<long>(std::max(0.0, now - changed));
+    if (seconds < 60) lv_label_set_text(age_, "à l'instant");
+    else if (seconds < 3600) lv_label_set_text_fmt(age_, "il y a %ld min", seconds / 60);
+    else if (seconds < 86400) lv_label_set_text_fmt(age_, "il y a %ld h", seconds / 3600);
+    else lv_label_set_text_fmt(age_, "il y a %ld j", seconds / 86400);
   }
 
   WidgetContext &ctx_;
@@ -316,6 +335,7 @@ class SensorTile : public Widget {
   unsigned ticks_ = 0;
   RuleBinding rules_;
   std::string icon_name_;
+  lv_obj_t *age_ = nullptr;
   lv_obj_t *icon_ = nullptr, *name_ = nullptr, *value_ = nullptr, *unit_ = nullptr;
 };
 

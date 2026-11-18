@@ -228,6 +228,23 @@ void App::build_shell() {
   lv_obj_remove_flag(dots_, LV_OBJ_FLAG_CLICKABLE);
 }
 
+void App::bind_visibility(lv_obj_t *root, const WidgetSpec &spec) {
+  const cJSON *json = json::get(spec.props, "visible_if");
+  RuleCondition when;
+  std::string ignored;
+  if (!json || !Rules::parse_condition(json, when, ignored)) return;
+  // Without its own entity, the condition tests the widget's entity
+  if (when.entity.empty()) when.entity = json::str(spec.props, "entity");
+  if (when.entity.empty()) return;
+  auto update = [this, root, when] {
+    const bool visible = Rules::test(when, nullptr, [this](const std::string &id) { return bus_.get("ha/" + id); });
+    widgets::set_hidden(root, !visible);
+  };
+  // Hidden until the state arrives: the cell stays empty
+  update();
+  bus_.subscribe("ha/" + when.entity, [update](const cJSON *) { update(); });
+}
+
 void App::build_pages() {
   // Popups and listeners point into the widgets: drop them first. An approval sheet closed by the
   // rebuild is not dismissed: it opens again when the listener below is registered.
@@ -260,6 +277,7 @@ void App::build_pages() {
       if (WidgetFactory factory = find_widget_factory(spec.type)) widget = factory(tile, spec, widget_ctx_);
       if (!widget) widget = std::make_unique<Placeholder>(tile, spec);
       lv_obj_set_grid_cell(widget->root, LV_GRID_ALIGN_STRETCH, spec.x, spec.w, LV_GRID_ALIGN_STRETCH, spec.y, spec.h);
+      bind_visibility(widget->root, spec);
       widgets_.push_back(std::move(widget));
     }
 

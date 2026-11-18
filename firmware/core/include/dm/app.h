@@ -104,6 +104,11 @@ class App {
   int page_count() const;
 
  private:
+  /**
+   * @description Shows the widget only while its `visible_if` condition holds (see protocol/README.md).
+   */
+  void bind_visibility(lv_obj_t *root, const WidgetSpec &spec);
+
   void build_shell();
   void apply_background();
   void build_pages();

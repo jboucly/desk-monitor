@@ -796,13 +796,15 @@ bool open_more_info(WidgetContext &ctx, const std::string &entity_id, const std:
   const std::string domain = entity_domain(entity_id);
   const bool supported = domain == "light" || domain == "climate" || domain == "water_heater" || domain == "cover" ||
                          domain == "fan" || domain == "input_number" || domain == "number" ||
-                         domain == "media_player" || domain == "input_select" || domain == "select";
+                         domain == "media_player" || domain == "input_select" || domain == "select" ||
+                         domain == "lock" || domain == "alarm_control_panel";
   if (!supported) return false;
   if (!ctx.services.ha_call) {
     ctx.app.toast("Home Assistant non configuré");
     return true;
   }
-  if (domain == "light") open_light_popup(ctx, entity_id, name, icon);
+  if (domain == "lock" || domain == "alarm_control_panel") open_keypad_sheet(ctx, entity_id, name);
+  else if (domain == "light") open_light_popup(ctx, entity_id, name, icon);
   else if (domain == "climate" || domain == "water_heater") open_climate_popup(ctx, entity_id, name, icon);
   else if (domain == "media_player" && !level_of(entity_id, ctx.bus.get("ha/" + entity_id)).ok) return false;
   else new ControlSheet(ctx, entity_id, name, icon);  // owned by its sheet, deleted on close

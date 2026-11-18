@@ -25,6 +25,7 @@ std::unique_ptr<Widget> create_ha_slider(lv_obj_t *parent, const WidgetSpec &spe
 std::unique_ptr<Widget> create_ha_select(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_ha_list(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_ha_history(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
+std::unique_ptr<Widget> create_ha_alarm(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_ha_gauge(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_shortcut(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_pc_metrics(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
@@ -145,6 +146,18 @@ bool has_tile_action(const cJSON *props, const char *prop);
  * @returns False when the domain has no popup.
  */
 bool open_more_info(WidgetContext &ctx, const std::string &entity_id, const std::string &name, const char *icon);
+
+// ── Alarm panels and locks (alarm.cpp) ───────────────────────────────────────
+
+/**
+ * @description True when an entity is driven from the keypad popup: an alarm panel, or a lock with a code.
+ */
+bool needs_keypad(const std::string &entity_id, const cJSON *state);
+
+/**
+ * @description Opens the keypad popup of an alarm panel or a lock (commands, and the code when needed).
+ */
+void open_keypad_sheet(WidgetContext &ctx, const std::string &entity_id, const std::string &name);
 
 // ── UI helpers (ui.cpp) ──────────────────────────────────────────────────────
 

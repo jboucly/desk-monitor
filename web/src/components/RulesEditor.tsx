@@ -60,52 +60,30 @@ function cleanCondition(when: RuleCondition): RuleCondition | undefined {
 }
 
 /**
- * @description Form of one rule: condition, then what it changes.
+ * @description Fields of a condition: tested entity, attribute, operator and value(s). Shared by the
+ * rules and by a widget's visible_if.
  */
-function RuleRow(props: {
-  rule: Rule;
-  index: number;
-  count: number;
+export function ConditionFields(props: {
+  when: RuleCondition | undefined;
   entities: HaEntity[] | null;
-  onChange: (rule: Rule) => void;
-  onMove: (delta: number) => void;
-  onDelete: () => void;
+  onChange: (when: RuleCondition | undefined) => void;
+  entityLabel?: string;
 }) {
-  const { rule, index, count } = props;
-  const when = rule.when ?? {};
-  const op = operatorOf(rule.when);
-  const setWhen = (patch: RuleCondition) => props.onChange({ ...rule, when: cleanCondition({ ...when, ...patch }) });
+  const when = props.when ?? {};
+  const op = operatorOf(props.when);
+  const setWhen = (patch: RuleCondition) => props.onChange(cleanCondition({ ...when, ...patch }));
   const setOperator = (next: Operator) => {
     // Keep the target (entity, attribute) and start the value over
     const target = { entity: when.entity, attr: when.attr };
-    if (next === 'always') props.onChange({ ...rule, when: cleanCondition(target) });
-    if (next === 'is' || next === 'not') props.onChange({ ...rule, when: cleanCondition({ ...target, [next]: '' }) });
-    if (next === 'above') props.onChange({ ...rule, when: { ...target, above: 0 } });
-    if (next === 'below') props.onChange({ ...rule, when: { ...target, below: 0 } });
-    if (next === 'between') props.onChange({ ...rule, when: { ...target, above: 0, below: 100 } });
+    if (next === 'always') props.onChange(cleanCondition(target));
+    if (next === 'is' || next === 'not') props.onChange(cleanCondition({ ...target, [next]: '' }));
+    if (next === 'above') props.onChange({ ...target, above: 0 });
+    if (next === 'below') props.onChange({ ...target, below: 0 });
+    if (next === 'between') props.onChange({ ...target, above: 0, below: 100 });
   };
-  const set = (patch: Partial<Rule>) => {
-    const next = { ...rule, ...patch };
-    for (const key of Object.keys(patch) as (keyof Rule)[]) if (next[key] === undefined || next[key] === '') delete next[key];
-    props.onChange(next);
-  };
-
   return (
-    <div class="rule">
-      <div class="rule-head">
-        <span>Règle {index + 1}</span>
-        <button type="button" class="ghost" title="Monter" disabled={index === 0} onClick={() => props.onMove(-1)}>
-          ↑
-        </button>
-        <button type="button" class="ghost" title="Descendre" disabled={index === count - 1} onClick={() => props.onMove(1)}>
-          ↓
-        </button>
-        <button type="button" class="ghost" title="Supprimer" onClick={props.onDelete}>
-          ✕
-        </button>
-      </div>
-
-      <Field label="Entité testée (vide = celle du widget)">
+    <>
+      <Field label={props.entityLabel ?? 'Entité testée (vide = celle du widget)'}>
         <EntityPicker value={when.entity ?? ''} entities={props.entities} onChange={(v) => setWhen({ entity: v || undefined })} />
       </Field>
       <div class="row">
@@ -157,6 +135,45 @@ function RuleRow(props: {
           </Field>
         </div>
       )}
+    </>
+  );
+}
+
+/**
+ * @description Form of one rule: condition, then what it changes.
+ */
+function RuleRow(props: {
+  rule: Rule;
+  index: number;
+  count: number;
+  entities: HaEntity[] | null;
+  onChange: (rule: Rule) => void;
+  onMove: (delta: number) => void;
+  onDelete: () => void;
+}) {
+  const { rule, index, count } = props;
+  const set = (patch: Partial<Rule>) => {
+    const next = { ...rule, ...patch };
+    for (const key of Object.keys(patch) as (keyof Rule)[]) if (next[key] === undefined || next[key] === '') delete next[key];
+    props.onChange(next);
+  };
+
+  return (
+    <div class="rule">
+      <div class="rule-head">
+        <span>Règle {index + 1}</span>
+        <button type="button" class="ghost" title="Monter" disabled={index === 0} onClick={() => props.onMove(-1)}>
+          ↑
+        </button>
+        <button type="button" class="ghost" title="Descendre" disabled={index === count - 1} onClick={() => props.onMove(1)}>
+          ↓
+        </button>
+        <button type="button" class="ghost" title="Supprimer" onClick={props.onDelete}>
+          ✕
+        </button>
+      </div>
+
+      <ConditionFields when={rule.when} entities={props.entities} onChange={(when) => props.onChange({ ...rule, when })} />
 
       <Field label="Texte affiché (vide = normal)">
         <input value={rule.text ?? ''} placeholder="{state} °C" onInput={(e) => set({ text: e.currentTarget.value })} />

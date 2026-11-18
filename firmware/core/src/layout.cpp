@@ -15,7 +15,7 @@ const char *const KNOWN_TYPES[] = {"clock",           "weather",      "ha_toggle
                                    "ha_sensor",       "ha_gauge",     "shortcut",     "pc_metrics",
                                    "pc_gauge",        "media",        "claude_sessions", "claude_usage",
                                    "claude_limits",   "ha_climate",   "ha_cover",     "ha_slider",
-                                   "ha_select",       "ha_list",      "ha_history"};
+                                   "ha_select",       "ha_list",      "ha_history",   "ha_alarm"};
 
 const char *const ACTION_KINDS[] = {"ha", "keys", "launch", "url"};
 
@@ -108,7 +108,7 @@ std::string check_props(const WidgetSpec &w) {
   const bool sensor_template = w.type == "ha_sensor" && *json::str(w.props, "template") && !*entity;
   const bool needs_entity = w.type == "ha_toggle" || w.type == "ha_light" || w.type == "ha_sensor" || w.type == "ha_gauge" ||
                             w.type == "ha_climate" || w.type == "ha_cover" || w.type == "ha_slider" ||
-                            w.type == "ha_select" || w.type == "ha_history";
+                            w.type == "ha_select" || w.type == "ha_history" || w.type == "ha_alarm";
   if (needs_entity && !sensor_template && !strchr(entity, '.')) return "entité Home Assistant manquante";
   if (w.type == "ha_list") {
     const cJSON *items = json::get(w.props, "items");
@@ -126,6 +126,12 @@ std::string check_props(const WidgetSpec &w) {
   if (w.type == "ha_history") {
     const double hours = json::num(w.props, "hours", 24);
     if (hours < 1 || hours > 168) return "durée de l'historique : 1 à 168 heures";
+  }
+  if (const cJSON *visible = json::get(w.props, "visible_if")) {
+    RuleCondition when;
+    std::string problem;
+    if (!Rules::parse_condition(visible, when, problem)) return "visible_if : " + problem;
+    if (when.entity.empty() && !strchr(entity, '.')) return "visible_if : entité manquante";
   }
   if (w.type == "shortcut") {
     if (std::string problem = check_action(json::get(w.props, "action"), false); !problem.empty())
@@ -257,6 +263,7 @@ std::set<std::string> Layout::ha_entities() const {
   std::set<std::string> out;
   for (const auto &page : pages) {
     for (const auto &w : page.widgets) {
+      if (const char *entity = json::str(json::get(w.props, "visible_if"), "entity"); strchr(entity, '.')) out.insert(entity);
       for (const cJSON *holder : entity_holders(w.props)) {
         if (const char *entity = json::str(holder, "entity"); *entity) out.insert(entity);
         // Rules may test other entities: they need their states too (validated by parse())

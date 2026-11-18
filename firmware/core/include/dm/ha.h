@@ -101,7 +101,8 @@ class HaSession {
   static std::string template_key(const std::string &tpl);
 
   /**
-   * @description Calls a service. Dropped when not connected.
+   * @description Calls a service. Dropped when not connected. When Home Assistant refuses it (wrong code,
+   * unknown service…), its message is shown as a toast ("sys/toast").
    * @param data Optional service data, owned by the session.
    */
   void call_service(const std::string &domain, const std::string &service, const std::string &entity_id, cJSON *data);
@@ -137,6 +138,7 @@ class HaSession {
   std::set<std::string> entities_;
   std::map<std::string, json::Ptr> states_;
   std::map<int, ResultCallback> pending_;
+  std::map<int, std::string> calls_;  // call_service ids → "domain.service", for the error toast
   std::set<std::string> templates_;
   std::map<int, std::string> template_subs_;  // render_template subscription id → template
   std::map<int, std::function<void(bool, std::string)>> renders_;  // one-shot renders by id
