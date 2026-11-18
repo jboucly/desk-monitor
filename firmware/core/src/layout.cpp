@@ -13,7 +13,8 @@ namespace {
 const char *const KNOWN_TYPES[] = {"clock",           "weather",      "ha_toggle",    "ha_light",
                                    "ha_sensor",       "ha_gauge",     "shortcut",     "pc_metrics",
                                    "pc_gauge",        "media",        "claude_sessions", "claude_usage",
-                                   "claude_limits",   "ha_climate"};
+                                   "claude_limits",   "ha_climate",   "ha_cover",     "ha_slider",
+                                   "ha_select"};
 
 const char *const ACTION_KINDS[] = {"ha", "keys", "launch", "url"};
 
@@ -44,7 +45,8 @@ bool read_int(const cJSON *obj, const char *key, int &out) {
  */
 std::string check_props(const WidgetSpec &w) {
   const bool needs_entity = w.type == "ha_toggle" || w.type == "ha_light" || w.type == "ha_sensor" || w.type == "ha_gauge" ||
-                            w.type == "ha_climate";
+                            w.type == "ha_climate" || w.type == "ha_cover" || w.type == "ha_slider" ||
+                            w.type == "ha_select";
   if (needs_entity) {
     const char *entity = json::str(w.props, "entity");
     if (!strchr(entity, '.')) return "entité Home Assistant manquante";

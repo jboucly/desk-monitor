@@ -44,6 +44,7 @@ class EntityTile : public Widget {
     lv_obj_align(name_, LV_ALIGN_BOTTOM_LEFT, 0, 0);
 
     bind_event<EntityTile, &EntityTile::on_click>(root, LV_EVENT_SHORT_CLICKED, this);
+    bind_event<EntityTile, &EntityTile::on_long_press>(root, LV_EVENT_LONG_PRESSED, this);
   }
 
   /**
@@ -110,6 +111,14 @@ class EntityTile : public Widget {
     }
   }
 
+  /**
+   * @description Opens the control popup of the entity's domain (light, cover, fan, thermostat…).
+   */
+  void on_long_press(lv_event_t *) {
+    if (is_unavailable(state_json_)) return;
+    open_more_info(ctx_, entity_, entity_name(spec_.props, state_json_, entity_), icon_name());
+  }
+
   virtual void on_click(lv_event_t *) {
     if (!is_unavailable(state_json_)) toggle_entity(ctx_.services, entity_, state_json_);
   }
@@ -133,22 +142,12 @@ class EntityTile : public Widget {
 };
 
 /**
- * @description Light tile: shows the brightness, takes the light's color when on,
- * and opens the light popup on a long press.
+ * @description Light tile: shows the brightness and takes the light's color when on
+ * (the long press of every entity tile opens the light popup).
  */
 class LightTile : public EntityTile {
  public:
-  LightTile(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx) : EntityTile(parent, spec, ctx) {
-    lv_obj_add_event_cb(
-        root,
-        [](lv_event_t *e) {
-          auto *self = static_cast<LightTile *>(lv_event_get_user_data(e));
-          if (is_unavailable(self->state_json_)) return;
-          open_light_popup(self->ctx_, self->entity_, entity_name(self->spec_.props, self->state_json_, self->entity_),
-                           self->custom_icon_.empty() ? "lightbulb" : self->custom_icon_.c_str());
-        },
-        LV_EVENT_LONG_PRESSED, this);
-  }
+  LightTile(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx) : EntityTile(parent, spec, ctx) {}
 
  protected:
   std::string state_text(const cJSON *state) override {

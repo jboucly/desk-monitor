@@ -195,6 +195,28 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
           )}
         </div>
       );
+    case 'ha_slider':
+      return (
+        <div class="face face-sensor">
+          <span class="small ellipsis">
+            <Icon name={p.icon || entityIcon(p.entity || 'input_number.x')} size={14} color={theme.accent} /> {p.name || p.entity || 'Curseur'}
+          </span>
+          <span class="preview-slider">
+            <span style={{ width: '45%', background: theme.accent }} />
+          </span>
+        </div>
+      );
+    case 'ha_cover':
+    case 'ha_select':
+      return (
+        <div class="face face-entity">
+          <span class="bubble">
+            <Icon name={p.icon || entityIcon(p.entity || (widget.type === 'ha_cover' ? 'cover.x' : 'select.x'))} size={big ? 28 : 20} />
+          </span>
+          <span class="ellipsis">{p.name || p.entity || CATALOG[widget.type].label}</span>
+          {widget.w >= 2 && <span class="muted small">{widget.type === 'ha_cover' ? '▲  ▼' : '▾'}</span>}
+        </div>
+      );
     case 'ha_light':
     case 'ha_toggle':
       return (

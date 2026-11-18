@@ -826,3 +826,18 @@ button.destructive {
   align-items: center;
   min-height: 38px;
 }
+
+/* Track of the ha_slider preview */
+.preview-slider {
+  display: block;
+  height: 14px;
+  border-radius: 7px;
+  background: #ffffff24;
+  overflow: hidden;
+}
+
+.preview-slider span {
+  display: block;
+  height: 100%;
+  border-radius: 7px;
+}

@@ -6,6 +6,11 @@ import { Field } from './Field';
 import { EntityPicker, IconPicker } from './Pickers';
 import { RulesEditor } from './RulesEditor';
 
+/**
+ * @description Home Assistant tiles with an icon and display rules.
+ */
+const HA_TILES: string[] = ['ha_light', 'ha_toggle', 'ha_sensor', 'ha_climate', 'ha_cover', 'ha_slider', 'ha_select'];
+
 interface InspectorProps {
   widget: Widget;
   page: Page;
@@ -167,7 +172,7 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
         </>
       )}
 
-      {(widget.type === 'ha_light' || widget.type === 'ha_toggle' || widget.type === 'ha_sensor' || widget.type === 'ha_climate') && (
+      {HA_TILES.includes(widget.type) && (
         <Field label="Icône">
           <IconPicker value={p.icon ?? ''} placeholder={entityIcon(p.entity ?? '')} onChange={(v) => set({ icon: v || undefined })} />
         </Field>
@@ -200,7 +205,7 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
         </div>
       )}
 
-      {(widget.type === 'ha_light' || widget.type === 'ha_toggle' || widget.type === 'ha_sensor' || widget.type === 'ha_climate') && (
+      {HA_TILES.includes(widget.type) && (
         <RulesEditor rules={p.rules} entities={entities} onChange={(rules) => set({ rules })} />
       )}
 
@@ -230,6 +235,25 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
           Thermostat (climate) ou chauffe-eau (water_heater). Un appui ouvre les réglages : consigne, mode, préréglage, ventilation.
           À partir de 3 colonnes ou 2 lignes, les boutons − et + changent la consigne directement.
         </small>
+      )}
+
+      {widget.type === 'ha_cover' && (
+        <small class="hint">
+          À partir de 2 colonnes, des boutons ouvrir/fermer (et stop dès 3 colonnes ou 2 lignes). Un appui ouvre la position et
+          l’inclinaison.
+        </small>
+      )}
+      {widget.type === 'ha_slider' && (
+        <small class="hint">
+          Valeur d’un input_number/number, luminosité d’une lumière, vitesse d’un ventilateur, volume d’un lecteur ou position d’un
+          volet. Envoyée au relâchement du curseur.
+        </small>
+      )}
+      {widget.type === 'ha_select' && (
+        <small class="hint">Options d’un input_select/select, ou préréglages d’un ventilateur. Un appui ouvre la liste.</small>
+      )}
+      {(widget.type === 'ha_toggle' || widget.type === 'ha_light') && (
+        <small class="hint">Appui long : réglages de l’entité (lumière, volet, ventilateur, thermostat, curseur, liste).</small>
       )}
 
       {widget.type === 'media' && (

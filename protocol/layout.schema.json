@@ -60,7 +60,7 @@
       "properties": {
         "id": { "type": "string" },
         "type": {
-          "enum": ["clock", "weather", "ha_toggle", "ha_light", "ha_sensor", "ha_gauge", "ha_climate", "shortcut", "pc_metrics", "pc_gauge", "media", "claude_sessions", "claude_usage", "claude_limits"]
+          "enum": ["clock", "weather", "ha_toggle", "ha_light", "ha_sensor", "ha_gauge", "ha_climate", "ha_cover", "ha_slider", "ha_select", "shortcut", "pc_metrics", "pc_gauge", "media", "claude_sessions", "claude_usage", "claude_limits"]
         },
         "x": { "type": "integer", "minimum": 0, "maximum": 3 },
         "y": { "type": "integer", "minimum": 0, "maximum": 3 },
@@ -72,7 +72,7 @@
         { "if": { "properties": { "type": { "const": "clock" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_clock" } } } },
         { "if": { "properties": { "type": { "const": "weather" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_weather" } } } },
         { "if": { "properties": { "type": { "enum": ["ha_toggle", "ha_light"] } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_entity" } }, "required": ["props"] } },
-        { "if": { "properties": { "type": { "const": "ha_climate" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_entity" } }, "required": ["props"] } },
+        { "if": { "properties": { "type": { "enum": ["ha_climate", "ha_cover", "ha_slider", "ha_select"] } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_entity" } }, "required": ["props"] } },
         { "if": { "properties": { "type": { "const": "ha_sensor" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_sensor" } }, "required": ["props"] } },
         { "if": { "properties": { "type": { "const": "ha_gauge" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_gauge" } }, "required": ["props"] } },
         { "if": { "properties": { "type": { "const": "shortcut" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_shortcut" } }, "required": ["props"] } },

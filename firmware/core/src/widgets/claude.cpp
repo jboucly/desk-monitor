@@ -61,11 +61,6 @@ std::string format_reset(double unix_time) {
   return out;
 }
 
-void set_hidden(lv_obj_t *obj, bool hidden) {
-  if (hidden) lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
-  else lv_obj_remove_flag(obj, LV_OBJ_FLAG_HIDDEN);
-}
-
 /**
  * @description Transparent flex container, full width, sized to its content.
  */

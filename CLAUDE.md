@@ -75,6 +75,8 @@ Anything that is not hardware or transport goes in `core/`: HA protocol logic, w
 - Keep the `WidgetContext&`: it is an `App` member.
 - Don't call virtual methods from base constructors. `EntityTile::start()` exists for that reason.
 - Popups use `App::open_sheet()` (top layer). They own themselves, are deleted on close, and unsubscribe with the token returned by `Bus::subscribe`.
+- Home Assistant tiles take display `rules` (`include/dm/rules.h`, no LVGL so `layout.cpp` validates them too) through `RuleBinding` (`widgets/common.h`): bind the rules before subscribing to the entity, because the bus calls listeners right away.
+- `open_more_info()` (`widgets/controls.cpp`) opens the popup of an entity's domain (light, climate, cover, fan, slider, select list); shared LVGL pieces (sliders, round buttons, chips) are in `widgets/ui.cpp`.
 
 **Theme (`core/src/theme.cpp`).** Three card styles, chosen by `theme.style` in the layout:
 

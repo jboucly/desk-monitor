@@ -232,38 +232,6 @@ double snap(const Climate &c, double value) {
   return std::clamp(c.min + std::round((value - c.min) / c.step) * c.step, c.min, c.max);
 }
 
-/**
- * @description Round −/+ button.
- */
-lv_obj_t *make_round_button(lv_obj_t *parent, const char *icon, int size) {
-  lv_obj_t *button = lv_obj_create(parent);
-  lv_obj_remove_style_all(button);
-  lv_obj_set_size(button, size, size);
-  lv_obj_set_style_radius(button, LV_RADIUS_CIRCLE, 0);
-  lv_obj_set_style_bg_color(button, lv_color_white(), 0);
-  lv_obj_set_style_bg_opa(button, 36, 0);
-  lv_obj_set_style_bg_opa(button, 90, LV_STATE_PRESSED);
-  lv_obj_add_flag(button, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_remove_flag(button, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_ext_click_area(button, 6);
-  lv_obj_t *glyph = theme::make_icon(button, size >= 44 ? &dm_icons_32 : &dm_icons_24, icon, theme::text());
-  lv_obj_center(glyph);
-  return button;
-}
-
-/**
- * @description Transparent flex container.
- */
-lv_obj_t *make_box(lv_obj_t *parent, lv_flex_flow_t flow) {
-  lv_obj_t *box = lv_obj_create(parent);
-  lv_obj_remove_style_all(box);
-  lv_obj_set_size(box, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-  lv_obj_set_flex_flow(box, flow);
-  lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_remove_flag(box, LV_OBJ_FLAG_CLICKABLE);
-  return box;
-}
-
 // ── Popup ────────────────────────────────────────────────────────────────────
 
 constexpr int SHEET_W = 440;
@@ -396,8 +364,7 @@ class ClimatePopup {
     lv_obj_set_flex_align(r, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(r, 8, 0);
     for (int i = 0; i < 2; i++) {
-      range_tabs_[i] = make_chip(r, i == 0 ? "Minimum" : "Maximum", i == 0 ? "fire" : "snowflake");
-      lv_obj_set_height(range_tabs_[i], 34);
+      range_tabs_[i] = make_chip(r, i == 0 ? "Minimum" : "Maximum", i == 0 ? "fire" : "snowflake", 34);
       lv_obj_add_event_cb(
           range_tabs_[i],
           [](lv_event_t *e) {
@@ -407,25 +374,6 @@ class ClimatePopup {
           },
           LV_EVENT_CLICKED, this);
     }
-  }
-
-  lv_obj_t *make_chip(lv_obj_t *parent, const std::string &text, const char *icon) {
-    lv_obj_t *chip = make_box(parent, LV_FLEX_FLOW_ROW);
-    lv_obj_set_height(chip, CHIP_H);
-    lv_obj_set_flex_align(chip, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_hor(chip, 14, 0);
-    lv_obj_set_style_pad_column(chip, 6, 0);
-    lv_obj_set_style_radius(chip, CHIP_H / 2, 0);
-    lv_obj_set_style_bg_color(chip, lv_color_white(), 0);
-    lv_obj_set_style_bg_opa(chip, 30, 0);
-    lv_obj_set_style_bg_color(chip, theme::accent(), LV_STATE_CHECKED);
-    lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, LV_STATE_CHECKED);
-    lv_obj_add_flag(chip, LV_OBJ_FLAG_CLICKABLE);
-    // Let a horizontal drag on a chip scroll its row
-    lv_obj_add_flag(chip, LV_OBJ_FLAG_SCROLL_CHAIN_HOR);
-    if (icon) theme::make_icon(chip, &dm_icons_18, icon, theme::text());
-    theme::make_label(chip, &dm_font_14, theme::text(), text.c_str());
-    return chip;
   }
 
   void add_options(Option kind, const cJSON *values, const char *row_icon) {
@@ -442,7 +390,7 @@ class ClimatePopup {
     cJSON_ArrayForEach(v, values) {
       if (!cJSON_IsString(v)) continue;
       const std::string value = v->valuestring;
-      lv_obj_t *chip = make_chip(r, option_label(kind, value), kind == Option::Mode ? mode_icon(value) : nullptr);
+      lv_obj_t *chip = make_chip(r, option_label(kind, value), kind == Option::Mode ? mode_icon(value) : nullptr, CHIP_H);
       lv_obj_add_event_cb(chip, on_chip, LV_EVENT_CLICKED, this);
       chips_.push_back({chip, kind, value});
     }

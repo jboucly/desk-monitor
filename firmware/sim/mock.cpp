@@ -125,6 +125,7 @@ cJSON *initial_state(const std::string &id) {
     strftime(now, sizeof now, "%Y-%m-%dT%H:%M:%S+00:00", gmtime(&t));
     cJSON_AddStringToObject(attrs, "media_position_updated_at", now);
     cJSON_AddStringToObject(attrs, "entity_picture", "/mock/cover.jpg");
+    cJSON_AddNumberToObject(attrs, "volume_level", 0.35);
   } else if (domain == "sensor" && (id.find("fonctionnement") != std::string::npos || id.find("uptime") != std::string::npos)) {
     // Like Proxmox VE's uptime: the boot time, as a timestamp
     char boot[32];
@@ -155,6 +156,31 @@ cJSON *initial_state(const std::string &id) {
       cJSON_AddStringToObject(attrs, "fan_mode", "auto");
     }
     update_hvac_action(state);
+  } else if (domain == "cover") {
+    // Shutters ("volet") have a position; names with "store" also tilt
+    const bool tilt = id.find("store", id.find('.')) != std::string::npos;
+    const int position = static_cast<int>(r * 10) * 10;
+    cJSON_AddStringToObject(state, "s", position > 0 ? "open" : "closed");
+    cJSON_AddNumberToObject(attrs, "current_position", position);
+    cJSON_AddNumberToObject(attrs, "supported_features", 15 | (tilt ? 16 | 32 | 64 | 128 : 0));
+    if (tilt) cJSON_AddNumberToObject(attrs, "current_tilt_position", 50);
+    if (id.find("volet", id.find('.')) != std::string::npos) cJSON_AddStringToObject(attrs, "device_class", "shutter");
+  } else if (domain == "input_number" || domain == "number") {
+    const bool temp = id.find("temp", id.find('.')) != std::string::npos;
+    cJSON_AddStringToObject(state, "s", temp ? "19.5" : "40.0");
+    cJSON_AddNumberToObject(attrs, "min", temp ? 15 : 0);
+    cJSON_AddNumberToObject(attrs, "max", temp ? 25 : 100);
+    cJSON_AddNumberToObject(attrs, "step", temp ? 0.5 : 1);
+    cJSON_AddStringToObject(attrs, "unit_of_measurement", temp ? "°C" : "%");
+  } else if (domain == "input_select" || domain == "select") {
+    cJSON_AddStringToObject(state, "s", "Maison");
+    add_strings(attrs, "options", {"Maison", "Absent", "Nuit", "Vacances", "Télétravail"});
+  } else if (domain == "fan") {
+    cJSON_AddStringToObject(state, "s", "on");
+    cJSON_AddNumberToObject(attrs, "percentage", 50);
+    cJSON_AddNumberToObject(attrs, "percentage_step", 25);
+    add_strings(attrs, "preset_modes", {"auto", "sleep", "nature"});
+    cJSON_AddNullToObject(attrs, "preset_mode");
   } else if (domain == "water_heater") {
     cJSON_AddStringToObject(state, "s", "eco");
     add_strings(attrs, "operation_list", {"off", "eco", "electric", "performance"});
@@ -200,11 +226,49 @@ void MockHome::call(const std::string &domain, const std::string &service, const
   if (domain == "media_player") {
     const bool playing = !strcmp(dm::json::str(state, "s"), "playing");
     if (service == "media_play_pause") set_string(state, "s", playing ? "paused" : "playing");
+    if (service == "volume_set") set_number(attrs, "volume_level", dm::json::num(data, "volume_level"));
     printf("[mock HA] media_player.%s %s\n", service.c_str(), entity_id.c_str());
     publish(entity_id);
     return;
   }
 
+  auto log_and_publish = [&] {
+    printf("[mock HA] %s.%s %s %s\n", domain.c_str(), service.c_str(), entity_id.c_str(),
+           data ? dm::json::print(data).c_str() : "");
+    publish(entity_id);
+  };
+  if (domain == "cover") {
+    double position = dm::json::num(attrs, "current_position");
+    if (service == "open_cover") position = 100;
+    if (service == "close_cover") position = 0;
+    if (service == "toggle") position = !strcmp(dm::json::str(state, "s"), "closed") ? 100 : 0;
+    if (service == "set_cover_position") position = dm::json::num(data, "position");
+    if (service == "set_cover_tilt_position") set_number(attrs, "current_tilt_position", dm::json::num(data, "tilt_position"));
+    set_number(attrs, "current_position", position);
+    set_string(state, "s", position > 0 ? "open" : "closed");
+    return log_and_publish();
+  }
+  if (domain == "input_number" || domain == "number") {
+    char value[16];
+    snprintf(value, sizeof value, "%.1f", dm::json::num(data, "value"));
+    set_string(state, "s", value);
+    return log_and_publish();
+  }
+  if (domain == "input_select" || domain == "select") {
+    set_string(state, "s", dm::json::str(data, "option"));
+    return log_and_publish();
+  }
+  if (domain == "fan" && (service == "set_percentage" || service == "set_preset_mode")) {
+    if (service == "set_percentage") {
+      const double pct = dm::json::num(data, "percentage");
+      set_number(attrs, "percentage", pct);
+      set_string(state, "s", pct > 0 ? "on" : "off");
+    } else {
+      set_string(attrs, "preset_mode", dm::json::str(data, "preset_mode"));
+      set_string(state, "s", "on");
+    }
+    return log_and_publish();
+  }
   if (domain == "climate" || domain == "water_heater") {
     const bool water = domain == "water_heater";
     if (service == "turn_off") set_string(state, "s", "off");

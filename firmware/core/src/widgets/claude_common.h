@@ -28,11 +28,6 @@ double seconds_since(double unix_time);
 std::string format_reset(double unix_time);
 
 /**
- * @description Shows or hides an object.
- */
-void set_hidden(lv_obj_t *obj, bool hidden);
-
-/**
  * @description Transparent flex row, full width, sized to its content.
  */
 lv_obj_t *make_row(lv_obj_t *parent, int gap);

@@ -16,19 +16,24 @@ Widgets cannot overlap or leave the grid. The firmware validates every layout ag
 | --- | --- | --- |
 | `clock` | `show_date`, `show_seconds`, `card` | device time (SNTP) |
 | `weather` | `mode` (`current` / `forecast`), `days` | Open-Meteo, over Wi-Fi |
-| `ha_toggle` | `entity`, `name`, `icon`, `rules` | Home Assistant |
+| `ha_toggle` | `entity`, `name`, `icon`, `rules` | Home Assistant. A tap toggles (nothing for a read-only `binary_sensor`/`sensor`); a long press opens the entity's popup (see below) |
 | `ha_light` | `entity`, `name`, `icon`, `rules` | Home Assistant. A long press opens the color/white/brightness popup |
 | `ha_sensor` | `entity`, `name`, `icon`, `unit`, `decimals`, `format` (`auto`, `number`, `duration`: e.g. a Proxmox uptime shown as "12 j 4 h"), `rules` | Home Assistant |
 | `ha_climate` | `entity` (`climate` or `water_heater`), `name`, `icon`, `rules` | Home Assistant. Shows the current temperature, the target and what the device does (`hvac_action`). A tap opens the thermostat popup (target dial, HVAC/operation mode, preset, fan mode). −/+ change the target on tiles of 3 columns or 2 rows; taps are grouped and sent 0.8 s after the last one. A `rules` text replaces the status line |
+| `ha_cover` | `entity` (`cover`), `name`, `icon`, `rules` | Home Assistant. Status ("Ouvert à 40 %"); from 2 columns open/close buttons, plus stop from 3 columns or 2 rows. A tap opens the popup (buttons, position and tilt sliders when supported) |
+| `ha_slider` | `entity`, `name`, `icon`, `rules` | Home Assistant. A slider for `input_number`/`number` (`set_value`), a light's brightness, a fan's speed (`set_percentage`), a media player's volume (`volume_set`) or a cover's position. Sent on release |
+| `ha_select` | `entity` (`input_select`, `select`, or a `fan`'s presets), `name`, `icon`, `rules` | Home Assistant. Shows the current option; a tap opens the list (`select_option` / `set_preset_mode`) |
 | `ha_gauge` | `entity`, `name`, `min`, `max`, `unit`, `decimals`, `warn`, `crit` | Home Assistant |
 | `shortcut` | `name`, `icon`, `color`, `action` | `ha` action over Wi-Fi, other kinds via the PC |
 | `pc_metrics` | `name` (default: the PC's name) | PC companion |
 | `pc_gauge` | `metric` (`cpu`, `ram`, `gpu`, `vram`, `disk`, `cpu_temp`, `gpu_temp`), `name`, `warn`, `crit` | PC companion |
 | `media` | `entity` (optional `media_player`) | PC companion (now playing of any app), else the Home Assistant player |
 
+A long press on an entity tile, or a tap on `ha_climate`/`ha_cover`/`ha_slider`/`ha_select`, opens the popup of the entity's domain (`open_more_info()`, `firmware/core/src/widgets/controls.cpp`): lights (color, white, brightness), `climate`/`water_heater` (target, modes), `cover` (buttons, position, tilt), `fan` (on/off, speed, presets), `input_number`/`number` and `media_player` (a slider), `input_select`/`select` (the option list).
+
 ### Rules
 
-`ha_toggle`, `ha_light`, `ha_sensor` and `ha_climate` accept `rules`: up to 12 display rules, evaluated on the screen at every state change. The first rule whose `when` matches applies (`firmware/core/src/rules.cpp`).
+Every Home Assistant tile except `ha_gauge` accepts `rules`: up to 12 display rules, evaluated on the screen at every state change. The first rule whose `when` matches applies (`firmware/core/src/rules.cpp`).
 
 ```json
 "rules": [
