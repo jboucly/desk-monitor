@@ -52,6 +52,8 @@ class EntityTile : public Widget {
    */
   void start() {
     render(nullptr);
+    // Rules first: the bus calls the entity listener right away when it already has a state
+    rules_.bind(spec_.props, ctx_.bus, [this] { render(ctx_.bus.get("ha/" + entity_)); });
     ctx_.bus.subscribe("ha/" + entity_, [this](const cJSON *state) { render(state); });
   }
 
@@ -74,28 +76,37 @@ class EntityTile : public Widget {
    */
   void render(const cJSON *state) {
     state_json_ = state;
-    lv_label_set_text(name_, entity_name(spec_.props, state, entity_).c_str());
+    rule_ = rules_.match(state);
+    const std::string name = entity_name(spec_.props, state, entity_);
+    lv_label_set_text(name_, name.c_str());
+    std::string text = rule_ && !rule_->text.empty() ? Rules::format(rule_->text, state, name) : state_text(state);
     // A one-column tile has no room for "Allumé" next to the icon: only short values (e.g. "58 %") stay
-    std::string text = state_text(state);
     if (spec_.w == 1 && text.size() > 5) text.clear();
     lv_label_set_text(state_, text.c_str());
-    if (custom_icon_.empty()) lv_label_set_text(icon_, theme::icon(icon_name()));
+    lv_label_set_text(icon_, theme::icon(icon_name()));
 
-    const bool unavailable = is_unavailable(state);
-    const bool on = !unavailable && is_active(state);
+    // A matching rule makes the state meaningful, even "unavailable" (e.g. a server shown as "Hors ligne")
+    const bool unavailable = is_unavailable(state) && !rule_;
+    const bool on = rule_ && rule_->active >= 0 ? rule_->active == 1 : !unavailable && is_active(state);
+    const bool ruled_color = rule_ && rule_->has_color;
     lv_obj_set_style_text_color(name_, unavailable ? theme::text3() : theme::text(), 0);
     if (on) {
-      const lv_color_t c = active_color(state);
+      const lv_color_t c = ruled_color ? lv_color_hex(rule_->color) : active_color(state);
       theme::paint_active(root, c);
       lv_obj_set_style_text_color(state_, lv_color_white(), 0);
       lv_obj_set_style_bg_opa(bubble_, 235, 0);
+      lv_obj_remove_local_style_prop(bubble_, LV_STYLE_BG_COLOR, 0);
       lv_obj_set_style_text_color(icon_, lv_color_mix(c, lv_color_black(), 170), 0);
       lv_obj_add_state(root, LV_STATE_CHECKED);
     } else {
+      // An inactive card keeps its look; a rule color only tints the icon and the state text
+      const lv_color_t c = ruled_color ? lv_color_hex(rule_->color) : unavailable ? theme::text3() : theme::text();
       lv_obj_remove_state(root, LV_STATE_CHECKED);
-      lv_obj_set_style_text_color(state_, unavailable ? theme::text3() : theme::text2(), 0);
-      lv_obj_set_style_bg_opa(bubble_, 40, 0);
-      lv_obj_set_style_text_color(icon_, unavailable ? theme::text3() : theme::text(), 0);
+      lv_obj_set_style_text_color(state_, ruled_color ? c : unavailable ? theme::text3() : theme::text2(), 0);
+      lv_obj_set_style_bg_opa(bubble_, ruled_color ? 70 : 40, 0);
+      if (ruled_color) lv_obj_set_style_bg_color(bubble_, c, 0);
+      else lv_obj_remove_local_style_prop(bubble_, LV_STYLE_BG_COLOR, 0);
+      lv_obj_set_style_text_color(icon_, c, 0);
     }
   }
 
@@ -104,6 +115,7 @@ class EntityTile : public Widget {
   }
 
   const char *icon_name() const {
+    if (rule_ && !rule_->icon.empty()) return rule_->icon.c_str();
     if (!custom_icon_.empty()) return custom_icon_.c_str();
     // Lights get an outline bulb while off
     if (entity_domain(entity_) == "light" && !is_active(state_json_)) return "lightbulb-outline";
@@ -115,6 +127,8 @@ class EntityTile : public Widget {
   std::string entity_;
   std::string custom_icon_;
   const cJSON *state_json_ = nullptr;  // owned by the bus, valid until the next update
+  RuleBinding rules_;
+  const Rule *rule_ = nullptr;  // rule matching state_json_, points into rules_
   lv_obj_t *bubble_ = nullptr, *icon_ = nullptr, *state_ = nullptr, *name_ = nullptr;
 };
 
@@ -165,8 +179,8 @@ class SensorTile : public Widget {
     lv_obj_set_flex_flow(head, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(head, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(head, 6, 0);
-    const char *icon = json::str(spec.props, "icon", default_entity_icon(entity_));
-    theme::make_icon(head, &dm_icons_18, icon, theme::accent());
+    icon_name_ = json::str(spec.props, "icon", default_entity_icon(entity_));
+    icon_ = theme::make_icon(head, &dm_icons_18, icon_name_.c_str(), theme::accent());
     name_ = theme::make_label(head, &dm_font_14, theme::text2());
     lv_obj_set_flex_grow(name_, 1);
     theme::single_line(name_);
@@ -182,6 +196,10 @@ class SensorTile : public Widget {
     unit_ = theme::make_label(row, &dm_font_16, theme::text2());
     lv_obj_set_style_pad_bottom(unit_, big ? 6 : 3, 0);
 
+    // Rules first: the bus calls the entity listener right away when it already has a state
+    rules_.bind(spec.props, ctx.bus, [this] {
+      if (last_) render(last_.get());
+    });
     ctx.bus.subscribe("ha/" + entity_, [this](const cJSON *state) {
       last_ = json::own(cJSON_Duplicate(state, true));
       render(state);
@@ -191,9 +209,23 @@ class SensorTile : public Widget {
 
  private:
   void render(const cJSON *state) {
-    lv_label_set_text(name_, entity_name(spec_.props, state, entity_).c_str());
+    const std::string name = entity_name(spec_.props, state, entity_);
+    lv_label_set_text(name_, name.c_str());
     const char *raw = json::str(state, "s");
     const char *unit = json::str(spec_.props, "unit", json::str(json::get(state, "a"), "unit_of_measurement"));
+
+    const Rule *rule = rules_.match(state);
+    const bool ruled_icon = rule && !rule->icon.empty();
+    lv_label_set_text(icon_, theme::icon(ruled_icon ? rule->icon.c_str() : icon_name_.c_str()));
+    const lv_color_t color = rule && rule->has_color ? lv_color_hex(rule->color) : theme::text();
+    lv_obj_set_style_text_color(value_, color, 0);
+    lv_obj_set_style_text_color(icon_, rule && rule->has_color ? color : theme::accent(), 0);
+    if (rule && !rule->text.empty()) {
+      // The rule text replaces the value and carries its own unit, e.g. "{state} °C" or "En ligne"
+      lv_label_set_text(value_, Rules::format(rule->text, state, name).c_str());
+      lv_label_set_text(unit_, "");
+      return;
+    }
     if (is_unavailable(state)) {
       lv_label_set_text(value_, "—");
       lv_label_set_text(unit_, "");
@@ -249,7 +281,9 @@ class SensorTile : public Widget {
   std::string format_;
   json::Ptr last_;
   unsigned ticks_ = 0;
-  lv_obj_t *name_ = nullptr, *value_ = nullptr, *unit_ = nullptr;
+  RuleBinding rules_;
+  std::string icon_name_;
+  lv_obj_t *icon_ = nullptr, *name_ = nullptr, *value_ = nullptr, *unit_ = nullptr;
 };
 
 }  // namespace

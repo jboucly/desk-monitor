@@ -100,7 +100,8 @@
       "properties": {
         "entity": { "$ref": "#/$defs/entity_id" },
         "name": { "type": "string" },
-        "icon": { "$ref": "#/$defs/icon" }
+        "icon": { "$ref": "#/$defs/icon" },
+        "rules": { "$ref": "#/$defs/rules" }
       }
     },
     "props_sensor": {
@@ -116,6 +117,39 @@
           "enum": ["auto", "number", "duration"],
           "default": "auto",
           "description": "duration: a timestamp shows the time elapsed since (\"12 j 4 h\"), a number is a duration in its unit. auto: duration when HA's device_class is timestamp or duration."
+        },
+        "rules": { "$ref": "#/$defs/rules" }
+      }
+    },
+    "rule_values": {
+      "oneOf": [{ "type": ["string", "number", "boolean"] }, { "type": "array", "items": { "type": ["string", "number", "boolean"] } }]
+    },
+    "rule_condition": {
+      "type": "object",
+      "description": "Every field set must hold; an empty condition always matches. Tests the state of `entity` (default: the widget's entity), or its attribute `attr`.",
+      "additionalProperties": false,
+      "properties": {
+        "entity": { "$ref": "#/$defs/entity_id" },
+        "attr": { "type": "string" },
+        "is": { "$ref": "#/$defs/rule_values" },
+        "not": { "$ref": "#/$defs/rule_values" },
+        "above": { "type": "number", "description": "Strictly greater (numeric values only)." },
+        "below": { "type": "number", "description": "Strictly lower (numeric values only)." }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "maxItems": 12,
+      "description": "Display rules: the first one whose condition matches changes what the tile shows.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "when": { "$ref": "#/$defs/rule_condition" },
+          "text": { "type": "string", "description": "Replaces the state text (sensor: the value and its unit). Placeholders: {state}, {name}, {attr.<name>}." },
+          "icon": { "$ref": "#/$defs/icon" },
+          "color": { "$ref": "#/$defs/color", "description": "Tints the icon and the text, or the card when it is active." },
+          "active": { "type": "boolean", "description": "Forces the colored \"on\" look of a toggle or light tile, or removes it." }
         }
       }
     },

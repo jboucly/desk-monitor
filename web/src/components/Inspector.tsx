@@ -2,7 +2,9 @@
 import { CATALOG, PC_METRICS, ENTITY_DOMAINS, entityIcon, fits } from '../catalog';
 import type { Action, HaEntity, Page, Props, Widget } from '../types';
 import { GRID } from '../types';
+import { Field } from './Field';
 import { EntityPicker, IconPicker } from './Pickers';
+import { RulesEditor } from './RulesEditor';
 
 interface InspectorProps {
   widget: Widget;
@@ -10,18 +12,6 @@ interface InspectorProps {
   entities: HaEntity[] | null;
   onChange: (widget: Widget) => void;
   onDelete: () => void;
-}
-
-/**
- * @description Labeled form row.
- */
-function Field({ label, children }: { label: string; children: preact.ComponentChildren }) {
-  return (
-    <label class="field">
-      <span>{label}</span>
-      {children}
-    </label>
-  );
 }
 
 /**
@@ -208,6 +198,10 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
             <NumberInput value={p.decimals} onChange={(v) => set({ decimals: v })} />
           </Field>
         </div>
+      )}
+
+      {(widget.type === 'ha_light' || widget.type === 'ha_toggle' || widget.type === 'ha_sensor') && (
+        <RulesEditor rules={p.rules} entities={entities} onChange={(rules) => set({ rules })} />
       )}
 
       {widget.type === 'ha_gauge' && (

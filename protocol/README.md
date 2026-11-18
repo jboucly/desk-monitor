@@ -16,14 +16,33 @@ Widgets cannot overlap or leave the grid. The firmware validates every layout ag
 | --- | --- | --- |
 | `clock` | `show_date`, `show_seconds`, `card` | device time (SNTP) |
 | `weather` | `mode` (`current` / `forecast`), `days` | Open-Meteo, over Wi-Fi |
-| `ha_toggle` | `entity`, `name`, `icon` | Home Assistant |
-| `ha_light` | `entity`, `name`, `icon` | Home Assistant. A long press opens the color/white/brightness popup |
-| `ha_sensor` | `entity`, `name`, `icon`, `unit`, `decimals`, `format` (`auto`, `number`, `duration`: e.g. a Proxmox uptime shown as "12 j 4 h") | Home Assistant |
+| `ha_toggle` | `entity`, `name`, `icon`, `rules` | Home Assistant |
+| `ha_light` | `entity`, `name`, `icon`, `rules` | Home Assistant. A long press opens the color/white/brightness popup |
+| `ha_sensor` | `entity`, `name`, `icon`, `unit`, `decimals`, `format` (`auto`, `number`, `duration`: e.g. a Proxmox uptime shown as "12 j 4 h"), `rules` | Home Assistant |
 | `ha_gauge` | `entity`, `name`, `min`, `max`, `unit`, `decimals`, `warn`, `crit` | Home Assistant |
 | `shortcut` | `name`, `icon`, `color`, `action` | `ha` action over Wi-Fi, other kinds via the PC |
 | `pc_metrics` | `name` (default: the PC's name) | PC companion |
 | `pc_gauge` | `metric` (`cpu`, `ram`, `gpu`, `vram`, `disk`, `cpu_temp`, `gpu_temp`), `name`, `warn`, `crit` | PC companion |
 | `media` | `entity` (optional `media_player`) | PC companion (now playing of any app), else the Home Assistant player |
+
+### Rules
+
+`ha_toggle`, `ha_light` and `ha_sensor` accept `rules`: up to 12 display rules, evaluated on the screen at every state change. The first rule whose `when` matches applies (`firmware/core/src/rules.cpp`).
+
+```json
+"rules": [
+  { "when": { "is": ["off", "unavailable"] }, "text": "Hors ligne", "icon": "lan-disconnect", "color": "#F87171" },
+  { "when": { "attr": "hvac_action", "is": "heating" }, "text": "Chauffe", "color": "#F97316", "active": true },
+  { "when": { "entity": "binary_sensor.fenetre", "is": "on" }, "text": "Fenêtre ouverte" },
+  { "when": { "above": 25 }, "text": "{state} °C", "color": "#FBBF24" },
+  { "text": "En ligne", "color": "#4ADE80" }
+]
+```
+
+- `when` (every field set must hold, missing = always): `entity` (another entity; default the widget's), `attr` (test an attribute instead of the state), `is` / `not` (value or list), `above` / `below` (strict, numeric values only).
+- Effects: `text` (state text; for a sensor it replaces the value and the unit; placeholders `{state}`, `{name}`, `{attr.<name>}`), `icon`, `color` (tints the icon and the text, or the card when active), `active` (forces or removes the colored "on" look of a toggle/light tile).
+- A matching rule makes an `unavailable` entity look available, so `"is": "unavailable"` can show "Hors ligne".
+- The entities named in conditions are subscribed too.
 
 Shortcut actions (`action.kind`):
 

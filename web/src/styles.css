@@ -792,3 +792,37 @@ button.destructive {
   flex: 1;
   min-width: 0;
 }
+
+/* Display rules of the Home Assistant tiles (RulesEditor) */
+.rules {
+  margin: 4px 0 12px;
+}
+
+.rule {
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 10px 12px 2px;
+  margin-bottom: 10px;
+}
+
+.rule-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--text2);
+}
+
+.rule-head span {
+  flex: 1;
+}
+
+.rule-head button {
+  padding: 2px 8px;
+}
+
+.rule-color {
+  align-items: center;
+  min-height: 38px;
+}

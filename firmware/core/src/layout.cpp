@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "dm/rules.h"
+
 namespace dm {
 
 namespace {
@@ -45,6 +47,11 @@ std::string check_props(const WidgetSpec &w) {
   if (needs_entity) {
     const char *entity = json::str(w.props, "entity");
     if (!strchr(entity, '.')) return "entité Home Assistant manquante";
+  }
+  if (const cJSON *rules = json::get(w.props, "rules")) {
+    Rules parsed;
+    std::string error;
+    if (!parsed.parse(rules, error)) return error;
   }
   if (w.type == "shortcut") {
     const cJSON *action = json::get(w.props, "action");
@@ -164,6 +171,10 @@ std::set<std::string> Layout::ha_entities() const {
   for (const auto &page : pages) {
     for (const auto &w : page.widgets) {
       if (const char *entity = json::str(w.props, "entity"); *entity) out.insert(entity);
+      // Rules may test other entities: they need their states too (validated by parse())
+      Rules rules;
+      std::string ignored;
+      if (rules.parse(json::get(w.props, "rules"), ignored)) out.merge(rules.entities());
       const cJSON *action = json::get(w.props, "action");
       if (!strcmp(json::str(action, "kind"), "ha")) {
         if (const char *entity = json::str(action, "entity_id"); strchr(entity, '.')) out.insert(entity);

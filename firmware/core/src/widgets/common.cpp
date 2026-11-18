@@ -58,6 +58,20 @@ void toggle_entity(Services &services, const std::string &entity_id, const cJSON
   services.ha_call("homeassistant", "toggle", entity_id, nullptr);
 }
 
+void RuleBinding::bind(const cJSON *props, Bus &bus, std::function<void()> changed) {
+  std::string ignored;
+  if (!rules_.parse(json::get(props, "rules"), ignored)) return;
+  bus_ = &bus;
+  for (const std::string &entity : rules_.entities())
+    bus.subscribe("ha/" + entity, [changed](const cJSON *) { changed(); });
+}
+
+const Rule *RuleBinding::match(const cJSON *state) const {
+  if (!state || rules_.empty()) return nullptr;
+  Bus *bus = bus_;
+  return rules_.match(state, [bus](const std::string &id) { return bus->get("ha/" + id); });
+}
+
 lv_color_t light_color(const cJSON *state) {
   const cJSON *attrs = json::get(state, "a");
   const cJSON *rgb = json::get(attrs, "rgb_color");

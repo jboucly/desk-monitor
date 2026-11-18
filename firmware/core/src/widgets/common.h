@@ -5,7 +5,9 @@
 #include <string>
 
 #include "dm/app.h"
+#include "dm/bus.h"
 #include "dm/json.h"
+#include "dm/rules.h"
 #include "dm/theme.h"
 #include "dm/widget.h"
 
@@ -62,6 +64,28 @@ void toggle_entity(Services &services, const std::string &entity_id, const cJSON
  * @description Color of a light from its attributes (rgb_color, color_temp_kelvin), warm white otherwise.
  */
 lv_color_t light_color(const cJSON *state);
+
+/**
+ * @description The `rules` prop of a tile, bound to the bus: it evaluates the rules against the tile's
+ * state and the current states of the other entities they name, and reports changes of those.
+ */
+class RuleBinding {
+ public:
+  /**
+   * @description Parses the rules (already validated by the layout) and subscribes to the other entities.
+   * @param changed Called when one of the other entities changes (also right away when it has a value).
+   */
+  void bind(const cJSON *props, Bus &bus, std::function<void()> changed);
+
+  /**
+   * @description First matching rule for the tile's state, or null (also when there is no state yet).
+   */
+  const Rule *match(const cJSON *state) const;
+
+ private:
+  Rules rules_;
+  Bus *bus_ = nullptr;
+};
 
 // ── Light popup (light_popup.cpp) ────────────────────────────────────────────
 

@@ -28,6 +28,31 @@ export type Action =
   | { kind: 'url'; url: string };
 
 /**
+ * @description Condition of a display rule. Every field set must hold; an empty condition always matches.
+ * The tested value is the state of `entity` (default: the widget's entity), or its attribute `attr`.
+ */
+export interface RuleCondition {
+  entity?: string;
+  attr?: string;
+  is?: string | string[];
+  not?: string | string[];
+  above?: number;
+  below?: number;
+}
+
+/**
+ * @description Display rule of a Home Assistant tile: the first one whose condition matches changes the
+ * text (placeholders {state}, {name}, {attr.<name>}), the icon, the color or the active look.
+ */
+export interface Rule {
+  when?: RuleCondition;
+  text?: string;
+  icon?: string;
+  color?: string;
+  active?: boolean;
+}
+
+/**
  * @description Free-form props of a widget; each type reads the keys it knows.
  */
 export type Props = Record<string, any>;
