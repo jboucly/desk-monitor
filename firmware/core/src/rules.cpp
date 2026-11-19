@@ -173,6 +173,19 @@ std::set<std::string> Rules::entities() const {
   return out;
 }
 
+/**
+ * @description Text of a value inserted in a rule text: numbers get a decimal comma ("21,5"), like the
+ * rest of the French interface.
+ */
+static std::string display_text(const cJSON *value) {
+  std::string text = value_text(value);
+  double number = 0;
+  if (value_number(value, number))
+    for (char &c : text)
+      if (c == '.') c = ',';
+  return text;
+}
+
 std::string Rules::format(const std::string &text, const cJSON *state, const std::string &name) {
   std::string out;
   size_t pos = 0;
@@ -185,9 +198,9 @@ std::string Rules::format(const std::string &text, const cJSON *state, const std
     }
     out += text.substr(pos, open - pos);
     const std::string key = text.substr(open + 1, close - open - 1);
-    if (key == "state") out += value_text(json::get(state, "s"));
+    if (key == "state") out += display_text(json::get(state, "s"));
     else if (key == "name") out += name;
-    else if (key.rfind("attr.", 0) == 0) out += value_text(json::get(json::get(state, "a"), key.c_str() + 5));
+    else if (key.rfind("attr.", 0) == 0) out += display_text(json::get(json::get(state, "a"), key.c_str() + 5));
     else out += text.substr(open, close - open + 1);  // unknown placeholder: kept as typed
     pos = close + 1;
   }

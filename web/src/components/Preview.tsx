@@ -237,7 +237,7 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
             <Icon name={p.icon || entityIcon(p.entity || (widget.type === 'ha_cover' ? 'cover.x' : widget.type === 'ha_alarm' ? 'alarm_control_panel.x' : 'select.x'))} size={big ? 28 : 20} />
           </span>
           <span class="ellipsis">{p.name || p.entity || CATALOG[widget.type].label}</span>
-          {widget.w >= 2 && <span class="muted small">{widget.type === 'ha_cover' ? '▲  ▼' : '▾'}</span>}
+          {widget.w >= 2 && widget.type === 'ha_cover' && <span class="muted small">▲  ▼</span>}
         </div>
       );
     case 'ha_light':

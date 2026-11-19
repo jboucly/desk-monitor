@@ -65,7 +65,7 @@ Every Home Assistant tile except `ha_gauge` and `ha_history` accepts `rules` (`h
 ```
 
 - `when` (every field set must hold, missing = always): `entity` (another entity; default the widget's), `attr` (test an attribute instead of the state), `is` / `not` (value or list), `above` / `below` (strict, numeric values only).
-- Effects: `text` (state text; for a sensor it replaces the value and the unit; placeholders `{state}`, `{name}`, `{attr.<name>}`), `icon`, `color` (tints the icon and the text, or the card when active), `active` (forces or removes the colored "on" look of a toggle/light tile).
+- Effects: `text` (state text; for a sensor it replaces the value and the unit; placeholders `{state}`, `{name}`, `{attr.<name>}`; numbers get a decimal comma, "21,5"), `icon`, `color` (tints the icon and the text, or the card when active), `active` (forces or removes the colored "on" look of a toggle/light tile).
 - A matching rule makes an `unavailable` entity look available, so `"is": "unavailable"` can show "Hors ligne".
 - The entities named in conditions are subscribed too.
 
