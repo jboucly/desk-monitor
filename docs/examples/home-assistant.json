@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "theme": { "accent": "#7C9CFF", "accent2": "#C084FC", "wallpaper": "aurora", "style": "flat" },
+  "pages": [
+    {
+      "id": "maison",
+      "title": "Maison",
+      "widgets": [
+        {
+          "id": "services",
+          "type": "ha_list",
+          "x": 0, "y": 0, "w": 4, "h": 2,
+          "props": {
+            "name": "Services",
+            "mode": "badges",
+            "items": [
+              { "entity": "binary_sensor.nas", "name": "NAS" },
+              { "entity": "binary_sensor.proxmox", "name": "Proxmox" },
+              { "entity": "binary_sensor.plex", "name": "Plex" },
+              { "entity": "binary_sensor.home_assistant", "name": "Home Assistant" },
+              { "entity": "binary_sensor.vpn", "name": "VPN" },
+              {
+                "entity": "sensor.cpu_nas",
+                "name": "CPU NAS",
+                "rules": [
+                  { "when": { "above": 80 }, "text": "{state} %", "active": false },
+                  { "text": "{state} %", "active": true }
+                ]
+              },
+              {
+                "template": "{{ states('sensor.disque_nas') | float(0) | round(0) }}",
+                "name": "Disque",
+                "rules": [
+                  { "when": { "above": 90 }, "text": "{state} %", "active": false },
+                  { "text": "{state} %", "active": true }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "salon",
+          "type": "ha_list",
+          "x": 0, "y": 2, "w": 2, "h": 2,
+          "props": {
+            "name": "Salon",
+            "items": [
+              { "entity": "light.salon", "name": "Plafonnier" },
+              { "entity": "switch.prise_tv", "name": "Télé" },
+              { "entity": "sensor.temperature_salon", "name": "Température" },
+              { "entity": "cover.volet_salon", "name": "Volet" }
+            ]
+          }
+        },
+        {
+          "id": "courbe",
+          "type": "ha_history",
+          "x": 2, "y": 2, "w": 2, "h": 2,
+          "props": { "entity": "sensor.temperature_salon", "name": "Salon", "hours": 24 }
+        }
+      ]
+    },
+    {
+      "id": "confort",
+      "title": "Confort",
+      "widgets": [
+        { "id": "thermostat", "type": "ha_climate", "x": 0, "y": 0, "w": 2, "h": 2, "props": { "entity": "climate.salon", "name": "Salon" } },
+        { "id": "volet", "type": "ha_cover", "x": 2, "y": 0, "w": 2, "h": 1, "props": { "entity": "cover.volet_salon", "name": "Volet" } },
+        { "id": "lumiere", "type": "ha_slider", "x": 2, "y": 1, "w": 2, "h": 1, "props": { "entity": "light.bureau", "name": "Bureau" } },
+        { "id": "mode", "type": "ha_select", "x": 0, "y": 2, "w": 2, "h": 1, "props": { "entity": "input_select.mode_maison", "name": "Mode maison" } },
+        { "id": "volume", "type": "ha_slider", "x": 2, "y": 2, "w": 2, "h": 1, "props": { "entity": "media_player.salon", "name": "Volume" } },
+        { "id": "volet2", "type": "ha_cover", "x": 0, "y": 3, "w": 4, "h": 1, "props": { "entity": "cover.volet_chambre", "name": "Volet chambre" } }
+      ]
+    },
+    {
+      "id": "securite",
+      "title": "Sécurité",
+      "widgets": [
+        { "id": "alarme", "type": "ha_alarm", "x": 0, "y": 0, "w": 2, "h": 1, "props": { "entity": "alarm_control_panel.maison", "name": "Alarme" } },
+        { "id": "entree", "type": "ha_toggle", "x": 2, "y": 0, "w": 1, "h": 1, "props": { "entity": "lock.porte_entree", "name": "Entrée" } },
+        { "id": "garage", "type": "ha_toggle", "x": 3, "y": 0, "w": 1, "h": 1, "props": { "entity": "lock.garage", "name": "Garage" } },
+        {
+          "id": "fenetre",
+          "type": "ha_toggle",
+          "x": 0, "y": 1, "w": 2, "h": 1,
+          "props": {
+            "entity": "binary_sensor.fenetre",
+            "name": "Fenêtre salon",
+            "rules": [
+              { "when": { "is": "on" }, "text": "Ouverte", "icon": "blinds-open", "color": "#FBBF24", "active": true },
+              { "text": "Fermée", "icon": "blinds" }
+            ]
+          }
+        },
+        {
+          "id": "conso",
+          "type": "ha_sensor",
+          "x": 2, "y": 1, "w": 2, "h": 1,
+          "props": {
+            "name": "Consommation",
+            "template": "{{ states('sensor.puissance_maison') | float(0) | round(0) }}",
+            "unit": "W",
+            "decimals": 0,
+            "icon": "home-lightning-bolt",
+            "show_age": true,
+            "rules": [{ "when": { "above": 600 }, "color": "#F87171" }]
+          }
+        },
+        {
+          "id": "chauffe_eau",
+          "type": "ha_toggle",
+          "x": 0, "y": 2, "w": 2, "h": 1,
+          "props": {
+            "entity": "switch.chauffe_eau",
+            "name": "Chauffe-eau",
+            "tap_action": { "kind": "toggle", "confirm": "Couper le chauffe-eau ?" },
+            "hold_action": { "kind": "more_info", "entity_id": "water_heater.ballon" }
+          }
+        },
+        {
+          "id": "humidite",
+          "type": "ha_sensor",
+          "x": 2, "y": 2, "w": 2, "h": 1,
+          "props": { "entity": "sensor.humidite_salon", "name": "Humidité", "show_age": true }
+        },
+        {
+          "id": "terrasse",
+          "type": "ha_toggle",
+          "x": 0, "y": 3, "w": 4, "h": 1,
+          "props": {
+            "entity": "light.terrasse",
+            "name": "Terrasse (visible quand le garage est ouvert)",
+            "visible_if": { "entity": "lock.garage", "is": "unlocked" }
+          }
+        }
+      ]
+    }
+  ]
+}

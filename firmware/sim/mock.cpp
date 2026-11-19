@@ -7,6 +7,7 @@
 #include <cstring>
 #include <ctime>
 #include <initializer_list>
+#include <iterator>
 #include <thread>
 
 #include "dm/ha.h"
@@ -55,6 +56,27 @@ void update_rgb(cJSON *attrs) {
   cJSON_AddItemToArray(rgb, cJSON_CreateNumber(c.red));
   cJSON_AddItemToArray(rgb, cJSON_CreateNumber(c.green));
   cJSON_AddItemToArray(rgb, cJSON_CreateNumber(c.blue));
+}
+
+/**
+ * @description Realistic range of a mock sensor, chosen from words of its id ("temperature", "power"…).
+ */
+struct SensorKind {
+  const char *word, *unit, *device_class;
+  double min, max, drift;  // drift: largest change at each tick
+};
+
+const SensorKind &sensor_kind(const std::string &id) {
+  static const SensorKind KINDS[] = {
+      {"temp", "°C", "temperature", 18, 24, 0.2},      {"humid", "%", "humidity", 40, 65, 1},
+      {"puissance", "W", "power", 150, 900, 40},       {"power", "W", "power", 150, 900, 40},
+      {"disque", "%", "", 40, 85, 0.3},                {"disk", "%", "", 40, 85, 0.3},
+      {"cpu", "%", "", 4, 60, 6},                      {"", "%", "", 15, 90, 3},  // anything else
+  };
+  const std::string name = id.substr(id.find('.') + 1);
+  for (const SensorKind &kind : KINDS)
+    if (name.find(kind.word) != std::string::npos) return kind;
+  return KINDS[std::size(KINDS) - 1];
 }
 
 /**
@@ -137,10 +159,12 @@ cJSON *initial_state(const std::string &id) {
     cJSON_AddStringToObject(state, "s", boot);
     cJSON_AddStringToObject(attrs, "device_class", "timestamp");
   } else if (domain == "sensor") {
+    const SensorKind &kind = sensor_kind(id);
     char value[16];
-    snprintf(value, sizeof value, "%.1f", 15 + r * 75);
+    snprintf(value, sizeof value, "%.1f", kind.min + r * (kind.max - kind.min));
     cJSON_AddStringToObject(state, "s", value);
-    cJSON_AddStringToObject(attrs, "unit_of_measurement", "%");
+    cJSON_AddStringToObject(attrs, "unit_of_measurement", kind.unit);
+    if (*kind.device_class) cJSON_AddStringToObject(attrs, "device_class", kind.device_class);
   } else if (domain == "climate") {
     // A heating thermostat; names with "clim" get an air conditioner with cooling and fan modes
     const bool ac = id.find("clim", id.find('.')) != std::string::npos;
@@ -393,8 +417,9 @@ void MockHome::tick() {
     }
     if (id.rfind("sensor.", 0) != 0) continue;
     seed_ = seed_ * 1103515245u + 12345u;
-    const double delta = ((seed_ >> 16) % 600) / 100.0 - 3.0;
-    const double value = std::clamp(atof(dm::json::str(state.get(), "s")) + delta, 1.0, 99.0);
+    const SensorKind &kind = sensor_kind(id);
+    const double delta = (((seed_ >> 16) % 2001) / 1000.0 - 1.0) * kind.drift;
+    const double value = std::clamp(atof(dm::json::str(state.get(), "s")) + delta, kind.min, kind.max);
     char buf[16];
     snprintf(buf, sizeof buf, "%.1f", value);
     set_string(state.get(), "s", buf);
@@ -436,7 +461,10 @@ void MockHome::request_history(const std::string &entity_id, int hours) {
     const double at = t0 + (now - t0) * i / 200.0;
     seed_ = seed_ * 1103515245u + 12345u;
     const double noise = ((seed_ >> 16) % 100) / 100.0 - 0.5;
-    const double value = base + 2.5 * std::sin((at / 86400.0) * 2 * M_PI) + noise;
+    const SensorKind &kind = sensor_kind(entity_id);
+    const double amplitude = (kind.max - kind.min) / 4;
+    // Daily wave that ends on the current value, so that the live last point does not jump
+    const double value = base + amplitude * std::sin(((at - now) / 86400.0) * 2 * M_PI) + noise * amplitude / 5;
     cJSON *change = cJSON_CreateObject();
     char text[16];
     snprintf(text, sizeof text, "%.1f", value);
