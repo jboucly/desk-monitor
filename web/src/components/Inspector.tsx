@@ -230,6 +230,25 @@ function TemplateField({ value, onChange }: { value: string; onChange: (v: strin
 }
 
 /**
+ * @description Collapsible block whose open state belongs to the caller. Driving it from the data (e.g.
+ * "open while the item has no entity") would fold it at the first letter typed.
+ * Buttons in the summary must call preventDefault(), or the click also folds the block.
+ */
+function Collapsible(props: {
+  open: boolean;
+  onToggle: (open: boolean) => void;
+  summary: preact.ComponentChildren;
+  children: preact.ComponentChildren;
+}) {
+  return (
+    <details class="rule" open={props.open} onToggle={(e) => props.onToggle((e.currentTarget as HTMLDetailsElement).open)}>
+      <summary class="rule-head">{props.summary}</summary>
+      {props.children}
+    </details>
+  );
+}
+
+/**
  * @description Items of an ha_list: each one an entity or a template, with its name, icon, rules and actions.
  */
 function ListItemsEditor({ items, entities, onChange }: { items: ListItem[]; entities: HaEntity[] | null; onChange: (items: ListItem[]) => void }) {
@@ -238,29 +257,61 @@ function ListItemsEditor({ items, entities, onChange }: { items: ListItem[]; ent
     for (const key of Object.keys(patch) as (keyof ListItem)[]) if (next[key] === undefined || next[key] === '') delete next[key];
     onChange(items.map((item, i) => (i === index ? next : item)));
   };
+  // Which blocks are unfolded: new or empty items start open; the flags move with their items
+  const [opened, setOpened] = useState<boolean[]>(() => items.map((item) => !item.entity && !item.template));
   const move = (index: number, delta: number) => {
-    const next = [...items];
-    const [item] = next.splice(index, 1);
-    next.splice(index + delta, 0, item);
-    onChange(next);
+    const reorder = <T,>(list: T[]) => {
+      const next = [...list];
+      const [moved] = next.splice(index, 1);
+      next.splice(index + delta, 0, moved);
+      return next;
+    };
+    setOpened(reorder(opened));
+    onChange(reorder(items));
+  };
+  const remove = (index: number) => {
+    setOpened(opened.filter((_, j) => j !== index));
+    onChange(items.filter((_, j) => j !== index));
+  };
+  const add = () => {
+    setOpened([...opened, true]);
+    onChange([...items, { entity: '' }]);
   };
   return (
     <div class="rules">
       <h3>Éléments</h3>
       {items.map((item, i) => (
-        <details class="rule" key={i} open={!item.entity && !item.template}>
-          <summary class="rule-head">
-            <span class="ellipsis">{item.name || item.entity || (item.template ? 'Template' : `Élément ${i + 1}`)}</span>
-            <button type="button" class="ghost" title="Monter" disabled={i === 0} onClick={() => move(i, -1)}>
-              ↑
-            </button>
-            <button type="button" class="ghost" title="Descendre" disabled={i === items.length - 1} onClick={() => move(i, 1)}>
-              ↓
-            </button>
-            <button type="button" class="ghost" title="Supprimer" disabled={items.length === 1} onClick={() => onChange(items.filter((_, j) => j !== i))}>
-              ✕
-            </button>
-          </summary>
+        <Collapsible
+          key={i}
+          open={opened[i] ?? false}
+          onToggle={(open) => open !== opened[i] && setOpened(opened.map((o, j) => (j === i ? open : o)))}
+          summary={
+            <>
+              <span class="ellipsis">{item.name || item.entity || (item.template ? 'Template' : `Élément ${i + 1}`)}</span>
+              <button type="button" class="ghost" title="Monter" disabled={i === 0} onClick={(e) => (e.preventDefault(), move(i, -1))}>
+                ↑
+              </button>
+              <button
+                type="button"
+                class="ghost"
+                title="Descendre"
+                disabled={i === items.length - 1}
+                onClick={(e) => (e.preventDefault(), move(i, 1))}
+              >
+                ↓
+              </button>
+              <button
+                type="button"
+                class="ghost"
+                title="Supprimer"
+                disabled={items.length === 1}
+                onClick={(e) => (e.preventDefault(), remove(i))}
+              >
+                ✕
+              </button>
+            </>
+          }
+        >
           <Field label="Entité (ou un template ci-dessous)">
             <EntityPicker value={item.entity ?? ''} entities={entities} onChange={(v) => update(i, { entity: v })} />
           </Field>
@@ -285,9 +336,9 @@ function ListItemsEditor({ items, entities, onChange }: { items: ListItem[]; ent
               onChange={(action) => update(i, { [gesture]: action })}
             />
           ))}
-        </details>
+        </Collapsible>
       ))}
-      <button type="button" disabled={items.length >= 12} onClick={() => onChange([...items, { entity: '' }])}>
+      <button type="button" disabled={items.length >= 12} onClick={add}>
         + Ajouter une entité
       </button>
       <small class="hint">
@@ -479,7 +530,7 @@ export function Inspector({ widget, page, entities, onChange, onDelete }: Inspec
               <option value="badges">Pastilles vert / rouge (statut de services)</option>
             </select>
           </Field>
-          <ListItemsEditor items={(p.items as ListItem[]) ?? []} entities={entities} onChange={(items) => set({ items })} />
+          <ListItemsEditor key={widget.id} items={(p.items as ListItem[]) ?? []} entities={entities} onChange={(items) => set({ items })} />
         </>
       )}
 
