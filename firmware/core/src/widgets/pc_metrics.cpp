@@ -153,11 +153,6 @@ class PcMetrics : public Widget {
     lv_label_set_text(tx_, format_rate(json::num(m, "net_tx", NAN)).c_str());
   }
 
-  static void set_hidden(lv_obj_t *obj, bool hidden) {
-    if (hidden) lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
-    else lv_obj_remove_flag(obj, LV_OBJ_FLAG_HIDDEN);
-  }
-
   bool compact_ = false;
   lv_obj_t *icon_ = nullptr, *title_ = nullptr, *offline_ = nullptr, *net_ = nullptr, *rx_ = nullptr, *tx_ = nullptr;
   Row rows_[3] = {};

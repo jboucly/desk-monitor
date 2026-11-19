@@ -29,6 +29,24 @@ class MockHome {
   void call(const std::string &domain, const std::string &service, const std::string &entity_id, cJSON *data);
 
   /**
+   * @description Renders these templates live on "ha_tpl/<key>" (re-rendered when states change).
+   */
+  void set_templates(const std::set<std::string> &templates);
+
+  /**
+   * @description Renders a template with the mock states. Understands {{ states('id') }} and
+   * {{ state_attr('id', 'attr') }}; other expressions are copied as typed, {% … %} blocks dropped.
+   * @returns False with an error message when the braces do not balance.
+   */
+  bool render(const std::string &tpl, std::string &out);
+
+  /**
+   * @description Publishes a made-up history of a numeric entity on "ha_hist/<entity>/<hours>"
+   * (a daily wave plus noise around its current value).
+   */
+  void request_history(const std::string &entity_id, int hours);
+
+  /**
    * @description Entity list in the format of GET /api/ha/entities.
    */
   std::string entity_list_json() const;
@@ -40,9 +58,12 @@ class MockHome {
 
  private:
   void publish(const std::string &entity_id);
+  void publish_templates();
+  const cJSON *state_of(const std::string &entity_id);
 
   dm::Bus &bus_;
   std::map<std::string, dm::json::Ptr> states_;
+  std::set<std::string> templates_;
   unsigned seed_ = 1;
 };
 

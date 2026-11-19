@@ -181,6 +181,65 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
           )}
         </div>
       );
+    case 'ha_climate':
+      return (
+        <div class="face face-entity">
+          <span class="bubble">
+            <Icon name={p.icon || entityIcon(p.entity || 'climate.x')} size={big ? 28 : 20} />
+          </span>
+          <span class="ellipsis">{p.name || p.entity || CATALOG[widget.type].label}</span>
+          {widget.w >= 2 && (
+            <span class="muted small">
+              {widget.w >= 3 || widget.h >= 2 ? '−  21,0°  +' : '21,0°'}
+            </span>
+          )}
+        </div>
+      );
+    case 'ha_list':
+      return (
+        <div class="face face-sensor">
+          <span class="muted small ellipsis">{p.name || (p.mode === 'badges' ? 'Statut' : 'Liste')}</span>
+          <span class="small ellipsis">
+            {((p.items ?? []) as { entity?: string; name?: string }[])
+              .map((item) => (p.mode === 'badges' ? '● ' : '') + (item.name || item.entity || '…'))
+              .join(p.mode === 'badges' ? '  ' : ' · ')}
+          </span>
+        </div>
+      );
+    case 'ha_history':
+      return (
+        <div class="face face-sensor">
+          <span class="small ellipsis">
+            <Icon name="chart-line" size={14} color={p.color || theme.accent} /> {p.name || p.entity || 'Historique'}
+          </span>
+          <svg viewBox="0 0 100 30" preserveAspectRatio="none" style={{ width: '100%', height: '50%' }}>
+            <polyline points="0,22 15,18 30,20 45,10 60,8 75,14 90,12 100,16" fill="none" stroke={p.color || theme.accent} stroke-width="2" />
+          </svg>
+        </div>
+      );
+    case 'ha_slider':
+      return (
+        <div class="face face-sensor">
+          <span class="small ellipsis">
+            <Icon name={p.icon || entityIcon(p.entity || 'input_number.x')} size={14} color={theme.accent} /> {p.name || p.entity || 'Curseur'}
+          </span>
+          <span class="preview-slider">
+            <span style={{ width: '45%', background: theme.accent }} />
+          </span>
+        </div>
+      );
+    case 'ha_cover':
+    case 'ha_select':
+    case 'ha_alarm':
+      return (
+        <div class="face face-entity">
+          <span class="bubble">
+            <Icon name={p.icon || entityIcon(p.entity || (widget.type === 'ha_cover' ? 'cover.x' : widget.type === 'ha_alarm' ? 'alarm_control_panel.x' : 'select.x'))} size={big ? 28 : 20} />
+          </span>
+          <span class="ellipsis">{p.name || p.entity || CATALOG[widget.type].label}</span>
+          {widget.w >= 2 && widget.type === 'ha_cover' && <span class="muted small">▲  ▼</span>}
+        </div>
+      );
     case 'ha_light':
     case 'ha_toggle':
       return (

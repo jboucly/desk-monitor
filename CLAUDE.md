@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Desk Monitor v2: a 480×480 touch screen (Guition ESP32-S3-4848S040, ST7701S RGB panel, GT911 touch, 16 MB flash, 8 MB PSRAM) that acts as an extension of the PC. It works standalone over Wi-Fi (Home Assistant, Open-Meteo weather, clock). A PC companion (Rust + Tauri, `companion/`) connects over the local network (WebSocket) and adds metrics, shortcuts and the system's now playing. Pages come from a JSON layout edited in a web editor that the screen serves itself. UI text is in French; code and comments are in English.
 
-Phase status: phases 1 (firmware, simulator, web editor), 2 (PC link + companion), 3 (now playing + covers, HA fallback) and 4 (Claude Code sessions, approvals from the screen, tokens, plan limits) are done. Everything companion-side was tested on macOS only: the Windows code is not even compile-checked, and Windows now playing (GlobalSystemMediaTransportControls) is not written yet. The PC link replaced the BLE plan: BLE needed internal RAM the ESP32 does not have. See `protocol/README.md`.
+Phase status: phases 1 (firmware, simulator, web editor), 2 (PC link + companion), 3 (now playing + covers, HA fallback), 4 (Claude Code sessions, approvals from the screen, tokens, plan limits) and 5 (Home Assistant tiles: display rules, templates, thermostat, covers, sliders, selects, entity lists, history, alarm/lock keypad, tap/hold actions, `visible_if`) are done. Phase 5 was only checked in the simulator against `sim::MockHome`, not against a real Home Assistant. Everything companion-side was tested on macOS only: the Windows code is not even compile-checked, and Windows now playing (GlobalSystemMediaTransportControls) is not written yet. The PC link replaced the BLE plan: BLE needed internal RAM the ESP32 does not have. See `protocol/README.md`.
 
 ## Commands
 
@@ -75,6 +75,9 @@ Anything that is not hardware or transport goes in `core/`: HA protocol logic, w
 - Keep the `WidgetContext&`: it is an `App` member.
 - Don't call virtual methods from base constructors. `EntityTile::start()` exists for that reason.
 - Popups use `App::open_sheet()` (top layer). They own themselves, are deleted on close, and unsubscribe with the token returned by `Bus::subscribe`.
+- Home Assistant tiles take display `rules` (`include/dm/rules.h`, no LVGL so `layout.cpp` validates them too) through `RuleBinding` (`widgets/common.h`): bind the rules before subscribing to the entity, because the bus calls listeners right away.
+- Tile gestures go through `run_tile_action()` (`widgets/actions.cpp`): the layout's `tap_action`/`hold_action`, else the tile's default; `confirm` opens a confirmation sheet. Inner `lv_obj` containers of a clickable card must drop `LV_OBJ_FLAG_CLICKABLE`, or they swallow the taps.
+- `open_more_info()` (`widgets/controls.cpp`) opens the popup of an entity's domain (light, climate, cover, fan, slider, select list); shared LVGL pieces (sliders, round buttons, chips) are in `widgets/ui.cpp`.
 
 **Theme (`core/src/theme.cpp`).** Three card styles, chosen by `theme.style` in the layout:
 
@@ -89,6 +92,8 @@ Anything that is not hardware or transport goes in `core/`: HA protocol logic, w
 **Home Assistant.** `dm::HaSession` (core) implements the WebSocket API protocol:
 
 - auth, `subscribe_entities` limited to `Layout::ha_entities()`, merging of compressed diffs, `call_service`, and `config/entity_registry/list_for_display` for the editor;
+- `history/history_during_period` for `ha_history` (`request_history`, reduced to 96 points by `history_series`, published on `ha_hist/<entity>/<hours>`);
+- `render_template` subscriptions for the layout's templates (`Layout::ha_templates()`, published on `ha_tpl/<key>`), plus one-shot renders for `POST /api/ha/template`;
 - the transport lives in `main/ha_client.cpp` (esp_websocket_client, frame reassembly);
 - the simulator replaces HA with `sim::MockHome`.
 

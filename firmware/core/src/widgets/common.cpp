@@ -13,7 +13,8 @@ const char *default_entity_icon(const std::string &entity_id) {
   if (domain == "light") return "lightbulb";
   if (domain == "switch") return "power-socket-eu";
   if (domain == "fan") return "fan";
-  if (domain == "climate") return "thermometer";
+  if (domain == "climate") return "thermostat";
+  if (domain == "water_heater") return "water-boiler";
   if (domain == "cover") return "blinds";
   if (domain == "lock") return "lock";
   if (domain == "media_player") return "speaker";
@@ -47,15 +48,34 @@ bool is_active(const cJSON *state) {
 void toggle_entity(Services &services, const std::string &entity_id, const cJSON *state) {
   if (!services.ha_call) return;
   const std::string domain = entity_domain(entity_id);
+  // Read-only entities (e.g. a binary_sensor used as a service status): nothing to toggle
+  if (domain == "binary_sensor" || domain == "sensor") return;
   if (domain == "scene" || domain == "script") return services.ha_call(domain, "turn_on", entity_id, nullptr);
   if (domain == "button" || domain == "input_button") return services.ha_call(domain, "press", entity_id, nullptr);
   if (domain == "lock")
     return services.ha_call(domain, !strcmp(json::str(state, "s"), "locked") ? "unlock" : "lock", entity_id, nullptr);
   if (domain == "media_player") return services.ha_call(domain, "media_play_pause", entity_id, nullptr);
+  // A thermostat's state is its mode: "off" or any running mode (homeassistant.toggle does not apply)
+  if (domain == "climate" || domain == "water_heater")
+    return services.ha_call(domain, !strcmp(json::str(state, "s"), "off") ? "turn_on" : "turn_off", entity_id, nullptr);
   if (domain == "light" || domain == "switch" || domain == "fan" || domain == "cover" || domain == "input_boolean" ||
       domain == "automation" || domain == "siren" || domain == "humidifier")
     return services.ha_call(domain, "toggle", entity_id, nullptr);
   services.ha_call("homeassistant", "toggle", entity_id, nullptr);
+}
+
+void RuleBinding::bind(const cJSON *props, Bus &bus, std::function<void()> changed) {
+  std::string ignored;
+  if (!rules_.parse(json::get(props, "rules"), ignored)) return;
+  bus_ = &bus;
+  for (const std::string &entity : rules_.entities())
+    bus.subscribe("ha/" + entity, [changed](const cJSON *) { changed(); });
+}
+
+const Rule *RuleBinding::match(const cJSON *state) const {
+  if (!state || rules_.empty()) return nullptr;
+  Bus *bus = bus_;
+  return rules_.match(state, [bus](const std::string &id) { return bus->get("ha/" + id); });
 }
 
 lv_color_t light_color(const cJSON *state) {

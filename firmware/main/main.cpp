@@ -105,12 +105,14 @@ extern "C" void app_main(void) {
   services.pc_claude_view = [](const std::string &view, const std::string &id) { return pc.send_claude_view(view, id); };
   services.wake = dm::esp32::display_wake;
   services.ha_fetch = dm::esp32::ha_fetch;
+  services.ha_history = [](const std::string &entity, int hours) { ha.request_history(entity, hours); };
 
   dm::esp32::display_init();
   dm::esp32::display_configure(initial.brightness, initial.sleep_minutes);
 
   static dm::App app(bus, services, storage, std::string(DEFAULT_LAYOUT_START, DEFAULT_LAYOUT_END));
   app.on_entities_changed = [](const std::set<std::string> &entities) { ha.set_entities(entities); };
+  app.on_templates_changed = [](const std::set<std::string> &templates) { ha.set_templates(templates); };
   if (lvgl_port_lock(0)) {
     app.start();
     lvgl_port_unlock();
@@ -127,6 +129,7 @@ extern "C" void app_main(void) {
   static dm::Api api(app, settings);
   api.status = status_json;
   api.ha_entities = dm::esp32::ha_client_entities;
+  api.ha_render = dm::esp32::ha_client_render;
   dm::esp32::http_start(api, settings, pc);
 
   // Drops a silent PC and expires pairing codes

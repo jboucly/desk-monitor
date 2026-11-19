@@ -60,18 +60,29 @@
       "properties": {
         "id": { "type": "string" },
         "type": {
-          "enum": ["clock", "weather", "ha_toggle", "ha_light", "ha_sensor", "ha_gauge", "shortcut", "pc_metrics", "pc_gauge", "media", "claude_sessions", "claude_usage", "claude_limits"]
+          "enum": ["clock", "weather", "ha_toggle", "ha_light", "ha_sensor", "ha_gauge", "ha_climate", "ha_cover", "ha_slider", "ha_select", "ha_list", "ha_history", "ha_alarm", "shortcut", "pc_metrics", "pc_gauge", "media", "claude_sessions", "claude_usage", "claude_limits"]
         },
         "x": { "type": "integer", "minimum": 0, "maximum": 3 },
         "y": { "type": "integer", "minimum": 0, "maximum": 3 },
         "w": { "type": "integer", "minimum": 1, "maximum": 4 },
         "h": { "type": "integer", "minimum": 1, "maximum": 4 },
-        "props": { "type": "object" }
+        "props": {
+          "type": "object",
+          "properties": {
+            "visible_if": {
+              "$ref": "#/$defs/rule_condition",
+              "description": "The widget shows only while this condition holds (its cell stays empty otherwise, also until HA answers). Without its own entity it tests the widget's entity."
+            }
+          }
+        }
       },
       "allOf": [
         { "if": { "properties": { "type": { "const": "clock" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_clock" } } } },
         { "if": { "properties": { "type": { "const": "weather" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_weather" } } } },
         { "if": { "properties": { "type": { "enum": ["ha_toggle", "ha_light"] } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_entity" } }, "required": ["props"] } },
+        { "if": { "properties": { "type": { "enum": ["ha_climate", "ha_cover", "ha_slider", "ha_select", "ha_alarm"] } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_entity" } }, "required": ["props"] } },
+        { "if": { "properties": { "type": { "const": "ha_list" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_list" } }, "required": ["props"] } },
+        { "if": { "properties": { "type": { "const": "ha_history" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_history" } }, "required": ["props"] } },
         { "if": { "properties": { "type": { "const": "ha_sensor" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_sensor" } }, "required": ["props"] } },
         { "if": { "properties": { "type": { "const": "ha_gauge" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_gauge" } }, "required": ["props"] } },
         { "if": { "properties": { "type": { "const": "shortcut" } } }, "then": { "properties": { "props": { "$ref": "#/$defs/props_shortcut" } }, "required": ["props"] } },
@@ -100,14 +111,22 @@
       "properties": {
         "entity": { "$ref": "#/$defs/entity_id" },
         "name": { "type": "string" },
-        "icon": { "$ref": "#/$defs/icon" }
+        "icon": { "$ref": "#/$defs/icon" },
+        "rules": { "$ref": "#/$defs/rules" },
+        "tap_action": { "$ref": "#/$defs/tile_action" },
+        "hold_action": { "$ref": "#/$defs/tile_action" }
       }
     },
     "props_sensor": {
       "type": "object",
-      "required": ["entity"],
+      "anyOf": [{ "required": ["entity"] }, { "required": ["template"] }],
       "properties": {
         "entity": { "$ref": "#/$defs/entity_id" },
+        "template": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Home Assistant (Jinja) template shown instead of an entity, rendered live by HA (render_template). 16 templates at most per layout."
+        },
         "name": { "type": "string" },
         "icon": { "$ref": "#/$defs/icon" },
         "unit": { "type": "string", "description": "Overrides unit_of_measurement." },
@@ -116,6 +135,88 @@
           "enum": ["auto", "number", "duration"],
           "default": "auto",
           "description": "duration: a timestamp shows the time elapsed since (\"12 j 4 h\"), a number is a duration in its unit. auto: duration when HA's device_class is timestamp or duration."
+        },
+        "show_age": { "type": "boolean", "description": "Shows the age of the value (\"il y a 5 min\") from HA's last change." },
+        "rules": { "$ref": "#/$defs/rules" },
+        "tap_action": { "$ref": "#/$defs/tile_action" },
+        "hold_action": { "$ref": "#/$defs/tile_action" }
+      }
+    },
+    "props_list": {
+      "type": "object",
+      "required": ["items"],
+      "properties": {
+        "name": { "type": "string", "description": "Title of the tile." },
+        "mode": {
+          "enum": ["rows", "badges"],
+          "default": "rows",
+          "description": "rows: icon, name and state per line. badges: green/red pills with a problem count (service status)."
+        },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 3, "default": 1 },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "anyOf": [{ "required": ["entity"] }, { "required": ["template"] }],
+            "properties": {
+              "entity": { "$ref": "#/$defs/entity_id" },
+              "template": { "type": "string", "maxLength": 1000 },
+              "name": { "type": "string" },
+              "icon": { "$ref": "#/$defs/icon" },
+              "rules": { "$ref": "#/$defs/rules", "description": "In a list, a rule's active says whether the item is fine (true) or a problem (false)." },
+              "tap_action": { "$ref": "#/$defs/tile_action" },
+              "hold_action": { "$ref": "#/$defs/tile_action" }
+            }
+          }
+        }
+      }
+    },
+    "props_history": {
+      "type": "object",
+      "required": ["entity"],
+      "properties": {
+        "entity": { "$ref": "#/$defs/entity_id" },
+        "name": { "type": "string" },
+        "icon": { "$ref": "#/$defs/icon" },
+        "hours": { "type": "integer", "minimum": 1, "maximum": 168, "default": 24 },
+        "unit": { "type": "string" },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 3, "default": 1 },
+        "min": { "type": "number", "description": "Bottom of the Y axis (default: from the data)." },
+        "max": { "type": "number", "description": "Top of the Y axis (default: from the data)." },
+        "color": { "$ref": "#/$defs/color" }
+      }
+    },
+    "rule_values": {
+      "oneOf": [{ "type": ["string", "number", "boolean"] }, { "type": "array", "items": { "type": ["string", "number", "boolean"] } }]
+    },
+    "rule_condition": {
+      "type": "object",
+      "description": "Every field set must hold; an empty condition always matches. Tests the state of `entity` (default: the widget's entity), or its attribute `attr`.",
+      "additionalProperties": false,
+      "properties": {
+        "entity": { "$ref": "#/$defs/entity_id" },
+        "attr": { "type": "string" },
+        "is": { "$ref": "#/$defs/rule_values" },
+        "not": { "$ref": "#/$defs/rule_values" },
+        "above": { "type": "number", "description": "Strictly greater (numeric values only)." },
+        "below": { "type": "number", "description": "Strictly lower (numeric values only)." }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "maxItems": 12,
+      "description": "Display rules: the first one whose condition matches changes what the tile shows.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "when": { "$ref": "#/$defs/rule_condition" },
+          "text": { "type": "string", "description": "Replaces the state text (sensor: the value and its unit). Placeholders: {state}, {name}, {attr.<name>}." },
+          "icon": { "$ref": "#/$defs/icon" },
+          "color": { "$ref": "#/$defs/color", "description": "Tints the icon and the text, or the card when it is active." },
+          "active": { "type": "boolean", "description": "Forces the colored \"on\" look of a toggle or light tile, or removes it." }
         }
       }
     },
@@ -162,6 +263,26 @@
         "action": { "$ref": "#/$defs/action" }
       }
     },
+    "confirm": {
+      "description": "Asks on the screen before running: true for \"<name> : confirmer ?\", or the question to show.",
+      "type": ["boolean", "string"]
+    },
+    "tile_action": {
+      "description": "What a tap (tap_action) or a long press (hold_action) on a Home Assistant tile does, instead of its default. toggle and more_info act on entity_id, else on the tile's entity.",
+      "oneOf": [
+        { "$ref": "#/$defs/action" },
+        {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": { "enum": ["toggle", "more_info"] },
+            "entity_id": { "$ref": "#/$defs/entity_id" },
+            "confirm": { "$ref": "#/$defs/confirm" }
+          }
+        },
+        { "type": "object", "required": ["kind"], "properties": { "kind": { "const": "none" } } }
+      ]
+    },
     "action": {
       "description": "What a shortcut does. 'ha' runs through Wi-Fi; the others are sent to the paired PC companion over the local network (PC link). The kind list is meant to grow (e.g. a whitelisted 'shell' kind).",
       "oneOf": [
@@ -200,7 +321,8 @@
             "url": { "type": "string" }
           }
         }
-      ]
+      ],
+      "properties": { "confirm": { "$ref": "#/$defs/confirm" } }
     }
   }
 }

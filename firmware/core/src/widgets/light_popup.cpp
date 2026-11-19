@@ -60,23 +60,6 @@ Features features_of(const cJSON *state) {
 }
 
 /**
- * @description Styles a slider as a thick glass track with a round white knob.
- */
-void style_slider(lv_obj_t *slider) {
-  lv_obj_set_height(slider, 40);
-  lv_obj_set_style_radius(slider, 20, LV_PART_MAIN);
-  lv_obj_set_style_bg_color(slider, lv_color_white(), LV_PART_MAIN);
-  lv_obj_set_style_bg_opa(slider, 36, LV_PART_MAIN);
-  lv_obj_set_style_radius(slider, 20, LV_PART_INDICATOR);
-  lv_obj_set_style_bg_opa(slider, LV_OPA_COVER, LV_PART_INDICATOR);
-  lv_obj_set_style_bg_color(slider, lv_color_white(), LV_PART_KNOB);
-  lv_obj_set_style_bg_opa(slider, LV_OPA_COVER, LV_PART_KNOB);
-  lv_obj_set_style_pad_all(slider, -4, LV_PART_KNOB);
-  lv_obj_set_style_shadow_width(slider, 12, LV_PART_KNOB);
-  lv_obj_set_style_shadow_opa(slider, LV_OPA_40, LV_PART_KNOB);
-}
-
-/**
  * @description One open popup. Deleted when its sheet closes.
  */
 class LightPopup {
@@ -274,11 +257,6 @@ class LightPopup {
       if ((i == 0) == mode_color_) lv_obj_add_state(tabs_[i], LV_STATE_CHECKED);
       else lv_obj_remove_state(tabs_[i], LV_STATE_CHECKED);
     }
-  }
-
-  static void set_hidden(lv_obj_t *obj, bool hidden) {
-    if (hidden) lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
-    else lv_obj_remove_flag(obj, LV_OBJ_FLAG_HIDDEN);
   }
 
   /**

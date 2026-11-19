@@ -1,10 +1,12 @@
 // Home Assistant entity tiles: ha_toggle, ha_light and ha_sensor.
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
 
 #include "common.h"
+#include "dm/ha.h"
 #include "dm/util.h"
 
 namespace dm::widgets {
@@ -44,6 +46,7 @@ class EntityTile : public Widget {
     lv_obj_align(name_, LV_ALIGN_BOTTOM_LEFT, 0, 0);
 
     bind_event<EntityTile, &EntityTile::on_click>(root, LV_EVENT_SHORT_CLICKED, this);
+    bind_event<EntityTile, &EntityTile::on_long_press>(root, LV_EVENT_LONG_PRESSED, this);
   }
 
   /**
@@ -52,6 +55,8 @@ class EntityTile : public Widget {
    */
   void start() {
     render(nullptr);
+    // Rules first: the bus calls the entity listener right away when it already has a state
+    rules_.bind(spec_.props, ctx_.bus, [this] { render(ctx_.bus.get("ha/" + entity_)); });
     ctx_.bus.subscribe("ha/" + entity_, [this](const cJSON *state) { render(state); });
   }
 
@@ -74,36 +79,58 @@ class EntityTile : public Widget {
    */
   void render(const cJSON *state) {
     state_json_ = state;
-    lv_label_set_text(name_, entity_name(spec_.props, state, entity_).c_str());
+    rule_ = rules_.match(state);
+    const std::string name = entity_name(spec_.props, state, entity_);
+    lv_label_set_text(name_, name.c_str());
+    std::string text = rule_ && !rule_->text.empty() ? Rules::format(rule_->text, state, name) : state_text(state);
     // A one-column tile has no room for "Allumé" next to the icon: only short values (e.g. "58 %") stay
-    std::string text = state_text(state);
     if (spec_.w == 1 && text.size() > 5) text.clear();
     lv_label_set_text(state_, text.c_str());
-    if (custom_icon_.empty()) lv_label_set_text(icon_, theme::icon(icon_name()));
+    lv_label_set_text(icon_, theme::icon(icon_name()));
 
-    const bool unavailable = is_unavailable(state);
-    const bool on = !unavailable && is_active(state);
+    // A matching rule makes the state meaningful, even "unavailable" (e.g. a server shown as "Hors ligne")
+    const bool unavailable = is_unavailable(state) && !rule_;
+    const bool on = rule_ && rule_->active >= 0 ? rule_->active == 1 : !unavailable && is_active(state);
+    const bool ruled_color = rule_ && rule_->has_color;
     lv_obj_set_style_text_color(name_, unavailable ? theme::text3() : theme::text(), 0);
     if (on) {
-      const lv_color_t c = active_color(state);
+      const lv_color_t c = ruled_color ? lv_color_hex(rule_->color) : active_color(state);
       theme::paint_active(root, c);
       lv_obj_set_style_text_color(state_, lv_color_white(), 0);
       lv_obj_set_style_bg_opa(bubble_, 235, 0);
+      lv_obj_remove_local_style_prop(bubble_, LV_STYLE_BG_COLOR, 0);
       lv_obj_set_style_text_color(icon_, lv_color_mix(c, lv_color_black(), 170), 0);
       lv_obj_add_state(root, LV_STATE_CHECKED);
     } else {
+      // An inactive card keeps its look; a rule color only tints the icon and the state text
+      const lv_color_t c = ruled_color ? lv_color_hex(rule_->color) : unavailable ? theme::text3() : theme::text();
       lv_obj_remove_state(root, LV_STATE_CHECKED);
-      lv_obj_set_style_text_color(state_, unavailable ? theme::text3() : theme::text2(), 0);
-      lv_obj_set_style_bg_opa(bubble_, 40, 0);
-      lv_obj_set_style_text_color(icon_, unavailable ? theme::text3() : theme::text(), 0);
+      lv_obj_set_style_text_color(state_, ruled_color ? c : unavailable ? theme::text3() : theme::text2(), 0);
+      lv_obj_set_style_bg_opa(bubble_, ruled_color ? 70 : 40, 0);
+      if (ruled_color) lv_obj_set_style_bg_color(bubble_, c, 0);
+      else lv_obj_remove_local_style_prop(bubble_, LV_STYLE_BG_COLOR, 0);
+      lv_obj_set_style_text_color(icon_, c, 0);
     }
   }
 
-  virtual void on_click(lv_event_t *) {
-    if (!is_unavailable(state_json_)) toggle_entity(ctx_.services, entity_, state_json_);
+  /**
+   * @description Long press: the layout's hold_action, by default the control popup of the entity's domain.
+   */
+  void on_long_press(lv_event_t *) {
+    run_tile_action(ctx_, spec_.props, "hold_action", "more_info", entity_, entity_name(spec_.props, state_json_, entity_),
+                    icon_name());
+  }
+
+  /**
+   * @description Tap: the layout's tap_action, by default a toggle.
+   */
+  void on_click(lv_event_t *) {
+    run_tile_action(ctx_, spec_.props, "tap_action", "toggle", entity_, entity_name(spec_.props, state_json_, entity_),
+                    icon_name());
   }
 
   const char *icon_name() const {
+    if (rule_ && !rule_->icon.empty()) return rule_->icon.c_str();
     if (!custom_icon_.empty()) return custom_icon_.c_str();
     // Lights get an outline bulb while off
     if (entity_domain(entity_) == "light" && !is_active(state_json_)) return "lightbulb-outline";
@@ -115,26 +142,18 @@ class EntityTile : public Widget {
   std::string entity_;
   std::string custom_icon_;
   const cJSON *state_json_ = nullptr;  // owned by the bus, valid until the next update
+  RuleBinding rules_;
+  const Rule *rule_ = nullptr;  // rule matching state_json_, points into rules_
   lv_obj_t *bubble_ = nullptr, *icon_ = nullptr, *state_ = nullptr, *name_ = nullptr;
 };
 
 /**
- * @description Light tile: shows the brightness, takes the light's color when on,
- * and opens the light popup on a long press.
+ * @description Light tile: shows the brightness and takes the light's color when on
+ * (the long press of every entity tile opens the light popup).
  */
 class LightTile : public EntityTile {
  public:
-  LightTile(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx) : EntityTile(parent, spec, ctx) {
-    lv_obj_add_event_cb(
-        root,
-        [](lv_event_t *e) {
-          auto *self = static_cast<LightTile *>(lv_event_get_user_data(e));
-          if (is_unavailable(self->state_json_)) return;
-          open_light_popup(self->ctx_, self->entity_, entity_name(self->spec_.props, self->state_json_, self->entity_),
-                           self->custom_icon_.empty() ? "lightbulb" : self->custom_icon_.c_str());
-        },
-        LV_EVENT_LONG_PRESSED, this);
-  }
+  LightTile(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx) : EntityTile(parent, spec, ctx) {}
 
  protected:
   std::string state_text(const cJSON *state) override {
@@ -152,8 +171,12 @@ class LightTile : public EntityTile {
  */
 class SensorTile : public Widget {
  public:
-  SensorTile(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx) : spec_(spec) {
+  SensorTile(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx) : ctx_(ctx), spec_(spec) {
     entity_ = json::str(spec.props, "entity");
+    // A template (rendered by HA) replaces the entity: its result arrives like a state, {"s": text}
+    const std::string tpl = json::str(spec.props, "template");
+    key_ = tpl.empty() ? "ha/" + entity_ : "ha_tpl/" + HaSession::template_key(tpl);
+    if (!tpl.empty()) entity_.clear();
     decimals_ = static_cast<int>(json::num(spec.props, "decimals", 1));
     format_ = json::str(spec.props, "format", "auto");
     const bool big = spec.h >= 2 && spec.w >= 2;
@@ -161,18 +184,22 @@ class SensorTile : public Widget {
     root = theme::make_card(parent);
     lv_obj_t *head = lv_obj_create(root);
     lv_obj_remove_style_all(head);
+    lv_obj_remove_flag(head, LV_OBJ_FLAG_CLICKABLE);  // taps go to the card
     lv_obj_set_size(head, lv_pct(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(head, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(head, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(head, 6, 0);
-    const char *icon = json::str(spec.props, "icon", default_entity_icon(entity_));
-    theme::make_icon(head, &dm_icons_18, icon, theme::accent());
+    icon_name_ = json::str(spec.props, "icon", entity_.empty() ? "home-assistant" : default_entity_icon(entity_));
+    icon_ = theme::make_icon(head, &dm_icons_18, icon_name_.c_str(), theme::accent());
     name_ = theme::make_label(head, &dm_font_14, theme::text2());
     lv_obj_set_flex_grow(name_, 1);
     theme::single_line(name_);
+    // Optional age of the value ("il y a 5 min"), from HA's last change
+    if (json::boolean(spec.props, "show_age")) age_ = theme::make_label(head, &dm_font_14, theme::text3());
 
     lv_obj_t *row = lv_obj_create(root);
     lv_obj_remove_style_all(row);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE);  // taps go to the card
     lv_obj_set_size(row, lv_pct(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
@@ -182,18 +209,44 @@ class SensorTile : public Widget {
     unit_ = theme::make_label(row, &dm_font_16, theme::text2());
     lv_obj_set_style_pad_bottom(unit_, big ? 6 : 3, 0);
 
-    ctx.bus.subscribe("ha/" + entity_, [this](const cJSON *state) {
+    // A sensor only reacts to touch when the layout gives it an action
+    if (has_tile_action(spec.props, "tap_action") || has_tile_action(spec.props, "hold_action")) {
+      lv_obj_add_flag(root, LV_OBJ_FLAG_CLICKABLE);
+      bind_event<SensorTile, &SensorTile::on_gesture>(root, LV_EVENT_SHORT_CLICKED, this);
+      bind_event<SensorTile, &SensorTile::on_gesture>(root, LV_EVENT_LONG_PRESSED, this);
+    }
+
+    // Rules first: the bus calls the entity listener right away when it already has a state
+    rules_.bind(spec.props, ctx.bus, [this] {
+      if (last_) render(last_.get());
+    });
+    ctx.bus.subscribe(key_, [this](const cJSON *state) {
       last_ = json::own(cJSON_Duplicate(state, true));
       render(state);
     });
-    lv_label_set_text(name_, entity_name(spec.props, nullptr, entity_).c_str());
+    lv_label_set_text(name_, display_name(nullptr).c_str());
   }
 
  private:
   void render(const cJSON *state) {
-    lv_label_set_text(name_, entity_name(spec_.props, state, entity_).c_str());
+    const std::string name = display_name(state);
+    lv_label_set_text(name_, name.c_str());
     const char *raw = json::str(state, "s");
     const char *unit = json::str(spec_.props, "unit", json::str(json::get(state, "a"), "unit_of_measurement"));
+
+    show_age(state);
+    const Rule *rule = rules_.match(state);
+    const bool ruled_icon = rule && !rule->icon.empty();
+    lv_label_set_text(icon_, theme::icon(ruled_icon ? rule->icon.c_str() : icon_name_.c_str()));
+    const lv_color_t color = rule && rule->has_color ? lv_color_hex(rule->color) : theme::text();
+    lv_obj_set_style_text_color(value_, color, 0);
+    lv_obj_set_style_text_color(icon_, rule && rule->has_color ? color : theme::accent(), 0);
+    if (rule && !rule->text.empty()) {
+      // The rule text replaces the value and carries its own unit, e.g. "{state} °C" or "En ligne"
+      lv_label_set_text(value_, Rules::format(rule->text, state, name).c_str());
+      lv_label_set_text(unit_, "");
+      return;
+    }
     if (is_unavailable(state)) {
       lv_label_set_text(value_, "—");
       lv_label_set_text(unit_, "");
@@ -211,6 +264,20 @@ class SensorTile : public Widget {
     if (end != raw && *end == '\0') lv_label_set_text(value_, util::format_number(number, decimals_).c_str());
     else lv_label_set_text(value_, raw);
     lv_label_set_text(unit_, unit);
+  }
+
+  void on_gesture(lv_event_t *e) {
+    const bool hold = lv_event_get_code(e) == LV_EVENT_LONG_PRESSED;
+    run_tile_action(ctx_, spec_.props, hold ? "hold_action" : "tap_action", "none", entity_, display_name(last_.get()),
+                    icon_name_.c_str());
+  }
+
+  /**
+   * @description Name of the tile; a template without a "name" prop is called "Template".
+   */
+  std::string display_name(const cJSON *state) const {
+    if (entity_.empty()) return json::str(spec_.props, "name", "Template");
+    return entity_name(spec_.props, state, entity_);
   }
 
   /**
@@ -241,15 +308,35 @@ class SensorTile : public Widget {
   void tick() override {
     // A time elapsed since boot moves on without any new state from HA: refresh once a minute
     if (++ticks_ % 60 == 0 && last_) render(last_.get());
+    else if (age_ && ticks_ % 20 == 0) show_age(last_.get());
   }
 
+  /**
+   * @description "il y a 5 min" since the last state change (empty without a time or a set clock).
+   */
+  void show_age(const cJSON *state) {
+    if (!age_) return;
+    const double changed = json::num(state, "lc", 0), now = static_cast<double>(time(nullptr));
+    if (changed <= 0 || now < 1.6e9) return lv_label_set_text(age_, "");
+    const long seconds = static_cast<long>(std::max(0.0, now - changed));
+    if (seconds < 60) lv_label_set_text(age_, "à l'instant");
+    else if (seconds < 3600) lv_label_set_text_fmt(age_, "il y a %ld min", seconds / 60);
+    else if (seconds < 86400) lv_label_set_text_fmt(age_, "il y a %ld h", seconds / 3600);
+    else lv_label_set_text_fmt(age_, "il y a %ld j", seconds / 86400);
+  }
+
+  WidgetContext &ctx_;
   WidgetSpec spec_;
   std::string entity_;
+  std::string key_;  // bus key: "ha/<entity>" or "ha_tpl/<key>"
   int decimals_ = 1;
   std::string format_;
   json::Ptr last_;
   unsigned ticks_ = 0;
-  lv_obj_t *name_ = nullptr, *value_ = nullptr, *unit_ = nullptr;
+  RuleBinding rules_;
+  std::string icon_name_;
+  lv_obj_t *age_ = nullptr;
+  lv_obj_t *icon_ = nullptr, *name_ = nullptr, *value_ = nullptr, *unit_ = nullptr;
 };
 
 }  // namespace

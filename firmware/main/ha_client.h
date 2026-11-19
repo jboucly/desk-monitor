@@ -21,6 +21,12 @@ void ha_client_start(HaSession &session, const SettingsData &settings);
 std::string ha_client_entities();
 
 /**
+ * @description Renders a template once for the editor's preview. Blocks up to 8 s.
+ * @returns False with a French message in `out` on failure, else true with the text.
+ */
+bool ha_client_render(const std::string &tpl, std::string &out);
+
+/**
  * @description Downloads a Home Assistant resource (e.g. "/api/media_player_proxy/…?token=…") from a
  * background task, then calls `done` from that task with the body (empty on failure, 1 MB at most).
  */

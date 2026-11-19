@@ -27,6 +27,7 @@ Pages are configured **on the fly** from a web editor served by the screen itsel
 | 2 | Companion app (Rust/Tauri) linked over the local network: PC metrics, keyboard shortcuts, launching apps and URLs | ✅ macOS (Windows written, never compiled) |
 | 3 | Now playing (every Mac app, browsers included) with cover art and controls; falls back to a Home Assistant media player | ✅ macOS (Windows still to write) |
 | 4 | Claude Code: running sessions and subagents, approvals answered from the screen (it wakes up), tokens and plan limits, full-screen detail views | ✅ macOS |
+| 5 | Home Assistant tiles: thermostat, covers, sliders, choice lists, entity lists (service status), history curves, alarm and locks with a keypad, display rules, templates, tap/long press actions, conditional visibility | ✅ (checked in the simulator) |
 
 ## Hardware
 
@@ -41,14 +42,20 @@ Pages are configured **on the fly** from a web editor served by the screen itsel
 | Clock | Time and date, on the background or in a card |
 | Weather | Current conditions or a forecast of up to 7 days (Open-Meteo, no API key) |
 | HA light | Tap to toggle; **long press** opens a popup with a color wheel, white temperature and brightness |
-| HA switch | Plug, fan, scene, script, cover… (the service matching the domain is called) |
-| HA sensor | Value and unit |
+| HA switch | Plug, fan, scene, script, cover… (the service matching the domain is called); **long press** opens the entity's controls |
+| HA sensor | Value and unit, or the result of a Home Assistant template; optionally its age ("il y a 5 min") |
 | HA gauge | 270° arc, configurable orange/red thresholds |
+| HA thermostat | Current and target temperature, colored while heating or cooling; −/+ on the tile, and a popup with a target dial, modes, presets and fan modes. Also water heaters |
+| HA cover | Position and open/stop/close buttons; a popup with position and tilt |
+| HA slider | A slider for an `input_number`/`number`, a light's brightness, a fan's speed, a player's volume or a cover's position |
+| HA choice list | Current option of an `input_select`/`select` (or a fan preset); a tap opens the list |
+| HA entity list | Up to 12 entities in one tile: rows (a room) or green/red badges with a "N en panne" count (service status) |
+| HA history | Curve of a sensor over 1 hour to 7 days, with min and max |
+| HA alarm / lock | Alarm panel or lock state; a tap opens the commands, with a code keypad when needed |
 | Shortcut | Home Assistant action, or an action on the PC (keyboard shortcut, app, URL) |
 | PC metrics | CPU, RAM, GPU (with temperatures) and network throughput of the paired computer |
 | PC gauge | One PC measure: CPU, RAM, GPU, GPU memory, disk or temperature |
 | Music | What the computer plays (Music, Spotify, Chrome, Safari…) with cover art, progress and controls; otherwise the chosen Home Assistant player |
-
 | Claude sessions | Running Claude Code sessions (CLI, IDE, desktop app's Code tab): waiting, working or idle, tool in use, context size, running subagents. A tap shows the session in full screen: tokens by kind, subagents, last tools |
 | Claude tokens | Tokens of the day and of the week, with an estimated cost at API prices and a 7-day histogram. A tap shows 30 days by model, today by hour and the busiest projects |
 | Claude limits | The plan's 5-hour and weekly limits, with their reset time. A tap shows the countdown, the pace and a 7-day curve |
@@ -62,6 +69,57 @@ The style is picked in the editor (*Thème → Style*):
 - **Flat dark** (default): the smoothest.
 - **Frozen glass**: cards tinted like glass over a colored background, almost as fast.
 - **Translucent glass**: the prettiest, but about 2.5 times slower to draw (choppy swipes).
+
+## Home Assistant
+
+Beyond lights and switches, the Home Assistant tiles cover the rest of the house. Every tile is set up in the editor; the example layout below shows each option at least once.
+
+| | | |
+| --- | --- | --- |
+| ![Services and a room](docs/images/ha-home.png) | ![Thermostat, covers, sliders](docs/images/ha-comfort.png) | ![Thermostat popup](docs/images/ha-climate.png) |
+| ![Rules, template, visibility](docs/images/ha-security.png) | ![Alarm keypad](docs/images/ha-alarm.png) | |
+
+![Editor: display rules](docs/images/editor-rules.png)
+
+*Simulator screenshots of [`docs/examples/home-assistant.json`](docs/examples/home-assistant.json), with simulated entities.*
+
+### Display rules
+
+Any HA tile can change what it shows with **rules** (editor: *Règles d'affichage*). The first rule whose condition matches changes the text, the icon, the color or the colored "on" look. A condition tests the state or an attribute (`is`, `not`, `above`, `below`), of the tile's entity or of another one.
+
+```json
+"rules": [
+  { "when": { "is": ["off", "unavailable"] }, "text": "Hors ligne", "icon": "server-off", "color": "#F87171" },
+  { "when": { "above": 25 }, "text": "{state} °C", "color": "#FBBF24" },
+  { "when": { "entity": "binary_sensor.fenetre", "is": "on" }, "text": "Fenêtre ouverte" }
+]
+```
+
+In an entity list shown as badges, a rule's *Carte colorée* says whether the item is fine (*Oui*) or a problem (*Non*), e.g. "CPU above 80 % → problem".
+
+### Templates
+
+A sensor (or an item of a list) can show a Home Assistant **template** instead of an entity: `{{ states('sensor.power') | float(0) | round(0) }}`. Home Assistant renders it and sends every change. The *Tester* button of the editor renders it once, with Home Assistant's error message when it fails.
+
+### Tap and long press
+
+Each HA tile has two settings, *Appui* and *Appui long*: the default (toggle, or open the controls), toggle or open the controls of another entity, nothing, a Home Assistant service, or a PC action (keyboard shortcut, app, URL). *Demander confirmation* asks on the screen first ("Couper le chauffe-eau ?"). A lock without code always asks before unlocking; an alarm or a lock with a code opens a keypad.
+
+### Visibility
+
+*Visible seulement si…* shows a tile only while a condition holds, e.g. a terrace light only while the garage is unlocked, or a warning only while a window is open. Its cell stays empty otherwise.
+
+### Trying the example layout
+
+[`docs/examples/home-assistant.json`](docs/examples/home-assistant.json) is a complete layout with three pages (*Maison*, *Confort*, *Sécurité*). In the simulator, its entities are simulated (the alarm and the front door code is `1234`). On a real screen, **it replaces your layout**, so save yours first, then replace the entity ids in the editor:
+
+```sh
+curl http://desk-monitor.local/api/layout > my-layout.json                       # save the current layout
+curl -X PUT --data-binary @docs/examples/home-assistant.json http://desk-monitor.local/api/layout
+curl -X PUT --data-binary @my-layout.json http://desk-monitor.local/api/layout   # put yours back
+```
+
+With a PIN, add `-H "X-DM-Pin: 1234"` to the `PUT` requests. Every option is described in [`protocol/README.md`](protocol/README.md#layout).
 
 ## Claude Code
 
@@ -108,7 +166,7 @@ cmake --build firmware/sim/build
 firmware/sim/build/desk_monitor_sim                      # 480×480 window + editor on http://localhost:8080
 ```
 
-Home Assistant is simulated: the lights react as they would in HA. The weather is real. The simulator waits for the real companion app on `localhost:8081`, or fakes a PC (metrics and music) with `--mock-pc`.
+Home Assistant is simulated: lights, switches, thermostats, covers, sliders, choice lists, the alarm and locks (code `1234`) react as they would in HA, sensors have a made-up history, and templates understand `states()` and `state_attr()` (no Jinja filters). Load the example layout with `curl -X PUT --data-binary @docs/examples/home-assistant.json http://localhost:8080/api/layout`. The weather is real. The simulator waits for the real companion app on `localhost:8081`, or fakes a PC (metrics and music) with `--mock-pc`.
 
 ### Real screen
 
@@ -164,6 +222,7 @@ companion/     companion app (Rust + Tauri): metrics, shortcuts, now playing, Cl
   vendor/      mediaremote-adapter (macOS "Now Playing")
 protocol/      shared contracts: layout schema, icon list, API, PC link
 docs/images/   screenshots
+docs/examples/ example layout (Home Assistant tiles)
 ```
 
 The architecture, the threading rules and the hardware gotchas are described in [CLAUDE.md](CLAUDE.md). The protocols (bus keys, REST API, PC link) are in [protocol/README.md](protocol/README.md).

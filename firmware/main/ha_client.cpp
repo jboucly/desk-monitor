@@ -107,6 +107,32 @@ std::string ha_client_entities() {
   return out;
 }
 
+bool ha_client_render(const std::string &tpl, std::string &out) {
+  if (!g_session) {
+    out = "Home Assistant non connecté";
+    return false;
+  }
+  // The callback may run after a timeout: it owns its copy of the shared state
+  struct Pending {
+    SemaphoreHandle_t done = xSemaphoreCreateBinary();
+    bool ok = false;
+    std::string text;
+    ~Pending() { vSemaphoreDelete(done); }
+  };
+  auto pending = std::make_shared<Pending>();
+  g_session->render_template(tpl, [pending](bool ok, std::string text) {
+    pending->ok = ok;
+    pending->text = std::move(text);
+    xSemaphoreGive(pending->done);
+  });
+  if (xSemaphoreTake(pending->done, pdMS_TO_TICKS(8000)) != pdTRUE) {
+    out = "pas de réponse de Home Assistant";
+    return false;
+  }
+  out = pending->text;
+  return pending->ok;
+}
+
 namespace {
 
 struct FetchJob {

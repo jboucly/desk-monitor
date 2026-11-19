@@ -8,7 +8,14 @@ import { Icon } from './Icon';
 const ICON_NAMES = Object.keys(ICONS);
 
 /**
- * @description Text input completed with the Home Assistant entities of the allowed domains.
+ * @description Most suggestions shown at once: typing narrows the list.
+ */
+const MAX_SUGGESTIONS = 60;
+
+/**
+ * @description Text input completed with the Home Assistant entities of the allowed domains. The
+ * suggestions are our own list under the field: the native <datalist> popup opens far away from the
+ * input in the macOS webview of the companion's editor window.
  */
 export function EntityPicker(props: {
   value: string;
@@ -16,26 +23,73 @@ export function EntityPicker(props: {
   domains?: string[];
   onChange: (value: string) => void;
 }) {
-  const listId = useMemo(() => `entities-${Math.random().toString(36).slice(2)}`, []);
-  const options = (props.entities ?? []).filter((e) => !props.domains || props.domains.includes(e.id.split('.')[0]));
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const query = props.value.toLowerCase();
+  const matches = useMemo(() => {
+    const allowed = (props.entities ?? []).filter((e) => !props.domains || props.domains.includes(e.id.split('.')[0]));
+    return allowed.filter((e) => !query || e.id.toLowerCase().includes(query) || e.name.toLowerCase().includes(query));
+  }, [props.entities, props.domains, query]);
+  const shown = matches.slice(0, MAX_SUGGESTIONS);
+
+  const pick = (id: string) => {
+    props.onChange(id);
+    setOpen(false);
+  };
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      setOpen(true);
+      const delta = e.key === 'ArrowDown' ? 1 : -1;
+      setActive((i) => Math.max(0, Math.min(shown.length - 1, i + delta)));
+    } else if (e.key === 'Enter' && open && shown[active]) {
+      e.preventDefault();
+      pick(shown[active].id);
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+    }
+  };
+
   return (
-    <>
+    <div class="entity-picker">
       <input
-        list={listId}
         value={props.value}
         placeholder="light.salon"
         spellcheck={false}
-        onInput={(e) => props.onChange(e.currentTarget.value.trim())}
+        autocomplete="off"
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={onKeyDown}
+        onInput={(e) => {
+          props.onChange(e.currentTarget.value.trim());
+          setActive(0);
+          setOpen(true);
+        }}
       />
-      <datalist id={listId}>
-        {options.map((e) => (
-          <option key={e.id} value={e.id}>
-            {e.name}
-          </option>
-        ))}
-      </datalist>
+      {open && shown.length > 0 && !(shown.length === 1 && shown[0].id === props.value) && (
+        <ul class="entity-pop" role="listbox">
+          {shown.map((e, i) => (
+            <li
+              key={e.id}
+              role="option"
+              aria-selected={i === active}
+              class={i === active ? 'active' : ''}
+              // mousedown: pick before the input's blur closes the list
+              onMouseDown={(event) => {
+                event.preventDefault();
+                pick(e.id);
+              }}
+              onMouseEnter={() => setActive(i)}
+            >
+              <span class="ellipsis">{e.id}</span>
+              {e.name && <small class="ellipsis">{e.name}</small>}
+            </li>
+          ))}
+          {matches.length > shown.length && <li class="entity-more">… {matches.length - shown.length} autres, précise la recherche</li>}
+        </ul>
+      )}
       {props.entities === null && <small class="hint">Liste des entités indisponible (Home Assistant non connecté).</small>}
-    </>
+    </div>
   );
 }
 

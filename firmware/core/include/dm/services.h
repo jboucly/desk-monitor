@@ -57,6 +57,12 @@ struct Services {
   std::function<void(const std::string &path, std::function<void(std::string body)> done)> ha_fetch;
 
   /**
+   * @description Asks Home Assistant for the history of an entity over the last `hours`. The series arrives
+   * later on the bus key "ha_hist/<entity>/<hours>" (see HaSession::request_history). LVGL thread.
+   */
+  std::function<void(const std::string &entity, int hours)> ha_history;
+
+  /**
    * @description Answers a Claude Code approval request through the PC companion: "allow", "deny",
    * or "ask" (let Claude Code ask in the terminal). Returns false when no PC is connected.
    */

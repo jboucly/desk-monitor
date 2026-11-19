@@ -416,6 +416,10 @@ int main(int argc, char **argv) {
   std::random_device entropy;
   dm::PcSession pc(bus, settings, [&entropy] { return static_cast<uint32_t>(entropy()); });
   // Home Assistant pictures: the mock player's cover comes from sim/assets
+  services.ha_history = [&](const std::string &entity, int hours) {
+    std::lock_guard<std::mutex> lock(home_mutex);
+    home.request_history(entity, hours);
+  };
   services.ha_fetch = [](const std::string &path, std::function<void(std::string)> done) {
     std::thread([path, done = std::move(done)] {
       std::string body;
@@ -453,6 +457,10 @@ int main(int argc, char **argv) {
   app.on_entities_changed = [&](const std::set<std::string> &entities) {
     std::lock_guard<std::mutex> lock(home_mutex);
     home.set_entities(entities);
+  };
+  app.on_templates_changed = [&](const std::set<std::string> &templates) {
+    std::lock_guard<std::mutex> lock(home_mutex);
+    home.set_templates(templates);
   };
   app.start();
   post_status(bus);
@@ -523,6 +531,10 @@ int main(int argc, char **argv) {
   api.ha_entities = [&] {
     std::lock_guard<std::mutex> lock(home_mutex);
     return home.entity_list_json();
+  };
+  api.ha_render = [&](const std::string &tpl, std::string &out) {
+    std::lock_guard<std::mutex> lock(home_mutex);
+    return home.render(tpl, out);
   };
   static httplib::Server server;
   server.set_mount_point("/", DM_WEB_DIST_PATH);

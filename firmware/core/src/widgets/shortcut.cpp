@@ -66,15 +66,7 @@ class Shortcut : public Widget {
 
  private:
   void on_click(lv_event_t *) {
-    const cJSON *action = json::get(spec_.props, "action");
-    if (!strcmp(json::str(action, "kind"), "ha")) {
-      if (!ctx_.services.ha_call) return ctx_.app.toast("Home Assistant non configuré");
-      const cJSON *data = json::get(action, "data");
-      ctx_.services.ha_call(json::str(action, "domain"), json::str(action, "service"), json::str(action, "entity_id"),
-                            data ? cJSON_Duplicate(data, true) : nullptr);
-      return;
-    }
-    if (!ctx_.services.pc_action || !ctx_.services.pc_action(action)) ctx_.app.toast("PC non connecté");
+    run_action(ctx_, json::get(spec_.props, "action"), "", json::str(spec_.props, "name"), nullptr);
   }
 
   WidgetContext &ctx_;

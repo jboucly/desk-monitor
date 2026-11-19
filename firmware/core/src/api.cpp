@@ -46,6 +46,20 @@ HttpResponse Api::handle(const std::string &method, const std::string &path, con
     return {200, list};
   }
 
+  if (path == "/api/ha/template" && method == "POST") {
+    auto request = json::parse(body);
+    const char *tpl = json::str(request.get(), "template");
+    if (!*tpl) return error(400, "template manquant");
+    std::string out;
+    if (!ha_render) return error(503, "Home Assistant non connecté");
+    const bool ok = ha_render(tpl, out);
+    cJSON *answer = cJSON_CreateObject();
+    cJSON_AddStringToObject(answer, ok ? "result" : "error", out.c_str());
+    HttpResponse response{ok ? 200 : 422, json::print(answer)};
+    cJSON_Delete(answer);
+    return response;
+  }
+
   return error(404, "route inconnue");
 }
 

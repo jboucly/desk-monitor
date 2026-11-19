@@ -792,3 +792,122 @@ button.destructive {
   flex: 1;
   min-width: 0;
 }
+
+/* Display rules of the Home Assistant tiles (RulesEditor) */
+.rules {
+  margin: 4px 0 12px;
+}
+
+.rule {
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 10px 12px 2px;
+  margin-bottom: 10px;
+}
+
+.rule-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--text2);
+}
+
+.rule-head span {
+  flex: 1;
+}
+
+.rule-head button {
+  padding: 2px 8px;
+}
+
+.rule-color {
+  align-items: center;
+  min-height: 38px;
+}
+
+/* Track of the ha_slider preview */
+.preview-slider {
+  display: block;
+  height: 14px;
+  border-radius: 7px;
+  background: #ffffff24;
+  overflow: hidden;
+}
+
+.preview-slider span {
+  display: block;
+  height: 100%;
+  border-radius: 7px;
+}
+
+/* Template preview of the sensor inspector */
+.template-test {
+  align-items: center;
+  margin-top: 6px;
+}
+
+.template-test .error {
+  color: var(--danger);
+}
+
+/* Collapsible items of the ha_list inspector */
+details.rule > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+details.rule > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Suggestions of the entity field (EntityPicker), drawn by us instead of a native <datalist> */
+.entity-picker {
+  position: relative;
+}
+
+.entity-picker input {
+  width: 100%;
+}
+
+.entity-pop {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border-radius: var(--radius);
+  border: 1px solid var(--panel-border);
+  background: #121829;
+  box-shadow: 0 20px 50px #000a;
+}
+
+.entity-pop li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.entity-pop li small {
+  color: var(--text3);
+  font-size: 12px;
+}
+
+.entity-pop li.active {
+  background: #ffffff14;
+}
+
+.entity-pop li.entity-more {
+  cursor: default;
+  color: var(--text3);
+}

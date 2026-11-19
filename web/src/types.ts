@@ -10,6 +10,13 @@ export type WidgetType =
   | 'ha_light'
   | 'ha_sensor'
   | 'ha_gauge'
+  | 'ha_climate'
+  | 'ha_cover'
+  | 'ha_slider'
+  | 'ha_select'
+  | 'ha_list'
+  | 'ha_history'
+  | 'ha_alarm'
   | 'shortcut'
   | 'pc_metrics'
   | 'pc_gauge'
@@ -21,11 +28,62 @@ export type WidgetType =
 /**
  * @description What a shortcut does: Home Assistant over Wi-Fi, or the paired PC companion over the local network.
  */
-export type Action =
+export type Action = (
   | { kind: 'ha'; domain: string; service: string; entity_id?: string; data?: Record<string, unknown> }
   | { kind: 'keys'; keys: string }
   | { kind: 'launch'; target: string }
-  | { kind: 'url'; url: string };
+  | { kind: 'url'; url: string }
+  | { kind: 'toggle' | 'more_info'; entity_id?: string }
+  | { kind: 'none' }
+) & {
+  /**
+   * @description Asks before running: true for a default question, or the question to show.
+   */
+  confirm?: boolean | string;
+};
+
+/**
+ * @description Gesture of a Home Assistant tile that the layout can override.
+ */
+export type Gesture = 'tap_action' | 'hold_action';
+
+/**
+ * @description Condition of a display rule. Every field set must hold; an empty condition always matches.
+ * The tested value is the state of `entity` (default: the widget's entity), or its attribute `attr`.
+ */
+export interface RuleCondition {
+  entity?: string;
+  attr?: string;
+  is?: string | string[];
+  not?: string | string[];
+  above?: number;
+  below?: number;
+}
+
+/**
+ * @description Display rule of a Home Assistant tile: the first one whose condition matches changes the
+ * text (placeholders {state}, {name}, {attr.<name>}), the icon, the color or the active look.
+ */
+export interface Rule {
+  when?: RuleCondition;
+  text?: string;
+  icon?: string;
+  color?: string;
+  active?: boolean;
+}
+
+/**
+ * @description One entity (or template) of an ha_list, with its own name, icon, rules and actions.
+ */
+export interface ListItem {
+  entity?: string;
+  template?: string;
+  name?: string;
+  icon?: string;
+  rules?: Rule[];
+  tap_action?: Action;
+  hold_action?: Action;
+}
 
 /**
  * @description Free-form props of a widget; each type reads the keys it knows.
