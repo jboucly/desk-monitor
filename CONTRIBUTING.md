@@ -13,6 +13,7 @@ Thanks for your interest! Issues and pull requests are welcome, in English or Fr
 - Code, comments and commit messages are in English. The UI text (screen and editor) is in French.
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org): `feat(companion): …`, `fix(sim): …`.
 - An icon used anywhere must be declared in `protocol/icons.json`, then regenerate the fonts with `node firmware/tools/gen_assets.mjs`.
+- A 3D printer model is added to `protocol/printers.json` (with its driver), then the tables are regenerated with `node firmware/tools/gen_printers.mjs`. Mark it `"tested": true` only once checked on a real printer.
 
 ## Checking a change
 
