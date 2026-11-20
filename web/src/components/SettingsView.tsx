@@ -212,7 +212,7 @@ export function SettingsView({ onError, onSaved }: { onError: (message: string) 
             <div class="row">
               <label class="field">
                 <span>Adresse IP de l’imprimante</span>
-                <input value={draft.printer.host} placeholder="192.168.1.132" onInput={(e) => set('printer', { host: e.currentTarget.value.trim() })} />
+                <input value={draft.printer.host} placeholder="192.168.1.60" onInput={(e) => set('printer', { host: e.currentTarget.value.trim() })} />
               </label>
               <label class="field narrow">
                 <span>Port</span>

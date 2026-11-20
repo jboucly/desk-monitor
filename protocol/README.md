@@ -108,7 +108,7 @@ Settings shape:
   "time": { "timezone": "CET-1CEST,M3.5.0,M10.5.0/3" },
   "display": { "brightness": 100, "sleep_minutes": 5 },
   "security": { "pin": "" },
-  "printer": { "model": "creality_cr10se", "host": "192.168.1.132", "port": 0 }
+  "printer": { "model": "creality_cr10se", "host": "192.168.1.60", "port": 0 }
 }
 ```
 
