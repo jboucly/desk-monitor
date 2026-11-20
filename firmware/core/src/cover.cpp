@@ -6,6 +6,7 @@
 
 #include "cJSON.h"
 #include "dm/util.h"
+#include "png_decode.h"
 #include "src/libs/tjpgd/tjpgd.h"
 
 namespace dm {
@@ -82,6 +83,39 @@ bool decode_jpeg_cover(const std::string &jpeg, int size, std::vector<uint8_t> &
     rgb565[static_cast<size_t>(i) * 2] = c & 0xFF;
     rgb565[static_cast<size_t>(i) * 2 + 1] = c >> 8;
   }
+  return true;
+}
+
+bool decode_png_thumbnail(const std::string &png, int size, uint32_t background, std::vector<uint8_t> &rgb565) {
+  // LVGL's copy of lodepng allocates with lv_malloc (PSRAM on the device)
+  DmPngImage image = {};
+  if (!dm_png_decode_rgba(reinterpret_cast<const unsigned char *>(png.data()), png.size(), &image)) return false;
+  const unsigned w = image.width, h = image.height;
+  const int side = static_cast<int>(std::min(w, h));
+  const int x0 = (static_cast<int>(w) - side) / 2, y0 = (static_cast<int>(h) - side) / 2;
+  const uint32_t bg_r = (background >> 16) & 0xFF, bg_g = (background >> 8) & 0xFF, bg_b = background & 0xFF;
+  rgb565.resize(static_cast<size_t>(size * size) * 2);
+  for (int dy = 0; dy < size; dy++) {
+    // Source rows and columns covered by this destination pixel (at least one)
+    const int sy0 = dy * side / size, sy1 = std::max(sy0 + 1, (dy + 1) * side / size);
+    for (int dx = 0; dx < size; dx++) {
+      const int sx0 = dx * side / size, sx1 = std::max(sx0 + 1, (dx + 1) * side / size);
+      uint32_t r = 0, g = 0, b = 0, n = 0;
+      for (int sy = sy0; sy < sy1; sy++) {
+        for (int sx = sx0; sx < sx1; sx++, n++) {
+          const uint8_t *px = image.rgba + static_cast<size_t>(y0 + sy) * image.stride + static_cast<size_t>(x0 + sx) * 4;
+          const uint32_t a = px[3];
+          r += (px[0] * a + bg_r * (255 - a)) / 255;
+          g += (px[1] * a + bg_g * (255 - a)) / 255;
+          b += (px[2] * a + bg_b * (255 - a)) / 255;
+        }
+      }
+      const uint16_t c = static_cast<uint16_t>(((r / n >> 3) << 11) | ((g / n >> 2) << 5) | (b / n >> 3));
+      rgb565[static_cast<size_t>(dy * size + dx) * 2] = c & 0xFF;
+      rgb565[static_cast<size_t>(dy * size + dx) * 2 + 1] = c >> 8;
+    }
+  }
+  dm_png_free(&image);
   return true;
 }
 

@@ -26,12 +26,14 @@
 #include "dm/app.h"
 #include "dm/bus.h"
 #include "dm/pc.h"
+#include "dm/printer.h"
 #include "dm/settings.h"
 #include "dm/theme.h"
 #include "httplib.h"
 #include "lvgl.h"
 #include "mock.h"
 #include "png.h"
+#include "ws_client.h"
 #include "ws_server.h"
 
 namespace {
@@ -98,13 +100,17 @@ void run_for(uint32_t ms) {
   }
 }
 
+// Fake printer of headless runs and --mock-printer (null otherwise)
+sim::MockPrinter *g_mock_printer = nullptr;
+
 void post_mock_claude_asks(dm::Bus &bus);
 void post_mock_claude_detail(dm::Bus &bus, const std::string &view, const std::string &id);
 
 /**
  * @description Executes one scripted command: page=N, tap=X,Y, long=X,Y, swipe=X1,Y1,X2,Y2, wait=MS,
  * shot=FILE.png, bench=N, claude_ask (fake Claude Code approvals from the mock PC),
- * claude_view=session|usage|limits (a Claude detail view with fake data).
+ * claude_view=session|usage|limits (a Claude detail view with fake data), printer_view (the 3D printer view),
+ * printer_state=printing|paused|finished|idle (state of the fake printer).
  */
 bool run_command(dm::App &app, dm::Bus &bus, const std::string &command) {
   const auto eq = command.find('=');
@@ -144,6 +150,13 @@ bool run_command(dm::App &app, dm::Bus &bus, const std::string &command) {
   } else if (verb == "claude_view") {
     app.show_claude_detail(arg, arg == "session" ? "s2" : "");
     post_mock_claude_detail(bus, arg, arg == "session" ? "s2" : "");
+    run_for(200);
+  } else if (verb == "printer_view") {
+    app.show_printer_detail();
+    run_for(200);
+  } else if (verb == "printer_state") {
+    if (!g_mock_printer) return false;
+    g_mock_printer->set_state(arg);
     run_for(200);
   } else if (verb == "bench") {
     // Full-screen redraws, like every frame of a page swipe (same breakdown as the device logs at boot)
@@ -357,13 +370,15 @@ int main(int argc, char **argv) {
   int port = 8080;
   bool no_window = false;
   bool mock_pc = false;
+  bool mock_printer = false;
   for (int i = 1; i < argc; i++) {
     if (!strcmp(argv[i], "--do") && i + 1 < argc) commands.push_back(argv[++i]);
     else if (!strcmp(argv[i], "--port") && i + 1 < argc) port = atoi(argv[++i]);
     else if (!strcmp(argv[i], "--no-window")) no_window = true;
     else if (!strcmp(argv[i], "--mock-pc")) mock_pc = true;
+    else if (!strcmp(argv[i], "--mock-printer")) mock_printer = true;
     else {
-      fprintf(stderr, "usage: %s [--port N] [--no-window] [--mock-pc] [--do page=N|tap=X,Y|long=X,Y|swipe=X1,Y1,X2,Y2|wait=MS|shot=FILE.png|bench=N|claude_ask|claude_view=VIEW]...\n",
+      fprintf(stderr, "usage: %s [--port N] [--no-window] [--mock-pc] [--mock-printer] [--do page=N|tap=X,Y|long=X,Y|swipe=X1,Y1,X2,Y2|wait=MS|shot=FILE.png|bench=N|claude_ask|claude_view=VIEW|printer_view|printer_state=STATE]...\n",
               argv[0]);
       return 2;
     }
@@ -453,6 +468,43 @@ int main(int argc, char **argv) {
   // The simulator has no sleep: nothing to wake
   services.wake = [] {};
 
+  // 3D printer: the one of the settings over a real WebSocket, or a fake Creality (headless runs, --mock-printer)
+  if (headless) mock_printer = true;
+  dm::PrinterSession printer(bus);
+  sim::WsClient printer_link;
+  sim::MockPrinter mock_printer_device([&printer](const std::string &text) { printer.on_message(text); });
+  services.printer_command = [&printer](const std::string &command, const std::string &arg) {
+    return printer.command(command, arg);
+  };
+  services.printer_thumbnail = [&printer](const std::string &path) { printer.request_thumbnail(path); };
+  const auto connect_printer = [&] {
+    if (mock_printer) {
+      printer.configure("creality_cr10se", "mock", 0);
+      printer.set_sender([&mock_printer_device](const std::string &text) { mock_printer_device.receive(text); });
+      printer.set_fetcher([](const std::string &url, std::function<void(std::string)> done) {
+        done(sim::MockPrinter::thumbnail_png(url));
+      });
+      // Like the real printer: the state comes first, then the answers to the session's requests
+      mock_printer_device.connect();
+      printer.on_open();
+      g_mock_printer = &mock_printer_device;
+      return;
+    }
+    printer_link.stop();
+    const dm::SettingsData now = settings.get();
+    const std::string url = printer.configure(now.printer_model, now.printer_host, now.printer_port);
+    printer.set_sender([&printer_link](const std::string &text) { printer_link.send(text); });
+    printer.set_fetcher([](const std::string &url, std::function<void(std::string)> done) {
+      std::thread([url, done = std::move(done)] { done(sim::http_get(url)); }).detach();
+    });
+    if (url.empty()) return;
+    sim::WsClient::Handlers handlers;
+    handlers.on_open = [&printer] { printer.on_open(); };
+    handlers.on_message = [&printer](const std::string &text) { printer.on_message(text); };
+    handlers.on_close = [&printer] { printer.on_close(); };
+    printer_link.start(url, handlers);
+  };
+
   dm::App app(bus, services, storage, read_file(DM_DEFAULT_LAYOUT_PATH));
   app.on_entities_changed = [&](const std::set<std::string> &entities) {
     std::lock_guard<std::mutex> lock(home_mutex);
@@ -465,6 +517,7 @@ int main(int argc, char **argv) {
   app.start();
   post_status(bus);
   if (mock_pc) post_mock_pc(bus, 0);
+  connect_printer();
 
   const dm::SettingsData s = settings.get();
   if (headless) {
@@ -482,6 +535,7 @@ int main(int argc, char **argv) {
   sim::fetch_weather(bus, s.weather_lat, s.weather_lon, s.weather_name);
   settings.on_change = [&](unsigned changes) {
     if (changes & dm::Settings::PC) pc.forget();
+    if ((changes & dm::Settings::PRINTER) && !mock_printer) connect_printer();
     if (changes & dm::Settings::WEATHER) {
       const dm::SettingsData now = settings.get();
       sim::fetch_weather(bus, now.weather_lat, now.weather_lon, now.weather_name);
@@ -496,6 +550,11 @@ int main(int argc, char **argv) {
         ctx->first->tick();
       },
       3000, new std::pair<sim::MockHome *, std::mutex *>(&home, &home_mutex));
+
+  if (mock_printer) {
+    lv_timer_create([](lv_timer_t *t) { static_cast<sim::MockPrinter *>(lv_timer_get_user_data(t))->tick(); }, 1000,
+                    &mock_printer_device);
+  }
 
   if (mock_pc) {
     lv_timer_create(
@@ -532,6 +591,7 @@ int main(int argc, char **argv) {
     std::lock_guard<std::mutex> lock(home_mutex);
     return home.entity_list_json();
   };
+  api.printer_status = [&printer] { return printer.status_json(); };
   api.ha_render = [&](const std::string &tpl, std::string &out) {
     std::lock_guard<std::mutex> lock(home_mutex);
     return home.render(tpl, out);

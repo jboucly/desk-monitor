@@ -23,7 +23,8 @@ export type WidgetType =
   | 'media'
   | 'claude_sessions'
   | 'claude_usage'
-  | 'claude_limits';
+  | 'claude_limits'
+  | 'printer';
 
 /**
  * @description What a shortcut does: Home Assistant over Wi-Fi, or the paired PC companion over the local network.
@@ -154,6 +155,22 @@ export interface Settings {
   display: { brightness: number; sleep_minutes: number };
   security: { pin?: string; has_pin?: boolean; clear_pin?: boolean };
   pc: { name: string; paired?: boolean; forget?: boolean };
+  /**
+   * @description 3D printer: catalog id (protocol/printers.json, empty = none), address, port (0 = the driver's).
+   */
+  printer: { model: string; host: string; port: number };
+}
+
+/**
+ * @description State of the 3D printer (GET /api/printer), the screen's "printer" bus value.
+ */
+export interface PrinterState {
+  state: 'off' | 'connecting' | 'offline' | 'idle' | 'printing' | 'paused' | 'finished' | 'stopped' | 'error';
+  model_name?: string;
+  name?: string;
+  progress?: number;
+  nozzle?: number;
+  bed?: number;
 }
 
 /**

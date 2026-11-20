@@ -1,4 +1,4 @@
-// Device settings (Wi-Fi, Home Assistant, weather, display), stored in settings.json.
+// Device settings (Wi-Fi, Home Assistant, weather, display, 3D printer), stored in settings.json.
 #pragma once
 
 #include <functional>
@@ -26,6 +26,9 @@ struct SettingsData {
   std::string pin;        // protects write API calls when not empty
   std::string pc_name;    // paired PC companion (one at a time)
   std::string pc_token;   // secret the paired PC presents in its "hello"
+  std::string printer_model;  // 3D printer catalog id (protocol/printers.json), empty = none
+  std::string printer_host;   // IP address or name of the printer
+  int printer_port = 0;       // 0 = the default port of the model's driver
 };
 
 /**
@@ -34,7 +37,7 @@ struct SettingsData {
 class Settings {
  public:
   // Which group of settings changed in an update (bit mask)
-  enum Change : unsigned { WIFI = 1, HA = 2, WEATHER = 4, DISPLAY = 8, TIME = 16, PC = 32 };
+  enum Change : unsigned { WIFI = 1, HA = 2, WEATHER = 4, DISPLAY = 8, TIME = 16, PC = 32, PRINTER = 64 };
 
   explicit Settings(Storage &storage) : storage_(storage) {}
 

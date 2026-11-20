@@ -1,5 +1,5 @@
 // Client of the screen's REST API (served by the screen itself, or proxied to the simulator in dev).
-import type { HaEntity, Layout, Settings, Status } from './types';
+import type { HaEntity, Layout, PrinterState, Settings, Status } from './types';
 
 const PIN_KEY = 'dm-pin';
 
@@ -49,6 +49,7 @@ export const api = {
   getSettings: () => request<Settings>('GET', '/api/settings'),
   putSettings: (settings: Partial<Settings>) => request<Settings>('PUT', '/api/settings', settings),
   getStatus: () => request<Status>('GET', '/api/status'),
+  getPrinter: () => request<PrinterState>('GET', '/api/printer'),
   getEntities: () => request<HaEntity[]>('GET', '/api/ha/entities'),
   renderTemplate: (template: string) => request<{ result: string }>('POST', '/api/ha/template', { template }),
   reboot: () => request<{ ok: true }>('POST', '/api/reboot'),

@@ -340,6 +340,8 @@ void App::show_claude_detail(const std::string &view, const std::string &id) {
   widgets::open_claude_detail(widget_ctx_, view, id);
 }
 
+void App::show_printer_detail() { widgets::open_printer_detail(widget_ctx_); }
+
 void App::update_claude_asks(const cJSON *value) {
   const cJSON *asks = json::get(value, "asks");
   const int count = cJSON_IsArray(asks) ? cJSON_GetArraySize(asks) : 0;

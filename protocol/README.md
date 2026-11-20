@@ -31,6 +31,7 @@ Widgets cannot overlap or leave the grid. The firmware validates every layout ag
 | `pc_metrics` | `name` (default: the PC's name) | PC companion |
 | `pc_gauge` | `metric` (`cpu`, `ram`, `gpu`, `vram`, `disk`, `cpu_temp`, `gpu_temp`), `name`, `warn`, `crit` | PC companion |
 | `media` | `entity` (optional `media_player`) | PC companion (now playing of any app), else the Home Assistant player |
+| `printer` | `name` (default: the printer's model) | 3D printer of the settings (see "3D printer"). 2 rows: thumbnail, file, progress, end time, temperatures; 1 row: progress line. A tap opens the full-screen view: pause/resume, stop and start (a second tap confirms), light, temperatures, last printed files |
 
 A long press on an entity tile, or a tap on `ha_climate`/`ha_cover`/`ha_slider`/`ha_select`, opens the popup of the entity's domain (`open_more_info()`, `firmware/core/src/widgets/controls.cpp`): lights (color, white, brightness), `climate`/`water_heater` (target, modes), `cover` (buttons, position, tilt), `fan` (on/off, speed, presets), `input_number`/`number` and `media_player` (a slider), `input_select`/`select` (the option list).
 
@@ -90,6 +91,7 @@ When a PIN is set, every write (`PUT`, `POST`) needs the `X-DM-Pin` header.
 | `GET` | `/api/settings` | settings. Secrets are replaced by `has_password`, `has_token` and `has_pin` |
 | `PUT` | `/api/settings` | partial settings. An empty secret keeps the stored one. `security.clear_pin: true` removes the PIN |
 | `GET` | `/api/status` | `version`, `platform`, `ip`, `rssi`, `uptime`, `heap_internal`, `heap_psram`, `reset_reason` (device only: `power_on`, `panic`, `brownout`, `task_wdt`…) |
+| `GET` | `/api/printer` | the `printer` bus value (see "3D printer"), `{"state": "off"}` without a printer |
 | `GET` | `/api/ha/entities` | `[{"id", "name"}]` from the HA entity registry (`503` when HA is not connected) |
 | `POST` | `/api/ha/template` | `{"template"}` → `{"result"}`, or `422 {"error"}` with Home Assistant's message (`503` when HA is not connected) |
 | `POST` | `/api/ota` | raw firmware image (`firmware/build/desk_monitor.bin`). The screen reboots on it |
@@ -105,9 +107,12 @@ Settings shape:
   "weather": { "lat": 48.857, "lon": 2.352, "name": "Paris" },
   "time": { "timezone": "CET-1CEST,M3.5.0,M10.5.0/3" },
   "display": { "brightness": 100, "sleep_minutes": 5 },
-  "security": { "pin": "" }
+  "security": { "pin": "" },
+  "printer": { "model": "creality_cr10se", "host": "192.168.1.132", "port": 0 }
 }
 ```
+
+`printer.model` is an id of `protocol/printers.json` (empty: no printer; unknown ids are refused), `port` 0 means the driver's default port.
 
 ## Data bus keys (inside the firmware)
 
@@ -131,6 +136,9 @@ Data sources publish on the bus, and widgets subscribe to it (`firmware/core/inc
 | `ha_tpl/<key>` | `{"s": result, "a": {}}`, or `{"s": "unavailable", "error"}`; `key` = FNV-1a hash of the template (`HaSession::template_key`) | `HaSession` (`render_template`) |
 | `ha_hist/<entity_id>/<hours>` | `{"t0", "t1", "v": [96 numbers or null]}` | `HaSession::request_history` (asked by `Services::ha_history`) |
 | `ha_art/<entity_id>` | same shape, decoded from the player's `entity_picture` (JPEG) | media widget, through `Services::ha_fetch` |
+| `printer` | see "3D printer" | `PrinterSession` |
+| `printer/files` | `{"recent": [...]}`, see "3D printer" | `PrinterSession` |
+| `printer/thumb/<path>` | `{"id", "w", "h", "data"}` (64×64 RGB565, base64), decoded from the printer's PNG | `PrinterSession::request_thumbnail` (asked by `Services::printer_thumbnail`) |
 
 ## PC link (WebSocket)
 
@@ -230,3 +238,58 @@ A tap on a session or on the usage or limits card opens a full-screen detail vie
 | `session` | the session's snapshot fields, plus `context_max` (200 000, or 1 000 000 past 200 000), `tokens {in, out, cache_read, cache_write}`, `total`, `cost`, `started` (Unix time of the first answer), `subagents [{type, description, running, tokens}]` (6 at most, running ones first) and `tools [{name, detail, status, at}]` (last 8 calls seen by the hooks, newest first; `status` = `run`, `ok`, `fail`, `denied` or `stopped`) |
 | `usage` | `models` (up to 4 model families, the busiest first), `days` (30, oldest first: `{tokens, cost, m}`, `m` = tokens by family in the order of `models`, then the others), `hours` (24 token totals of today), `projects` (top 5 over 30 days: `{name, tokens, cost}`; a session counts for the project it started in), `today`, `week`, `month` (`{tokens, cost}`) |
 | `limits` | `five_hour` and `week` as in `limits`, plus `pace` (percent used minus the percent of the window gone, when the window's start is known) and `estimated: true` when `resets_at` comes from the last big drop of the weekly use; `at`, `source`, and `history` (`[[t, five_hour_pct, week_pct]]` over 7 days, one reading per hour at most, from the desktop app's history and the status line readings the companion keeps in `claude-limits.json`) |
+
+## 3D printer
+
+The screen follows one 3D printer of the local network by itself, without the PC. The user picks the model in the editor (Settings → Imprimante 3D); the model names the protocol driver. Models and drivers are listed in `protocol/printers.json`, and `firmware/tools/gen_printers.mjs` turns that file into the tables of the firmware (`core/src/generated/printers.inc`) and of the editor (`web/src/generated/printers.ts`).
+
+| Driver | Printers | Transport |
+| --- | --- | --- |
+| `creality_ws` | Creality with the stock firmware (Creality OS): CR-10 SE (tested), K1 series, Ender-3 V3 KE | WebSocket `ws://<printer>:9999/`, no authentication. Thumbnails over HTTP on port 80 |
+
+`PrinterSession` (`firmware/core/include/dm/printer.h`) owns the driver and publishes the common model. The platforms only carry the frames (`main/printer_client.cpp`, `sim/ws_client.cpp`) and download the thumbnails (`Services::printer_thumbnail`, one at a time).
+
+`printer` (also `GET /api/printer`):
+
+| Field | Meaning |
+| --- | --- |
+| `state` | `off` (no printer set), `connecting`, `offline`, `idle`, `printing`, `paused`, `finished`, `stopped`, `error` |
+| `model`, `model_name` | catalog id and "Brand Model" |
+| `caps` | commands the driver supports: `pause`, `resume`, `stop`, `start`, `light` |
+| `file` | path of the current or last job on the printer |
+| `name`, `material`, `estimate` | display parts of the file name: `deck_saver.stl_PLA_4h51m8s.gcode` gives "deck saver", "PLA" and 17468 s (`PrinterSession::describe_file`) |
+| `progress`, `elapsed`, `remaining` | percent, seconds |
+| `layer`, `layers` | when the printer reports them |
+| `nozzle`, `nozzle_target`, `bed`, `bed_target` | °C, a target of 0 means "off" |
+| `light` | chamber light, when the printer has one |
+| `error` | "Erreur <code>" when the printer reports an error |
+
+`printer/files` lists the last 12 printed files, newest first and without duplicates: `{"recent": [{"path", "name", "material", "estimate", "when", "duration", "result", "exists"}]}`, `result` = `done` or `failed` (stopped or failed), `exists` = false once the file is deleted from the printer (it cannot be started again). When a print ends, the screen shows a toast ("Impression terminée : …") and asks for the history again.
+
+Commands (`Services::printer_command`, `PrinterSession::command`): `pause`, `resume`, `stop`, `start` with a file path, `light` with `on` or `off`. They return false when the printer is not connected or the driver lacks the command; the view then shows "Imprimante non connectée".
+
+### Creality stock firmware (`creality_ws`)
+
+Checked on a CR-10 SE without root (firmware of 2023, `model` F003):
+
+- The printer pushes JSON objects by itself: the temperatures about every second (`nozzleTemp`, `bedTemp0`, as strings), the progress (`printProgress`, `printJobTime`, `printLeftTime` in seconds), and at connection a full object (`state`, `printFileName`, `targetNozzleTemp`, `targetBedTemp0`, `layer`, `TotalLayer`, `lightSw`, `err {errcode}`, fans…). Later objects only hold the fields that changed.
+- `{"method":"get","params":{"reqGcodeFile":1}}` → `retGcodeFileInfo.fileInfo`: entries `dir:name:size:?:mtime:?:thumbnail` separated by `;`.
+- `{"method":"get","params":{"reqHistory":1}}` → `historyList [{filename, starttime, usagetime, printfinish, …}]`, newest first.
+- Thumbnails: `http://<printer>/downloads/humbnail/<file name>.png` (sic), 96×96 RGBA PNG. The history's own thumbnail paths answer 404.
+- `{"ModeCode":"heart_beat"}` is answered with `ok` (Creality Print does; not seen in 12 s of listening).
+
+Checked during a print (CR-10 SE):
+
+- `state` 1 = printing, also during the heating and the bed calibration that come first (`printProgress` 0, `layer` 1, `printLeftTime` meaningless): the screen shows "Préparation" until the progress moves;
+- `{"method":"set","params":{"pause":1}}` → `state` 5 within a second; `{"pause":0}` → back to 1 after about 40 s (the head goes back and the print continues);
+- `{"lightSw":0|1}` → `lightSw` echoed within a second;
+- `state` 4 after a print stopped from the printer (`deviceState` 0, the progress stays);
+- `{"opGcodeFile":"printprt:<path>"}` from `state` 4 → `state` 1 within 2 s, heating to the file's temperatures;
+- `{"stop":1}` → `state` 4 and the heaters off. Sent during the bed calibration, it only applies once the calibration ends (about a minute later);
+- `TotalLayer` stays 0 on this printer: the layer count is not shown.
+
+Not verified yet (taken from reverse-engineered clients):
+
+- `state` codes 0 (idle) and 3 (error);
+- `printfinish`: 1 = done, anything else is shown with a red cross (`failed`).
+

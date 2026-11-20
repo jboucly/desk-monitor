@@ -1,9 +1,11 @@
 // Data sources of the simulator: a fake Home Assistant and the real Open-Meteo forecast.
 #pragma once
 
+#include <functional>
 #include <map>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "dm/bus.h"
 
@@ -66,6 +68,60 @@ class MockHome {
   std::set<std::string> templates_;
   unsigned seed_ = 1;
 };
+
+/**
+ * @description Fake Creality printer (stock firmware protocol, see protocol/README.md "3D printer"): it
+ * answers the session's requests and pushes state frames like a CR-10 SE. LVGL thread only.
+ */
+class MockPrinter {
+ public:
+  /**
+   * @param push Delivers a frame to the session, as the WebSocket would.
+   */
+  explicit MockPrinter(std::function<void(const std::string &)> push) : push_(std::move(push)) {}
+
+  /**
+   * @description The session sent a frame (request or command).
+   */
+  void receive(const std::string &text);
+
+  /**
+   * @description Pushes the full state, as the printer does when a client connects.
+   */
+  void connect();
+
+  /**
+   * @description Moves the job and the temperatures by one second.
+   */
+  void tick();
+
+  /**
+   * @description Puts the printer in a state for screenshots: "printing", "paused", "finished", "idle".
+   */
+  void set_state(const std::string &state);
+
+  /**
+   * @description A made-up 96x96 PNG thumbnail for a printer file, different for each name.
+   */
+  static std::string thumbnail_png(const std::string &url);
+
+ private:
+  void push_state();
+  void push_history();
+  void finish(int result);
+
+  std::function<void(const std::string &)> push_;
+  int state_ = 1;  // Creality code: 0 idle, 1 printing, 2 finished, 4 stopped, 5 paused
+  std::string file_ = "/usr/data/printer_data/gcodes/support_casque.stl_PLA_2h10m5s.gcode";
+  double progress_ = 42, elapsed_ = 3280, total_ = 7805, nozzle_ = 209.6, bed_ = 60.1;
+  int light_ = 1;
+  std::vector<std::pair<std::string, int>> history_;  // file, printfinish
+};
+
+/**
+ * @description Blocking HTTP GET with libcurl. Returns the body, or an empty string on any failure.
+ */
+std::string http_get(const std::string &url);
 
 /**
  * @description Fetches the Open-Meteo forecast in a background thread and posts it as "weather".

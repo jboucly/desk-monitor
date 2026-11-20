@@ -52,6 +52,11 @@ class Api {
   std::function<bool(const std::string &tpl, std::string &out)> ha_render;
 
   /**
+   * @description State of the 3D printer for the editor (the "printer" bus value). Empty when not wired.
+   */
+  std::function<std::string()> printer_status;
+
+  /**
    * @description Builds a {"error": message} response.
    */
   static HttpResponse error(int status, const std::string &message);

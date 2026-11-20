@@ -45,4 +45,7 @@
 // JPEG decoder for Home Assistant covers (used directly by core/src/cover.cpp)
 #define LV_USE_TJPGD 1
 
+// PNG decoder for 3D printer thumbnails (used directly by core/src/cover.cpp)
+#define LV_USE_LODEPNG 1
+
 #endif  // LV_CONF_H

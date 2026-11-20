@@ -178,9 +178,13 @@ void ha_fetch(const std::string &path, std::function<void(std::string body)> don
     done({});
     return;
   }
-  auto *job = new FetchJob{path.rfind("http", 0) == 0 ? path : base + path, std::move(done)};
-  // The JPEG decoding of the cover runs in this task too (TJpgDec, small recursion, PSRAM buffers)
-  if (xTaskCreate(fetch_task, "ha_fetch", 8192, job, 3, nullptr) != pdPASS) {
+  http_fetch(path.rfind("http", 0) == 0 ? path : base + path, std::move(done));
+}
+
+void http_fetch(const std::string &url, std::function<void(std::string body)> done) {
+  auto *job = new FetchJob{url, std::move(done)};
+  // The decoding of the image runs in this task too (TJpgDec or lodepng: small stack, PSRAM buffers)
+  if (xTaskCreate(fetch_task, "http_fetch", 8192, job, 3, nullptr) != pdPASS) {
     job->done({});
     delete job;
   }

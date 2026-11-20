@@ -9,6 +9,7 @@
     "wifi", "wifi-off", "wifi-strength-1", "wifi-strength-2", "wifi-strength-3", "wifi-strength-4",
     "bluetooth", "bluetooth-off", "bluetooth-connect", "monitor", "laptop", "desktop-tower", "keyboard", "console",
     "music", "play", "pause", "play-pause", "skip-next", "skip-previous", "volume-high", "volume-off", "microphone", "microphone-off", "video", "video-off",
+    "printer-3d", "printer-3d-nozzle", "layers-outline",
     "spotify", "apple", "microsoft-windows", "web", "google-chrome", "firefox", "folder", "email", "calendar", "github", "slack", "microsoft-visual-studio-code", "application", "open-in-new", "link", "rocket-launch", "star", "heart",
     "clock-outline", "timer-outline", "cog", "plus", "close", "check", "chevron-left", "chevron-right", "chevron-up", "chevron-down", "alert-circle-outline", "alert", "check-circle", "close-circle", "server-off", "minus", "stop", "format-list-bulleted", "tune-variant", "angle-acute",
     "creation", "robot-outline", "shield-alert-outline", "shield-home", "shield-lock", "shield-off", "shield-moon", "shield-airplane", "bell-ring", "backspace-outline", "door-open", "chart-bar", "chart-line", "timer-sand", "history",

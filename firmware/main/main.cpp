@@ -7,6 +7,7 @@
 #include "dm/bus.h"
 #include "dm/ha.h"
 #include "dm/pc.h"
+#include "dm/printer.h"
 #include "dm/settings.h"
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
@@ -19,6 +20,7 @@
 #include "http_server.h"
 #include "network.h"
 #include "nvs_flash.h"
+#include "printer_client.h"
 #include "psram_alloc.h"
 #include "storage.h"
 #include "weather_task.h"
@@ -106,6 +108,9 @@ extern "C" void app_main(void) {
   services.wake = dm::esp32::display_wake;
   services.ha_fetch = dm::esp32::ha_fetch;
   services.ha_history = [](const std::string &entity, int hours) { ha.request_history(entity, hours); };
+  static dm::PrinterSession printer(bus);
+  services.printer_command = [](const std::string &command, const std::string &arg) { return printer.command(command, arg); };
+  services.printer_thumbnail = [](const std::string &path) { printer.request_thumbnail(path); };
 
   dm::esp32::display_init();
   dm::esp32::display_configure(initial.brightness, initial.sleep_minutes);
@@ -125,11 +130,13 @@ extern "C" void app_main(void) {
   dm::esp32::network_start(bus, initial);
   dm::esp32::ha_client_start(ha, initial);
   dm::esp32::weather_start(bus, settings);
+  dm::esp32::printer_client_start(printer, initial);
 
   static dm::Api api(app, settings);
   api.status = status_json;
   api.ha_entities = dm::esp32::ha_client_entities;
   api.ha_render = dm::esp32::ha_client_render;
+  api.printer_status = [] { return printer.status_json(); };
   dm::esp32::http_start(api, settings, pc);
 
   // Drops a silent PC and expires pairing codes
@@ -147,6 +154,7 @@ extern "C" void app_main(void) {
     if (changes & dm::Settings::HA) dm::esp32::ha_client_start(ha, s);
     if (changes & dm::Settings::WEATHER) dm::esp32::weather_refresh();
     if (changes & dm::Settings::PC) pc.forget();
+    if (changes & dm::Settings::PRINTER) dm::esp32::printer_client_start(printer, s);
     if (changes & dm::Settings::DISPLAY) dm::esp32::display_configure(s.brightness, s.sleep_minutes);
   };
 

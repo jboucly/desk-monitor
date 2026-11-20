@@ -20,6 +20,7 @@ WidgetFactory find_widget_factory(const std::string &type) {
       {"claude_sessions", widgets::create_claude_sessions},
       {"claude_usage", widgets::create_claude_usage},
       {"claude_limits", widgets::create_claude_limits},
+      {"printer", widgets::create_printer},
   };
   for (const auto &entry : FACTORIES)
     if (type == entry.type) return entry.factory;

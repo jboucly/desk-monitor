@@ -34,6 +34,7 @@ std::unique_ptr<Widget> create_media(lv_obj_t *parent, const WidgetSpec &spec, W
 std::unique_ptr<Widget> create_claude_sessions(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_claude_usage(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 std::unique_ptr<Widget> create_claude_limits(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
+std::unique_ptr<Widget> create_printer(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx);
 
 // ── Home Assistant helpers ───────────────────────────────────────────────────
 
@@ -115,6 +116,14 @@ void open_climate_popup(WidgetContext &ctx, const std::string &entity_id, const 
  * PC companion for its data. The view deletes itself when its sheet closes.
  */
 void open_claude_detail(WidgetContext &ctx, const std::string &view, const std::string &id);
+
+// ── 3D printer view (printer.cpp) ────────────────────────────────────────────
+
+/**
+ * @description Opens the full-screen 3D printer view: job, controls, temperatures and last files.
+ * The view deletes itself when its sheet closes.
+ */
+void open_printer_detail(WidgetContext &ctx);
 
 // ── Actions (actions.cpp) ────────────────────────────────────────────────────
 

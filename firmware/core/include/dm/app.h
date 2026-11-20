@@ -87,6 +87,11 @@ class App {
   void show_claude_detail(const std::string &view, const std::string &id = "");
 
   /**
+   * @description Opens the full-screen 3D printer view. LVGL thread only.
+   */
+  void show_printer_detail();
+
+  /**
    * @description Shows the page at an index (used by the simulator's screenshot mode). LVGL thread only.
    */
   void show_page(int index, bool animate);

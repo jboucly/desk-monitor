@@ -144,6 +144,11 @@ code {
   min-width: 0;
 }
 
+/* Short field next to a wide one (port next to an address) */
+.field.narrow {
+  flex: 0 0 110px;
+}
+
 .field > span {
   font-size: 13px;
   color: var(--text2);

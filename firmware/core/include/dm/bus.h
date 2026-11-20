@@ -9,6 +9,9 @@
 //   pc/claude       Claude Code sessions and usage from the companion
 //   pc/claude_asks  {"asks": [...]} pending Claude Code approvals
 //   pc/claude_detail data of the open Claude detail view ({"view": "session"|"usage"|"limits", ...})
+//   printer         3D printer state, job and temperatures (dm::PrinterSession)
+//   printer/files   {"recent": [...]} last printed files
+//   printer/thumb/<path> thumbnail of a printer file ({"id", "w", "h", "data": base64 RGB565})
 #pragma once
 
 #include <functional>

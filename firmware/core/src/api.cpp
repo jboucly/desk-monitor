@@ -40,6 +40,8 @@ HttpResponse Api::handle(const std::string &method, const std::string &path, con
 
   if (path == "/api/status" && method == "GET") return {200, status ? status() : "{}"};
 
+  if (path == "/api/printer" && method == "GET") return {200, printer_status ? printer_status() : R"({"state":"off"})"};
+
   if (path == "/api/ha/entities" && method == "GET") {
     std::string list = ha_entities ? ha_entities() : "";
     if (list.empty()) return error(503, "Home Assistant non connecté");
