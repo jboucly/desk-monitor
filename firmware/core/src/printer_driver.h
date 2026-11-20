@@ -27,7 +27,8 @@ class PrinterDriver {
   virtual std::string url(const std::string &host, int port) const = 0;
 
   /**
-   * @description Commands the driver supports, as sent to PrinterSession::command().
+   * @description Commands the driver supports, as sent to PrinterSession::command(). "calibrate" means the
+   * printer can skip the bed calibration before a print.
    */
   virtual std::vector<const char *> caps() const = 0;
 

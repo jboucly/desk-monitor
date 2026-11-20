@@ -7,7 +7,8 @@
 // - thumbnails are PNGs served at http://<host>/downloads/humbnail/<file name>.png ("humbnail" sic).
 // Checked during a print on the CR-10 SE: state 1 (printing, also during the calibration before the first
 // layer), 4 (stopped), 5 (paused), and every command. A stop sent during the bed calibration only applies
-// once the calibration ends.
+// once the calibration ends. enableSelfTest is the printer's "calibrate before printing" setting (the choice
+// its touch screen offers before a print): 0 starts the next prints without calibration.
 #include <cstring>
 
 #include "dm/json.h"
@@ -97,7 +98,9 @@ class CrealityDriver : public PrinterDriver {
     return "ws://" + host + ":" + std::to_string(port) + "/";
   }
 
-  std::vector<const char *> caps() const override { return {"pause", "resume", "stop", "start", "light"}; }
+  std::vector<const char *> caps() const override {
+    return {"pause", "resume", "stop", "start", "light", "calibrate"};
+  }
 
   void on_open(std::vector<std::string> &out) override { refresh_files(out); }
 
@@ -129,6 +132,7 @@ class CrealityDriver : public PrinterDriver {
     if (merge(r, "layer", s.layer)) changes |= STATUS;
     if (merge(r, "TotalLayer", s.layers)) changes |= STATUS;
     if (merge(r, "lightSw", s.light)) changes |= STATUS;
+    if (merge(r, "enableSelfTest", s.calibrate)) changes |= STATUS;
 
     const double code = number(r, "state");
     if (!std::isnan(code) && s.state != state_name(static_cast<int>(code))) {
@@ -197,6 +201,8 @@ class CrealityDriver : public PrinterDriver {
       out.push_back(request("set", "opGcodeFile", cJSON_CreateString(("printprt:" + arg).c_str())));
     } else if (name == "light") {
       out.push_back(request("set", "lightSw", cJSON_CreateNumber(arg == "on" ? 1 : 0)));
+    } else if (name == "calibrate") {
+      out.push_back(request("set", "enableSelfTest", cJSON_CreateNumber(arg == "on" ? 1 : 0)));
     } else {
       return false;
     }

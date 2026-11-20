@@ -115,6 +115,7 @@ class MockPrinter {
   std::string file_ = "/usr/data/printer_data/gcodes/support_casque.stl_PLA_2h10m5s.gcode";
   double progress_ = 42, elapsed_ = 3280, total_ = 7805, nozzle_ = 209.6, bed_ = 60.1;
   int light_ = 1;
+  int self_test_ = 1;  // enableSelfTest: calibrate the bed before printing
   std::vector<std::pair<std::string, int>> history_;  // file, printfinish
 };
 

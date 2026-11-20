@@ -2,7 +2,8 @@
 // printer/thumb/<path>, see protocol/README.md "3D printer"):
 // - the card shows the job (thumbnail, name, progress, time left) and the temperatures; a tap opens the view;
 // - the view adds the controls (pause, resume, stop, light) and the last printed files, which can be printed
-//   again. Stopping and starting ask for a second tap.
+//   again. Stopping and starting ask for a second tap; before a start, a chip chooses whether the printer
+//   calibrates its bed first (when the driver supports it).
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -23,8 +24,8 @@ using claude::make_column;
 using claude::make_row;
 using claude::pass_clicks;
 
-// How long a stop or start button waits for its confirming tap
-constexpr uint32_t CONFIRM_MS = 4000;
+// How long a stop or start button waits for its confirming tap (a start may also need the calibration choice)
+constexpr uint32_t CONFIRM_MS = 6000;
 
 bool running(const char *state) { return !strcmp(state, "printing") || !strcmp(state, "paused"); }
 
@@ -561,6 +562,7 @@ class PrinterDetail {
                light_on ? 90 : 30);
     light_.enable(json::get(p, "light") && can("light") && strcmp(state, "offline") != 0);
     can_start_ = ready(state) && can("start");
+    can_calibrate_ = can("calibrate");
 
     lv_label_set_text(temps_[0], temperature(p, "nozzle", "nozzle_target").c_str());
     lv_label_set_text(temps_[1], temperature(p, "bed", "bed_target").c_str());
@@ -627,6 +629,17 @@ class PrinterDetail {
             self->on_start(static_cast<size_t>(index));
           },
           LV_EVENT_CLICKED, this);
+
+      // While the start waits for its second tap: calibrate the bed first or not
+      if (confirm && can_calibrate_) {
+        lv_obj_t *options = make_row(files_, 8);
+        lv_obj_set_flex_align(options, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_t *chip = make_chip(options, "Calibrer le plateau", calibrate_ ? "check-circle" : "close-circle", 36);
+        set_checked(chip, calibrate_);
+        lv_obj_add_event_cb(
+            chip, [](lv_event_t *e) { static_cast<PrinterDetail *>(lv_event_get_user_data(e))->on_calibrate(); },
+            LV_EVENT_CLICKED, this);
+      }
     }
   }
 
@@ -675,12 +688,24 @@ class PrinterDetail {
     if (index >= paths_.size()) return;
     const std::string path = paths_[index];
     if (confirming_ != path) {
+      // The choice starts from the printer's own setting
+      calibrate_ = json::boolean(ctx_.bus.get("printer"), "calibrate", true);
       ask_confirm(path, false);
     } else {
       end_confirm();
-      if (send("start", path)) ctx_.app.toast("Impression lancée");
+      // The setting goes first: the printer reads it when the print starts
+      const bool set = !can_calibrate_ || send("calibrate", calibrate_ ? "on" : "off");
+      if (set && send("start", path))
+        ctx_.app.toast(can_calibrate_ && !calibrate_ ? "Impression lancée sans calibration" : "Impression lancée");
     }
     // Rebuilt after the event: the row holding the button is deleted
+    lv_async_call(refresh_files_async, this);
+  }
+
+  void on_calibrate() {
+    calibrate_ = !calibrate_;
+    // More time to decide
+    lv_timer_reset(confirm_timer_);
     lv_async_call(refresh_files_async, this);
   }
 
@@ -708,6 +733,7 @@ class PrinterDetail {
   std::string confirming_;
   lv_timer_t *confirm_timer_ = nullptr;
   bool can_start_ = false, rows_can_start_ = false;
+  bool can_calibrate_ = false, calibrate_ = true;  // calibrate_: choice of the start waiting for its second tap
 };
 
 }  // namespace

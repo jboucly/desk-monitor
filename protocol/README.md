@@ -255,18 +255,19 @@ The screen follows one 3D printer of the local network by itself, without the PC
 | --- | --- |
 | `state` | `off` (no printer set), `connecting`, `offline`, `idle`, `printing`, `paused`, `finished`, `stopped`, `error` |
 | `model`, `model_name` | catalog id and "Brand Model" |
-| `caps` | commands the driver supports: `pause`, `resume`, `stop`, `start`, `light` |
+| `caps` | commands the driver supports: `pause`, `resume`, `stop`, `start`, `light`, `calibrate` |
 | `file` | path of the current or last job on the printer |
 | `name`, `material`, `estimate` | display parts of the file name: `deck_saver.stl_PLA_4h51m8s.gcode` gives "deck saver", "PLA" and 17468 s (`PrinterSession::describe_file`) |
 | `progress`, `elapsed`, `remaining` | percent, seconds |
 | `layer`, `layers` | when the printer reports them |
 | `nozzle`, `nozzle_target`, `bed`, `bed_target` | °C, a target of 0 means "off" |
 | `light` | chamber light, when the printer has one |
+| `calibrate` | whether the printer calibrates its bed before each print, when the driver knows (`calibrate` in `caps`) |
 | `error` | "Erreur <code>" when the printer reports an error |
 
 `printer/files` lists the last 12 printed files, newest first and without duplicates: `{"recent": [{"path", "name", "material", "estimate", "when", "duration", "result", "exists"}]}`, `result` = `done` or `failed` (stopped or failed), `exists` = false once the file is deleted from the printer (it cannot be started again). When a print ends, the screen shows a toast ("Impression terminée : …") and asks for the history again.
 
-Commands (`Services::printer_command`, `PrinterSession::command`): `pause`, `resume`, `stop`, `start` with a file path, `light` with `on` or `off`. They return false when the printer is not connected or the driver lacks the command; the view then shows "Imprimante non connectée".
+Commands (`Services::printer_command`, `PrinterSession::command`): `pause`, `resume`, `stop`, `start` with a file path, `light` and `calibrate` with `on` or `off`. Before a start, the view offers a "Calibrer le plateau" chip (preset from `calibrate`) and sends `calibrate` just before `start`. They return false when the printer is not connected or the driver lacks the command; the view then shows "Imprimante non connectée".
 
 ### Creality stock firmware (`creality_ws`)
 
@@ -285,6 +286,7 @@ Checked during a print (CR-10 SE):
 - `{"lightSw":0|1}` → `lightSw` echoed within a second;
 - `state` 4 after a print stopped from the printer (`deviceState` 0, the progress stays);
 - `{"opGcodeFile":"printprt:<path>"}` from `state` 4 → `state` 1 within 2 s, heating to the file's temperatures;
+- `enableSelfTest` is the "calibrate before printing" setting, the choice the printer's touch screen offers before a print: `{"enableSelfTest":0}` is echoed within a second, and the next print starts without the bed calibration (1 brings it back). The setting stays on the printer;
 - `{"stop":1}` → `state` 4 and the heaters off. Sent during the bed calibration, it only applies once the calibration ends (about a minute later);
 - `TotalLayer` stays 0 on this printer: the layer count is not shown.
 

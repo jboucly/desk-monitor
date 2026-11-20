@@ -300,6 +300,7 @@ cJSON *PrinterSession::status_tree_locked() const {
   add_number(root, "bed", s.bed);
   add_number(root, "bed_target", s.bed_target);
   if (s.light >= 0) cJSON_AddBoolToObject(root, "light", s.light == 1);
+  if (s.calibrate >= 0) cJSON_AddBoolToObject(root, "calibrate", s.calibrate == 1);
   if (!s.error.empty()) cJSON_AddStringToObject(root, "error", s.error.c_str());
   return root;
 }

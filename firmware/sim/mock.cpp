@@ -612,6 +612,7 @@ void MockPrinter::push_state() {
   cJSON_AddNumberToObject(root, "layer", static_cast<int>(progress_ * 2.4));
   cJSON_AddNumberToObject(root, "TotalLayer", 240);
   cJSON_AddNumberToObject(root, "lightSw", light_);
+  cJSON_AddNumberToObject(root, "enableSelfTest", self_test_);
   cJSON *err = cJSON_AddObjectToObject(root, "err");
   cJSON_AddNumberToObject(err, "errcode", 0);
   push_(print_json(root));
@@ -669,6 +670,8 @@ void MockPrinter::receive(const std::string &text) {
     }
   } else if (const cJSON *light = dm::json::get(params, "lightSw")) {
     light_ = light->valueint ? 1 : 0;
+  } else if (const cJSON *self_test = dm::json::get(params, "enableSelfTest")) {
+    self_test_ = self_test->valueint ? 1 : 0;
   }
   push_state();
 }

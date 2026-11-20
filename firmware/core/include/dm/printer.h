@@ -46,7 +46,8 @@ struct PrinterStatus {
   double progress = NAN, elapsed = NAN, remaining = NAN;  // percent, seconds
   int layer = -1, layers = -1;
   double nozzle = NAN, nozzle_target = NAN, bed = NAN, bed_target = NAN;
-  int light = -1;  // -1 unknown, 0 off, 1 on
+  int light = -1;      // -1 unknown, 0 off, 1 on
+  int calibrate = -1;  // bed calibration before each print: -1 unknown, 0 off, 1 on
   std::string error;
 };
 
@@ -135,8 +136,8 @@ class PrinterSession {
   void on_message(const std::string &text);
 
   /**
-   * @description Sends a command: "pause", "resume", "stop", "start" (arg = file path) or "light" (arg = "on"
-   * or "off").
+   * @description Sends a command: "pause", "resume", "stop", "start" (arg = file path), "light" or "calibrate"
+   * (arg = "on" or "off"; "calibrate" sets whether the next prints calibrate the bed first).
    * @returns False when the printer is not connected or does not support the command.
    */
   bool command(const std::string &name, const std::string &arg = "");
