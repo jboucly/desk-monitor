@@ -66,7 +66,8 @@ void printer_client_start(PrinterSession &session, const SettingsData &settings)
 
   esp_websocket_client_config_t config = {};
   config.uri = g_url.c_str();
-  config.buffer_size = 4096;
+  // Internal RAM: the frames are reassembled in g_rx (PSRAM once past 4 KB), small buffers are enough
+  config.buffer_size = 2048;
   // Frames are parsed on this task (cJSON in PSRAM): 6 KB of stack is enough
   config.task_stack = 6144;
   config.task_prio = 4;

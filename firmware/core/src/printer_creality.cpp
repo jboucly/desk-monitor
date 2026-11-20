@@ -9,6 +9,7 @@
 // layer), 4 (stopped), 5 (paused), and every command. A stop sent during the bed calibration only applies
 // once the calibration ends. enableSelfTest is the printer's "calibrate before printing" setting (the choice
 // its touch screen offers before a print): 0 starts the next prints without calibration.
+#include <algorithm>
 #include <cstring>
 
 #include "dm/json.h"
@@ -165,9 +166,11 @@ class CrealityDriver : public PrinterDriver {
         const size_t dir_end = entry.find(':');
         const size_t name_end = dir_end == std::string::npos ? std::string::npos : entry.find(':', dir_end + 1);
         if (name_end != std::string::npos)
-          data.files.insert(entry.substr(0, dir_end) + "/" + entry.substr(dir_end + 1, name_end - dir_end - 1));
+          data.files.push_back(
+              printer_path_hash(entry.substr(0, dir_end) + "/" + entry.substr(dir_end + 1, name_end - dir_end - 1)));
         start = end + 1;
       }
+      std::sort(data.files.begin(), data.files.end());
       data.has_files = true;
       changes |= FILES;
     }
@@ -178,9 +181,14 @@ class CrealityDriver : public PrinterDriver {
       data.history.clear();
       const cJSON *item = nullptr;
       cJSON_ArrayForEach(item, history) {
+        // Only the distinct files the screen lists are kept
+        if (static_cast<int>(data.history.size()) >= PrinterSession::MAX_RECENT) break;
         PrinterJob job;
         job.path = json::str(item, "filename");
         if (job.path.empty()) continue;
+        bool seen = false;
+        for (const PrinterJob &other : data.history) seen = seen || other.path == job.path;
+        if (seen) continue;
         job.when = number(item, "starttime");
         job.duration = number(item, "usagetime");
         const double finish = number(item, "printfinish");

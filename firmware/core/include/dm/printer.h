@@ -9,6 +9,7 @@
 #pragma once
 
 #include <cmath>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -62,12 +63,18 @@ struct PrinterJob {
 };
 
 /**
+ * @description Short hash of a file path (FNV-1a), to remember which files the printer holds without keeping
+ * every path: small strings land in the ESP32's scarce internal RAM.
+ */
+uint32_t printer_path_hash(const std::string &path);
+
+/**
  * @description Everything a driver knows about the printer.
  */
 struct PrinterData {
   PrinterStatus status;
-  std::vector<PrinterJob> history;  // newest first
-  std::set<std::string> files;      // paths of the files stored on the printer
+  std::vector<PrinterJob> history;  // newest first, distinct files only (PrinterSession::MAX_RECENT at most)
+  std::vector<uint32_t> files;      // sorted printer_path_hash() of the files stored on the printer
   bool has_files = false;           // `files` was received at least once
 };
 

@@ -74,6 +74,12 @@ void add_number(cJSON *obj, const char *key, double value) {
 
 }  // namespace
 
+uint32_t printer_path_hash(const std::string &path) {
+  uint32_t hash = 2166136261u;
+  for (unsigned char c : path) hash = (hash ^ c) * 16777619u;
+  return hash;
+}
+
 const PrinterModelInfo *find_printer_model(const std::string &id) {
   for (const auto &model : MODELS)
     if (id == model.id) return &model;
@@ -310,10 +316,7 @@ void PrinterSession::publish_status_locked() { bus_.post("printer", status_tree_
 void PrinterSession::publish_files_locked() {
   cJSON *root = cJSON_CreateObject();
   cJSON *recent = cJSON_AddArrayToObject(root, "recent");
-  std::set<std::string> seen;
   for (const PrinterJob &job : data_.history) {
-    if (static_cast<int>(seen.size()) >= MAX_RECENT) break;
-    if (!seen.insert(job.path).second) continue;
     const PrinterFileName file = describe_file(job.path);
     cJSON *item = cJSON_CreateObject();
     cJSON_AddStringToObject(item, "path", job.path.c_str());
@@ -324,7 +327,8 @@ void PrinterSession::publish_files_locked() {
     add_number(item, "duration", job.duration);
     if (!job.result.empty()) cJSON_AddStringToObject(item, "result", job.result.c_str());
     // A file deleted from the printer cannot be printed again
-    cJSON_AddBoolToObject(item, "exists", !data_.has_files || data_.files.count(job.path) > 0);
+    cJSON_AddBoolToObject(item, "exists", !data_.has_files || std::binary_search(data_.files.begin(), data_.files.end(),
+                                                                                    printer_path_hash(job.path)));
     cJSON_AddItemToArray(recent, item);
   }
   bus_.post("printer/files", root);
