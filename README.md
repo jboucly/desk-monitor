@@ -2,7 +2,7 @@
 
 **English** · [Français](README.fr.md)
 
-A 480×480 desk touch screen (Guition ESP32-S3-4848S040) that acts as an **extension of your computer**. It works on its own over Wi-Fi: Home Assistant, weather, clock. A companion app on the computer connects to it over the local network: it sends PC metrics, the music currently playing and a Claude Code dashboard (sessions, subagents, tokens, plan limits; the screen wakes up to approve a tool call), and runs Stream Deck-style shortcuts.
+A 480×480 desk touch screen (Guition ESP32-S3-4848S040) that acts as an **extension of your computer**. It works on its own over Wi-Fi: Home Assistant, weather, clock, and your 3D printer. A companion app on the computer connects to it over the local network: it sends PC metrics, the music currently playing and a Claude Code dashboard (sessions, subagents, tokens, plan limits; the screen wakes up to approve a tool call), and runs Stream Deck-style shortcuts.
 
 Pages are configured **on the fly** from a web editor served by the screen itself (`http://desk-monitor.local`), with no rebuild and no reflash.
 
@@ -28,6 +28,7 @@ Pages are configured **on the fly** from a web editor served by the screen itsel
 | 3 | Now playing (every Mac app, browsers included) with cover art and controls; falls back to a Home Assistant media player | ✅ macOS (Windows still to write) |
 | 4 | Claude Code: running sessions and subagents, approvals answered from the screen (it wakes up), tokens and plan limits, full-screen detail views | ✅ macOS |
 | 5 | Home Assistant tiles: thermostat, covers, sliders, choice lists, entity lists (service status), history curves, alarm and locks with a keypad, display rules, templates, tap/long press actions, conditional visibility | ✅ (checked in the simulator) |
+| 6 | 3D printers: state, progress, temperatures, pause/resume/stop, last printed files started again from the screen, bed calibration on or off | 🚧 Creality stock firmware (tested on a CR-10 SE); other brands to come |
 
 ## Hardware
 
@@ -59,6 +60,7 @@ Pages are configured **on the fly** from a web editor served by the screen itsel
 | Claude sessions | Running Claude Code sessions (CLI, IDE, desktop app's Code tab): waiting, working or idle, tool in use, context size, running subagents. A tap shows the session in full screen: tokens by kind, subagents, last tools |
 | Claude tokens | Tokens of the day and of the week, with an estimated cost at API prices and a 7-day histogram. A tap shows 30 days by model, today by hour and the busiest projects |
 | Claude limits | The plan's 5-hour and weekly limits, with their reset time. A tap shows the countdown, the pace and a 7-day curve |
+| 3D printer | Thumbnail, file, progress, time left and end time, nozzle and bed temperatures. A tap opens the controls and the last printed files |
 
 The PC widgets, the computer's music and the Claude widgets need the companion app.
 
@@ -138,6 +140,25 @@ The *Claude* page follows the Claude Code sessions of the computer (terminal, VS
 
 Chats on claude.ai and in the desktop app, and Cowork tasks, are not shown: they keep nothing readable on the computer and have no hooks. Only the plan limits count them. See [Companion app](#companion-app-computer) to set it up.
 
+## 3D printer
+
+The screen follows a 3D printer of the local network by itself, without the computer. Choose the model and enter its IP address in the editor (*Réglages → Imprimante 3D*), then add the *Imprimante 3D* tile to a page.
+
+| | | |
+| --- | --- | --- |
+| ![Printer tiles](docs/images/printer.png) | ![Printer view](docs/images/printer-view.png) | ![Last files](docs/images/printer-files.png) |
+
+- **Tile**: the file's thumbnail and name, the progress, the time left and the end time, the nozzle and bed temperatures. It shows *Préparation* while the printer heats up and calibrates.
+- **Full-screen view** (tap the tile): pause and resume, stop (a second tap confirms), the light, the temperatures and their targets.
+- **Last printed files**, with their thumbnail, material, date, duration and result: *Lancer* prints one again. A second tap confirms that the bed is clear, and a chip chooses whether the printer calibrates its bed first.
+- A toast tells when a print ends, stops or fails.
+
+| Printers | Connection | Status |
+| --- | --- | --- |
+| Creality with the stock firmware: CR-10 SE, K1, K1C, K1 Max, K1 SE, Ender-3 V3 KE | Local WebSocket (port 9999), no root, no account | CR-10 SE tested, the others untested |
+
+Give the printer a fixed address in your router (DHCP reservation): the screen does not look for it again when it changes. Other brands (Klipper/Moonraker, OctoPrint, PrusaLink, Bambu Lab) need their own driver; the models are listed in `protocol/printers.json` and the protocol is described in [protocol/README.md](protocol/README.md#3d-printer).
+
 ## Install from a release
 
 Each [release](https://github.com/jboucly/desk-monitor/releases) ships ready-made files:
@@ -166,7 +187,7 @@ cmake --build firmware/sim/build
 firmware/sim/build/desk_monitor_sim                      # 480×480 window + editor on http://localhost:8080
 ```
 
-Home Assistant is simulated: lights, switches, thermostats, covers, sliders, choice lists, the alarm and locks (code `1234`) react as they would in HA, sensors have a made-up history, and templates understand `states()` and `state_attr()` (no Jinja filters). Load the example layout with `curl -X PUT --data-binary @docs/examples/home-assistant.json http://localhost:8080/api/layout`. The weather is real. The simulator waits for the real companion app on `localhost:8081`, or fakes a PC (metrics and music) with `--mock-pc`.
+Home Assistant is simulated: lights, switches, thermostats, covers, sliders, choice lists, the alarm and locks (code `1234`) react as they would in HA, sensors have a made-up history, and templates understand `states()` and `state_attr()` (no Jinja filters). Load the example layout with `curl -X PUT --data-binary @docs/examples/home-assistant.json http://localhost:8080/api/layout`. The weather is real. The simulator waits for the real companion app on `localhost:8081`, or fakes a PC (metrics and music) with `--mock-pc`. It connects to the 3D printer of its settings, or fakes a Creality printer with `--mock-printer`.
 
 ### Real screen
 

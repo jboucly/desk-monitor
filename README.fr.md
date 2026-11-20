@@ -2,7 +2,7 @@
 
 [English](README.md) · **Français**
 
-Écran tactile de bureau 480×480 (Guition ESP32-S3-4848S040) qui sert d'**extension de l'ordinateur**. Il fonctionne seul en Wi-Fi : Home Assistant, météo, horloge. Une application compagnon sur l'ordinateur s'y connecte par le réseau local : elle envoie les métriques du PC, la musique en cours de lecture et un tableau de bord Claude Code (sessions, sous-agents, tokens, limites du forfait ; l'écran se réveille pour autoriser un outil), et exécute les raccourcis façon Stream Deck.
+Écran tactile de bureau 480×480 (Guition ESP32-S3-4848S040) qui sert d'**extension de l'ordinateur**. Il fonctionne seul en Wi-Fi : Home Assistant, météo, horloge, et ton imprimante 3D. Une application compagnon sur l'ordinateur s'y connecte par le réseau local : elle envoie les métriques du PC, la musique en cours de lecture et un tableau de bord Claude Code (sessions, sous-agents, tokens, limites du forfait ; l'écran se réveille pour autoriser un outil), et exécute les raccourcis façon Stream Deck.
 
 Les pages se configurent **à la volée** depuis un éditeur web servi par l'écran lui-même (`http://desk-monitor.local`), sans recompiler ni reflasher.
 
@@ -25,6 +25,7 @@ Les pages se configurent **à la volée** depuis un éditeur web servi par l'éc
 | 3 | Musique en cours de lecture (toutes les apps du Mac, navigateur compris) avec pochette et commandes ; repli sur un lecteur Home Assistant | ✅ macOS (Windows à écrire) |
 | 4 | Claude Code : sessions et sous-agents en cours, autorisations données depuis l'écran (qui se réveille), tokens et limites du forfait, vues détaillées en plein écran | ✅ macOS |
 | 5 | Tuiles Home Assistant : thermostat, volets, curseurs, listes de choix, listes d'entités (statut des services), courbes d'historique, alarme et serrures avec clavier, règles d'affichage, templates, actions à l'appui et à l'appui long, visibilité conditionnelle | ✅ (vérifié dans le simulateur) |
+| 6 | Imprimantes 3D : état, progression, températures, pause/reprise/arrêt, derniers fichiers imprimés relancés depuis l'écran, calibration du plateau ou non | 🚧 Creality firmware d'origine (testé sur une CR-10 SE) ; autres marques à venir |
 
 ## Matériel
 
@@ -56,6 +57,7 @@ Les pages se configurent **à la volée** depuis un éditeur web servi par l'éc
 | Sessions Claude | Sessions Claude Code en cours (CLI, IDE, onglet Code de l'app de bureau) : en attente, au travail ou inactives, outil utilisé, taille du contexte, sous-agents en cours. Un appui affiche la session en plein écran : tokens par type, sous-agents, derniers outils |
 | Tokens Claude | Tokens du jour et de la semaine, avec un coût estimé au tarif de l'API et un histogramme sur 7 jours. Un appui affiche 30 jours par modèle, la journée heure par heure et les projets les plus gourmands |
 | Limites Claude | Limites du forfait sur 5 heures et sur la semaine, avec l'heure de remise à zéro. Un appui affiche le compte à rebours, le rythme et une courbe sur 7 jours |
+| Imprimante 3D | Miniature, fichier, progression, temps restant et heure de fin, températures de la buse et du plateau. Un appui ouvre les commandes et les derniers fichiers imprimés |
 
 Les widgets PC, la musique de l'ordinateur et les widgets Claude ont besoin de l'application compagnon.
 
@@ -135,6 +137,25 @@ La page *Claude* suit les sessions Claude Code de l'ordinateur (terminal, extens
 
 Les conversations de claude.ai et de l'app de bureau, et les tâches Cowork, ne sont pas affichées : elles ne laissent rien de lisible sur l'ordinateur et n'ont pas de hooks. Seules les limites du forfait en tiennent compte. Voir [Application compagnon](#application-compagnon-ordinateur) pour l'installation.
 
+## Imprimante 3D
+
+L'écran suit tout seul une imprimante 3D du réseau local, sans l'ordinateur. Choisis le modèle et saisis son adresse IP dans l'éditeur (*Réglages → Imprimante 3D*), puis ajoute la tuile *Imprimante 3D* sur une page.
+
+| | | |
+| --- | --- | --- |
+| ![Tuiles imprimante](docs/images/printer.png) | ![Vue imprimante](docs/images/printer-view.png) | ![Derniers fichiers](docs/images/printer-files.png) |
+
+- **Tuile** : miniature et nom du fichier, progression, temps restant et heure de fin, températures de la buse et du plateau. Elle affiche *Préparation* pendant la chauffe et la calibration.
+- **Vue plein écran** (appui sur la tuile) : pause et reprise, arrêt (un second appui confirme), lumière, températures et leurs consignes.
+- **Derniers fichiers imprimés**, avec miniature, matière, date, durée et résultat : *Lancer* en réimprime un. Un second appui confirme que le plateau est libre, et une puce choisit si l'imprimante calibre son plateau avant.
+- Une notification signale la fin, l'arrêt ou l'échec d'une impression.
+
+| Imprimantes | Connexion | État |
+| --- | --- | --- |
+| Creality avec le firmware d'origine : CR-10 SE, K1, K1C, K1 Max, K1 SE, Ender-3 V3 KE | WebSocket local (port 9999), sans root ni compte | CR-10 SE testée, les autres non testées |
+
+Donne une adresse fixe à l'imprimante dans ta box (réservation DHCP) : l'écran ne la recherche pas si elle change. Les autres marques (Klipper/Moonraker, OctoPrint, PrusaLink, Bambu Lab) demandent leur propre pilote ; les modèles sont listés dans `protocol/printers.json` et le protocole est décrit dans [protocol/README.md](protocol/README.md#3d-printer).
+
 ## Installer depuis une release
 
 Chaque [release](https://github.com/jboucly/desk-monitor/releases) fournit des fichiers prêts à l'emploi :
@@ -163,7 +184,7 @@ cmake --build firmware/sim/build
 firmware/sim/build/desk_monitor_sim                      # fenêtre 480×480 + éditeur sur http://localhost:8080
 ```
 
-Dans le simulateur, Home Assistant est simulé : lumières, interrupteurs, thermostats, volets, curseurs, listes de choix, l'alarme et les serrures (code `1234`) réagissent comme dans HA, les capteurs ont un historique inventé, et les templates comprennent `states()` et `state_attr()` (sans les filtres Jinja). Charge le layout d'exemple avec `curl -X PUT --data-binary @docs/examples/home-assistant.json http://localhost:8080/api/layout`. La météo, elle, est bien réelle. Le simulateur attend la vraie application compagnon sur `localhost:8081`, ou simule un PC (métriques et musique) avec `--mock-pc`.
+Dans le simulateur, Home Assistant est simulé : lumières, interrupteurs, thermostats, volets, curseurs, listes de choix, l'alarme et les serrures (code `1234`) réagissent comme dans HA, les capteurs ont un historique inventé, et les templates comprennent `states()` et `state_attr()` (sans les filtres Jinja). Charge le layout d'exemple avec `curl -X PUT --data-binary @docs/examples/home-assistant.json http://localhost:8080/api/layout`. La météo, elle, est bien réelle. Le simulateur attend la vraie application compagnon sur `localhost:8081`, ou simule un PC (métriques et musique) avec `--mock-pc`. Il se connecte à l'imprimante 3D de ses réglages, ou simule une imprimante Creality avec `--mock-printer`.
 
 ### Écran physique
 
