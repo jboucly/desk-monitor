@@ -15,7 +15,8 @@ const char *const KNOWN_TYPES[] = {"clock",           "weather",      "ha_toggle
                                    "ha_sensor",       "ha_gauge",     "shortcut",     "pc_metrics",
                                    "pc_gauge",        "media",        "claude_sessions", "claude_usage",
                                    "claude_limits",   "ha_climate",   "ha_cover",     "ha_slider",
-                                   "ha_select",       "ha_list",      "ha_history",   "ha_alarm"};
+                                   "ha_select",       "ha_list",      "ha_history",   "ha_alarm",
+                                   "printer"};
 
 const char *const ACTION_KINDS[] = {"ha", "keys", "launch", "url"};
 

@@ -76,6 +76,18 @@ struct Services {
   std::function<bool(const std::string &view, const std::string &id)> pc_claude_view;
 
   /**
+   * @description Sends a command to the 3D printer: "pause", "resume", "stop", "start" (arg = file path) or
+   * "light" (arg = "on" or "off"). Returns false when the printer is not connected or lacks the command.
+   */
+  std::function<bool(const std::string &command, const std::string &arg)> printer_command;
+
+  /**
+   * @description Asks for a printer file's thumbnail. It arrives later on "printer/thumb/<path>" (never when
+   * the printer has none).
+   */
+  std::function<void(const std::string &path)> printer_thumbnail;
+
+  /**
    * @description Wakes the screen up when it sleeps (backlight off). LVGL thread.
    */
   std::function<void()> wake;

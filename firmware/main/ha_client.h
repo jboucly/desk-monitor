@@ -32,4 +32,10 @@ bool ha_client_render(const std::string &tpl, std::string &out);
  */
 void ha_fetch(const std::string &path, std::function<void(std::string body)> done);
 
+/**
+ * @description Downloads any http(s) URL from a background task, then calls `done` from that task with the
+ * body (empty on failure, 1 MB at most).
+ */
+void http_fetch(const std::string &url, std::function<void(std::string body)> done);
+
 }  // namespace dm::esp32

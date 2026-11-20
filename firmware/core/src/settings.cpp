@@ -1,8 +1,10 @@
 #include "dm/settings.h"
 
+#include <cctype>
 #include <cmath>
 
 #include "dm/json.h"
+#include "dm/printer.h"
 
 namespace dm {
 
@@ -58,6 +60,10 @@ cJSON *to_json(const SettingsData &d, bool with_secrets) {
   cJSON *security = cJSON_AddObjectToObject(root, "security");
   cJSON *pc = cJSON_AddObjectToObject(root, "pc");
   cJSON_AddStringToObject(pc, "name", d.pc_name.c_str());
+  cJSON *printer = cJSON_AddObjectToObject(root, "printer");
+  cJSON_AddStringToObject(printer, "model", d.printer_model.c_str());
+  cJSON_AddStringToObject(printer, "host", d.printer_host.c_str());
+  cJSON_AddNumberToObject(printer, "port", d.printer_port);
   if (with_secrets) {
     cJSON_AddStringToObject(pc, "token", d.pc_token.c_str());
     cJSON_AddStringToObject(wifi, "password", d.wifi_password.c_str());
@@ -101,6 +107,10 @@ unsigned merge(const cJSON *root, SettingsData &d, bool from_file) {
   } else {
     merge_secret(security, "pin", d.pin);
   }
+  const cJSON *printer = json::get(root, "printer");
+  if (merge_str(printer, "model", d.printer_model)) changes |= Settings::PRINTER;
+  if (merge_str(printer, "host", d.printer_host)) changes |= Settings::PRINTER;
+  if (merge_num(printer, "port", d.printer_port)) changes |= Settings::PRINTER;
   // The PC is set by pairing (set_pc), never by the API; the API can only forget it
   const cJSON *pc = json::get(root, "pc");
   if (from_file) {
@@ -152,6 +162,17 @@ bool Settings::update(const std::string &body, std::string &error) {
       error = "coordonnées météo invalides";
       return false;
     }
+    if (!next.printer_model.empty() && !find_printer_model(next.printer_model)) {
+      error = "modèle d'imprimante inconnu";
+      return false;
+    }
+    if (next.printer_port < 0 || next.printer_port > 65535) {
+      error = "port de l'imprimante invalide";
+      return false;
+    }
+    // Spaces typed around the address would break the URL
+    while (!next.printer_host.empty() && isspace(static_cast<unsigned char>(next.printer_host.back()))) next.printer_host.pop_back();
+    while (!next.printer_host.empty() && isspace(static_cast<unsigned char>(next.printer_host.front()))) next.printer_host.erase(0, 1);
     data_ = next;
     save_locked();
   }

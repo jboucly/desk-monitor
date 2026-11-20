@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Desk Monitor v2: a 480×480 touch screen (Guition ESP32-S3-4848S040, ST7701S RGB panel, GT911 touch, 16 MB flash, 8 MB PSRAM) that acts as an extension of the PC. It works standalone over Wi-Fi (Home Assistant, Open-Meteo weather, clock). A PC companion (Rust + Tauri, `companion/`) connects over the local network (WebSocket) and adds metrics, shortcuts and the system's now playing. Pages come from a JSON layout edited in a web editor that the screen serves itself. UI text is in French; code and comments are in English.
 
-Phase status: phases 1 (firmware, simulator, web editor), 2 (PC link + companion), 3 (now playing + covers, HA fallback), 4 (Claude Code sessions, approvals from the screen, tokens, plan limits) and 5 (Home Assistant tiles: display rules, templates, thermostat, covers, sliders, selects, entity lists, history, alarm/lock keypad, tap/hold actions, `visible_if`) are done. Phase 5 was only checked in the simulator against `sim::MockHome`, not against a real Home Assistant. Everything companion-side was tested on macOS only: the Windows code is not even compile-checked, and Windows now playing (GlobalSystemMediaTransportControls) is not written yet. The PC link replaced the BLE plan: BLE needed internal RAM the ESP32 does not have. See `protocol/README.md`.
+Phase status: phases 1 (firmware, simulator, web editor), 2 (PC link + companion), 3 (now playing + covers, HA fallback), 4 (Claude Code sessions, approvals from the screen, tokens, plan limits) and 5 (Home Assistant tiles: display rules, templates, thermostat, covers, sliders, selects, entity lists, history, alarm/lock keypad, tap/hold actions, `visible_if`) are done. Phase 6 (3D printers) is in progress: catalog, `PrinterSession`, the Creality stock firmware driver, the `printer` tile and its view; every command works on a real CR-10 SE (a stop during the bed calibration applies when it ends) (see `protocol/README.md`, "3D printer"). Phase 5 was only checked in the simulator against `sim::MockHome`, not against a real Home Assistant. Everything companion-side was tested on macOS only: the Windows code is not even compile-checked, and Windows now playing (GlobalSystemMediaTransportControls) is not written yet. The PC link replaced the BLE plan: BLE needed internal RAM the ESP32 does not have. See `protocol/README.md`.
 
 ## Commands
 
@@ -30,6 +30,8 @@ npm run dev                                       # proxies /api to the simulato
 
 # Fonts and icon tables (after editing protocol/icons.json)
 node firmware/tools/gen_assets.mjs
+# 3D printer catalog tables (after editing protocol/printers.json)
+node firmware/tools/gen_printers.mjs
 
 # PC companion (Rust/Tauri 2; Rust via rustup)
 cd companion && npm install && npm run dev        # menu bar app; set the address to localhost:8081 for the simulator
@@ -38,6 +40,8 @@ firmware/sim/build/desk_monitor_sim --mock-pc     # fake PC metrics, now playing
 firmware/sim/build/desk_monitor_sim --do page=2 --do claude_ask --do shot=/tmp/ask.png   # approval popup
 cd companion/src-tauri && cargo test local_snapshot -- --ignored --nocapture       # Claude snapshot and detail views from this computer's ~/.claude
 firmware/sim/build/desk_monitor_sim --do page=2 --do claude_view=usage --do shot=/tmp/usage.png   # detail view (session|usage|limits)
+firmware/sim/build/desk_monitor_sim --mock-printer                    # fake Creality printer instead of the one of the settings
+firmware/sim/build/desk_monitor_sim --do printer_state=paused --do printer_view --do shot=/tmp/printer.png   # printer view
 ```
 
 The firmware has no unit tests (the companion has a few `cargo test`s). To verify a change:
@@ -113,6 +117,13 @@ Anything that is not hardware or transport goes in `core/`: HA protocol logic, w
 - Screen side: the `claude_sessions`, `claude_usage` and `claude_limits` widgets (`core/src/widgets/claude.cpp`) read `pc/claude`; a tap opens a full-screen detail view (`claude_detail.cpp`, `App::show_claude_detail`) that sends `claude_view` and renders `pc/claude_detail` (the companion builds it only while a view is open: `usage.rs` `usage_detail`/`subagents`, `limits.rs`, the hooks' tool calls in `sessions.rs`); `App` (`update_claude_asks`) shows the approval sheet on any page from `pc/claude_asks`, calls `Services::wake` (`display_wake()` on the device) and remembers the approvals closed without an answer.
 - Chats of claude.ai and of the desktop app have no hooks or readable local data: only their plan limits show.
 
+**3D printer.** `dm::PrinterSession` (core) follows one printer chosen in the settings (`printer.model`, an id of `protocol/printers.json`, plus `host`/`port`):
+
+- one driver per protocol family (`core/src/printer_driver.h`; `printer_creality.cpp` for the Creality stock firmware, WebSocket on port 9999) turns the printer's frames into the common model published on `printer`, `printer/files` and `printer/thumb/<path>`;
+- transports: `main/printer_client.cpp` (esp_websocket_client) and `sim/ws_client.cpp`; thumbnails are PNGs downloaded by `http_fetch` (device) or curl (simulator), decoded to 64x64 RGB565 by `decode_png_thumbnail` (`cover.cpp`, LVGL's lodepng);
+- the `printer` widget and its full-screen view are in `core/src/widgets/printer.cpp`; stop and start need a second tap within 6 s, and a start offers to skip the bed calibration (Creality `enableSelfTest`, a printer setting sent just before the start);
+- `sim::MockPrinter` speaks the Creality protocol to the real session (headless runs, `--mock-printer`); without it the simulator connects to the printer of its settings.
+
 **Companion (`companion/`).** Tauri 2 menu bar app, static UI in `companion/ui/` (no bundler, `window.__TAURI__`). `link.rs` runs the reconnect loop and the protocol, `metrics.rs` samples with sysinfo (GPU: `ioreg` IOAccelerator on macOS, NVML on Windows), `actions.rs` runs `keys` (enigo, on the main thread; macOS needs Accessibility; digits use physical key codes so AZERTY works), `launch` and `url`. Its config (address, token, last working IP) is `config.json` in the app config folder. Names are resolved IPv4-only (`dns-lookup`): an any-family lookup of `desk-monitor.local` waits seconds for an IPv6 answer that never comes. The window is a menu bar overlay (`overlay.rs`): left click on the tray icon toggles it under the icon, right click keeps the menu, and it hides when it loses the focus. On macOS it is turned into a non-activating `NSPanel` (class swap, like the tauri-nspanel plugin): a regular window must activate the app to take the keyboard, and macOS then leaves the Space of a full screen app. So never call `set_focus()` on it, and avoid native dialogs such as `confirm()`, which blur the overlay and hide it. "Ouvrir l'éditeur" opens the screen's web editor in a regular window (`editor.rs`, at the IP the link answered on; the simulator's HTTP port is the link port - 1), and the app shows in the Dock and Cmd+Tab while it is open. wry does not implement `alert`/`confirm`/`prompt` on macOS (they return false/null silently): the web editor uses its own `ask`/`askText` (`web/src/components/Dialog.tsx`), never the native ones. The bundle is ad-hoc signed with a stable identifier (`signingIdentity: "-"`) so that macOS keeps the Local Network and Accessibility permissions across rebuilds.
 
 **Web editor (`web/`).** It talks to the REST API (`core/src/api.cpp`). It is built into one HTML file and gzipped. At every firmware build, `main/select_web.cmake` copies `web/dist/index.html.gz` (or `main/www_fallback.html` when it is missing) to `web.bin`, which gets embedded. The server sends `Content-Encoding: gzip` when the bundle starts with the gzip magic bytes. Icon SVGs come from `web/src/generated/icons.ts`, which is generated too.
@@ -130,6 +141,7 @@ Anything that is not hardware or transport goes in `core/`: HA protocol logic, w
 - **Backlight (GPIO38).** It floats after reset and lights the uninitialized panel (white flash). `bootloader_components/backlight_off` drives it low in the bootloader, and `display_show()` turns it on only after the first frame is drawn (wake from sleep redraws first too). After adding a bootloader component, delete `build/bootloader` once: the bootloader subproject does not rescan.
 - **Touch filter (`filter_touch`).** Never change `point_num` in the GT911 `process_coordinates` callback: a count of 0 makes `esp_lcd_touch_get_data` fail and esp_lvgl_port aborts. The wake-up touch is ignored with `lv_indev_wait_release()` instead. `touch_read` (`main/display.cpp`) replaces esp_lvgl_port's read callback, which aborted on any GT911 I2C error (`ESP_ERROR_CHECK`): errors only drop the sample now.
 - **TJpgDec pixel order.** LVGL's copy outputs 24-bit pixels as B, G, R (`cover.cpp`).
+- **LVGL's lodepng is patched.** `lodepng_decode32()` returns an `lv_draw_buf_t *` (pixels R, G, B, A, with a stride), not a pixel array, and its header does not compile as C++: go through `core/src/png_decode.c`.
 - **WebSocket frame size.** Covers are ~68 KB of base64: `MAX_WS_FRAME` (96 KB) in `main/http_server.cpp` must stay above it.
 - **esp_http_server WebSocket.** In ESP-IDF 5.5 the URI handler is not called for the handshake, only for frames: `pc_ws_handler` opens the `PcSession` on the first frame and keeps its id with `httpd_sess_set_ctx` (frame requests do not copy `req->sess_ctx` back to the session).
 - **Secrets.** `settings.json` stores the Wi-Fi password and the HA token on LittleFS. `GET /api/settings` never returns them (`has_*` flags), and an empty secret in `PUT` keeps the stored value.

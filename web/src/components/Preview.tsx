@@ -144,6 +144,21 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
           ))}
         </div>
       );
+    case 'printer':
+      return (
+        <div class="face face-metrics">
+          <span class="small ellipsis">
+            <Icon name="printer-3d" size={14} color={theme.accent} /> {p.name || 'Imprimante 3D'}
+          </span>
+          <span class="value">
+            42 % <span class="muted small">reste 1 h 15</span>
+          </span>
+          <span class="metric-bar">
+            <span style={{ width: '42%', background: theme.accent }} />
+          </span>
+          {widget.h >= 2 && <span class="muted small">Buse 210° · Plateau 60°</span>}
+        </div>
+      );
     case 'pc_gauge':
     case 'ha_gauge':
       return (

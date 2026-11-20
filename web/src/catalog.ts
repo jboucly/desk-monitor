@@ -52,6 +52,7 @@ export const CATALOG: Record<WidgetType, WidgetInfo> = {
   claude_sessions: { label: 'Sessions Claude', icon: 'creation', w: 4, h: 2, available: true, defaults: () => ({}) },
   claude_usage: { label: 'Tokens Claude', icon: 'chart-bar', w: 2, h: 2, available: true, defaults: () => ({}) },
   claude_limits: { label: 'Limites Claude', icon: 'timer-sand', w: 2, h: 2, available: true, defaults: () => ({}) },
+  printer: { label: 'Imprimante 3D', icon: 'printer-3d', w: 2, h: 2, available: true, defaults: () => ({}) },
 };
 
 /**

@@ -17,6 +17,14 @@ namespace dm {
 bool decode_jpeg_cover(const std::string &jpeg, int size, std::vector<uint8_t> &rgb565);
 
 /**
+ * @description Decodes a PNG (any color type), crops it to its centered square, scales it to size x size
+ * (box average when shrinking) and blends its transparency over `background` (0xRRGGBB), in RGB565
+ * little-endian. Any thread. Used for 3D printer thumbnails.
+ * @returns False when the data is not a PNG.
+ */
+bool decode_png_thumbnail(const std::string &png, int size, uint32_t background, std::vector<uint8_t> &rgb565);
+
+/**
  * @description Builds the bus value of a cover, {"id", "w", "h", "data": base64 RGB565},
  * the same shape as the PC companion's "media_art".
  */

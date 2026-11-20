@@ -13,6 +13,7 @@
 #include "dm/ha.h"
 #include "dm/weather.h"
 #include "lvgl.h"
+#include "png.h"
 
 namespace sim {
 
@@ -530,6 +531,22 @@ bool MockHome::render(const std::string &tpl, std::string &out) {
   return true;
 }
 
+std::string http_get(const std::string &url) {
+  std::string body;
+  long status = 0;
+  CURL *curl = curl_easy_init();
+  if (!curl) return body;
+  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, append_body);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body);
+  curl_easy_setopt(curl, CURLOPT_TIMEOUT, 8L);
+  if (curl_easy_perform(curl) != CURLE_OK) body.clear();
+  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+  curl_easy_cleanup(curl);
+  if (status != 200) body.clear();
+  return body;
+}
+
 void fetch_weather(dm::Bus &bus, double lat, double lon, const std::string &name) {
   std::thread([&bus, lat, lon, name] {
     std::string body;
@@ -549,6 +566,179 @@ void fetch_weather(dm::Bus &bus, double lat, double lon, const std::string &name
     }
     bus.post("weather", weather);
   }).detach();
+}
+
+// ── Fake 3D printer ──────────────────────────────────────────────────────────
+
+namespace {
+
+const char *GCODES = "/usr/data/printer_data/gcodes";
+
+std::string print_json(cJSON *root) {
+  std::string text = dm::json::print(root);
+  cJSON_Delete(root);
+  return text;
+}
+
+std::string temp_text(double value) {
+  char out[16];
+  snprintf(out, sizeof out, "%.2f", value);
+  return out;
+}
+
+}  // namespace
+
+void MockPrinter::connect() {
+  if (history_.empty()) {
+    history_ = {{"support_casque.stl_PLA_2h10m5s.gcode", 1}, {"Benchy.stl_PLA_48m12s.gcode", 1},
+                {"boitier_esp32_PETG_1h22m40s.gcode", 1},     {"clip_cable_x10.stl_PLA_35m3s.gcode", 0},
+                {"pied_lampe.stl_PETG_5h2m0s.gcode", 1}};
+  }
+  push_state();
+}
+
+void MockPrinter::push_state() {
+  cJSON *root = cJSON_CreateObject();
+  cJSON_AddStringToObject(root, "nozzleTemp", temp_text(nozzle_).c_str());
+  cJSON_AddStringToObject(root, "bedTemp0", temp_text(bed_).c_str());
+  const bool running = state_ == 1 || state_ == 5;
+  cJSON_AddNumberToObject(root, "targetNozzleTemp", running ? 210 : 0);
+  cJSON_AddNumberToObject(root, "targetBedTemp0", running ? 60 : 0);
+  cJSON_AddNumberToObject(root, "state", state_);
+  cJSON_AddStringToObject(root, "printFileName", file_.c_str());
+  cJSON_AddNumberToObject(root, "printProgress", static_cast<int>(progress_));
+  cJSON_AddNumberToObject(root, "printJobTime", static_cast<int>(elapsed_));
+  cJSON_AddNumberToObject(root, "printLeftTime", running ? static_cast<int>(total_ - elapsed_) : 0);
+  cJSON_AddNumberToObject(root, "layer", static_cast<int>(progress_ * 2.4));
+  cJSON_AddNumberToObject(root, "TotalLayer", 240);
+  cJSON_AddNumberToObject(root, "lightSw", light_);
+  cJSON_AddNumberToObject(root, "enableSelfTest", self_test_);
+  cJSON *err = cJSON_AddObjectToObject(root, "err");
+  cJSON_AddNumberToObject(err, "errcode", 0);
+  push_(print_json(root));
+}
+
+void MockPrinter::push_history() {
+  cJSON *root = cJSON_CreateObject();
+  cJSON_AddNumberToObject(root, "totalJob", static_cast<double>(history_.size()));
+  cJSON *list = cJSON_AddArrayToObject(root, "historyList");
+  const double now = static_cast<double>(time(nullptr));
+  for (size_t i = 0; i < history_.size(); i++) {
+    cJSON *item = cJSON_CreateObject();
+    const double start = now - 3 * 3600 - static_cast<double>(i) * 86400 * 0.8;
+    cJSON_AddNumberToObject(item, "id", start);
+    cJSON_AddStringToObject(item, "filename", (std::string(GCODES) + "/" + history_[i].first).c_str());
+    cJSON_AddNumberToObject(item, "starttime", start);
+    cJSON_AddNumberToObject(item, "usagetime", history_[i].second ? 2900 + 1700.0 * (i % 3) : 640);
+    cJSON_AddNumberToObject(item, "printfinish", history_[i].second);
+    cJSON_AddItemToArray(list, item);
+  }
+  push_(print_json(root));
+}
+
+void MockPrinter::receive(const std::string &text) {
+  auto root = dm::json::parse(text);
+  const cJSON *params = dm::json::get(root.get(), "params");
+  const char *method = dm::json::str(root.get(), "method");
+  if (!strcmp(method, "get")) {
+    if (dm::json::get(params, "reqHistory")) push_history();
+    if (dm::json::get(params, "reqGcodeFile")) {
+      std::string list;
+      for (const auto &[name, result] : history_) list += std::string(GCODES) + ":" + name + ":1234567:0.000000:1795000000:0:/tmp/x.png;";
+      cJSON *reply = cJSON_CreateObject();
+      cJSON *info = cJSON_AddObjectToObject(reply, "retGcodeFileInfo");
+      cJSON_AddNumberToObject(info, "totalNum", static_cast<double>(history_.size()));
+      cJSON_AddStringToObject(info, "fileInfo", list.c_str());
+      push_(print_json(reply));
+    }
+    return;
+  }
+  if (strcmp(method, "set") != 0) return;
+  printf("[mock printer] %s\n", text.c_str());
+  if (const cJSON *pause = dm::json::get(params, "pause")) {
+    if (state_ == 1 || state_ == 5) state_ = pause->valueint ? 5 : 1;
+  } else if (dm::json::get(params, "stop")) {
+    if (state_ == 1 || state_ == 5) finish(0);
+  } else if (const cJSON *open = dm::json::get(params, "opGcodeFile")) {
+    const std::string arg = cJSON_IsString(open) ? open->valuestring : "";
+    if (arg.rfind("printprt:", 0) == 0 && state_ != 1 && state_ != 5) {
+      file_ = arg.substr(9);
+      state_ = 1;
+      progress_ = 0;
+      elapsed_ = 0;
+      total_ = 3600;
+    }
+  } else if (const cJSON *light = dm::json::get(params, "lightSw")) {
+    light_ = light->valueint ? 1 : 0;
+  } else if (const cJSON *self_test = dm::json::get(params, "enableSelfTest")) {
+    self_test_ = self_test->valueint ? 1 : 0;
+  }
+  push_state();
+}
+
+void MockPrinter::finish(int result) {
+  state_ = result ? 2 : 4;
+  const size_t slash = file_.rfind('/');
+  history_.insert(history_.begin(), {file_.substr(slash + 1), result});
+  push_state();
+}
+
+void MockPrinter::tick() {
+  const bool heating = state_ == 1 || state_ == 5;
+  nozzle_ += ((heating ? 210 : 26) - nozzle_) * 0.08 + (heating ? (rand() % 7 - 3) * 0.1 : 0);
+  bed_ += ((heating ? 60 : 24) - bed_) * 0.03;
+  if (state_ == 1) {
+    elapsed_ += 1;
+    progress_ = std::min(100.0, elapsed_ / total_ * 100);
+    if (progress_ >= 100) {
+      finish(1);
+      return;
+    }
+  }
+  cJSON *root = cJSON_CreateObject();
+  cJSON_AddStringToObject(root, "nozzleTemp", temp_text(nozzle_).c_str());
+  cJSON_AddStringToObject(root, "bedTemp0", temp_text(bed_).c_str());
+  if (state_ == 1) {
+    cJSON_AddNumberToObject(root, "printProgress", static_cast<int>(progress_));
+    cJSON_AddNumberToObject(root, "printJobTime", static_cast<int>(elapsed_));
+    cJSON_AddNumberToObject(root, "printLeftTime", static_cast<int>(total_ - elapsed_));
+    cJSON_AddNumberToObject(root, "layer", static_cast<int>(progress_ * 2.4));
+  }
+  push_(print_json(root));
+}
+
+void MockPrinter::set_state(const std::string &state) {
+  if (state == "paused") state_ = 5;
+  else if (state == "finished") state_ = 2, progress_ = 100, elapsed_ = total_;
+  else if (state == "idle") state_ = 0, nozzle_ = 27.5, bed_ = 24.2;
+  else state_ = 1;
+  push_state();
+}
+
+std::string MockPrinter::thumbnail_png(const std::string &url) {
+  // Color and shape from the file name: a lit box on the dark slicer background
+  unsigned hash = 2166136261u;
+  for (char c : url) hash = (hash ^ static_cast<unsigned char>(c)) * 16777619u;
+  constexpr int SIZE = 96;
+  const lv_color_t base = lv_color_hsv_to_rgb(static_cast<uint16_t>(hash % 360), 70, 95);
+  const int w = 34 + static_cast<int>(hash >> 8) % 24, h = 30 + static_cast<int>(hash >> 16) % 30;
+  std::vector<uint16_t> pixels(SIZE * SIZE);
+  for (int y = 0; y < SIZE; y++) {
+    for (int x = 0; x < SIZE; x++) {
+      int r = 0x1B, g = 0x22, b = 0x34;
+      const int dx = x - (SIZE - w) / 2, dy = y - (SIZE - h) / 2 - 6;
+      if (dx >= 0 && dx < w && dy >= 0 && dy < h) {
+        // Lighter top face, shaded front
+        const int shade = dy < 8 ? 255 : 200 - dy;
+        r = base.red * shade / 255, g = base.green * shade / 255, b = base.blue * shade / 255;
+      } else if (y > (SIZE + h) / 2 && y < (SIZE + h) / 2 + 3 && x > 10 && x < SIZE - 10) {
+        r = g = b = 0x40;  // bed line
+      }
+      pixels[static_cast<size_t>(y * SIZE + x)] = static_cast<uint16_t>(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+    }
+  }
+  const std::vector<uint8_t> png = encode_png_rgb565(pixels.data(), SIZE, SIZE);
+  return std::string(png.begin(), png.end());
 }
 
 }  // namespace sim

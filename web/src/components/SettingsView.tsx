@@ -1,9 +1,26 @@
-// Device settings: Wi-Fi, Home Assistant, weather location, time zone, display, PIN, paired PC.
+// Device settings: Wi-Fi, Home Assistant, weather location, time zone, display, PIN, paired PC, 3D printer.
 import { useEffect, useState } from 'preact/hooks';
 
 import { api, searchPlace, type Place } from '../api';
-import type { Settings } from '../types';
+import { PRINTER_DRIVERS, PRINTER_MODELS } from '../generated/printers';
+import type { PrinterState, Settings } from '../types';
 import { ask } from './Dialog';
+
+// French text of the printer states shown under the form
+const PRINTER_STATES: Record<PrinterState['state'], string> = {
+  off: 'non configurée',
+  connecting: 'connexion…',
+  offline: 'injoignable',
+  idle: 'connectée, prête',
+  printing: 'connectée, impression en cours',
+  paused: 'connectée, en pause',
+  finished: 'connectée, impression terminée',
+  stopped: 'connectée, impression arrêtée',
+  error: 'connectée, en erreur',
+};
+
+// Models grouped by brand, for the <optgroup>s of the picker
+const PRINTER_BRANDS = [...new Set(PRINTER_MODELS.map((m) => m.brand))];
 
 // POSIX time zones (the ESP32 has no tz database)
 const TIMEZONES: [string, string][] = [
@@ -27,9 +44,18 @@ export function SettingsView({ onError, onSaved }: { onError: (message: string) 
   const [draft, setDraft] = useState<Settings | null>(null);
   const [query, setQuery] = useState('');
   const [places, setPlaces] = useState<Place[]>([]);
+  const [printer, setPrinter] = useState<PrinterState | null>(null);
 
   useEffect(() => {
     api.getSettings().then((s) => (setSettings(s), setDraft(structuredClone(s))), (e) => onError(e.message));
+  }, []);
+
+  // Live connection state of the printer while the settings are open
+  useEffect(() => {
+    const poll = () => api.getPrinter().then(setPrinter, () => setPrinter(null));
+    poll();
+    const timer = setInterval(poll, 3000);
+    return () => clearInterval(timer);
   }, []);
 
   if (!draft || !settings) return <div class="panel">Chargement…</div>;
@@ -160,6 +186,57 @@ export function SettingsView({ onError, onSaved }: { onError: (message: string) 
             Aucun PC appairé. Lance l’app Desk Monitor sur l’ordinateur : elle trouve l’écran sur le réseau, puis tu saisis le code
             affiché sur l’écran.
           </small>
+        )}
+      </section>
+
+      <section class="panel">
+        <h3>Imprimante 3D</h3>
+        <label class="field">
+          <span>Modèle</span>
+          <select value={draft.printer.model} onChange={(e) => set('printer', { model: e.currentTarget.value })}>
+            <option value="">Aucune imprimante</option>
+            {PRINTER_BRANDS.map((brand) => (
+              <optgroup key={brand} label={brand}>
+                {PRINTER_MODELS.filter((m) => m.brand === brand).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                    {m.tested ? '' : ' (non testée)'}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </label>
+        {draft.printer.model && (
+          <>
+            <div class="row">
+              <label class="field">
+                <span>Adresse IP de l’imprimante</span>
+                <input value={draft.printer.host} placeholder="192.168.1.60" onInput={(e) => set('printer', { host: e.currentTarget.value.trim() })} />
+              </label>
+              <label class="field narrow">
+                <span>Port</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={65535}
+                  value={draft.printer.port || ''}
+                  placeholder={String(PRINTER_DRIVERS[PRINTER_MODELS.find((m) => m.id === draft.printer.model)?.driver ?? '']?.port ?? '')}
+                  onInput={(e) => set('printer', { port: Number(e.currentTarget.value) || 0 })}
+                />
+              </label>
+            </div>
+            <small class="hint">
+              {PRINTER_DRIVERS[PRINTER_MODELS.find((m) => m.id === draft.printer.model)?.driver ?? '']?.label}. L’adresse est
+              affichée dans le menu réseau de l’imprimante ; fixe-la dans ta box pour qu’elle ne change pas.
+            </small>
+          </>
+        )}
+        {settings.printer.model && printer && (
+          <p>
+            État : <strong>{PRINTER_STATES[printer.state] ?? printer.state}</strong>
+            {printer.name && printer.state !== 'off' && <span class="muted"> · {printer.name}</span>}
+          </p>
         )}
       </section>
 

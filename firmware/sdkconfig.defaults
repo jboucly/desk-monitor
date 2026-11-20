@@ -61,6 +61,8 @@ CONFIG_LV_LOG_PRINTF=y
 CONFIG_LV_CACHE_DEF_SIZE=0
 # JPEG decoder for Home Assistant covers (used directly by core/src/cover.cpp)
 CONFIG_LV_USE_TJPGD=y
+# PNG decoder for 3D printer thumbnails (used directly by core/src/cover.cpp)
+CONFIG_LV_USE_LODEPNG=y
 CONFIG_LV_FONT_MONTSERRAT_14=y
 CONFIG_LV_BUILD_EXAMPLES=n
 CONFIG_LV_BUILD_DEMOS=n
