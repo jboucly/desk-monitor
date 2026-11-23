@@ -20,6 +20,12 @@ constexpr const char *LAYOUT_FILE = "layout.json";
 const int32_t GRID_COL_DSC[] = {LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
 const int32_t GRID_ROW_DSC[] = {LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST};
 
+// Page dock: button size, space between buttons and padding around them
+constexpr int DOCK_BUTTON_W = 52;
+constexpr int DOCK_BUTTON_H = 40;
+constexpr int DOCK_GAP = 4;
+constexpr int DOCK_PAD = 4;
+
 /**
  * @description Card shown for a widget type this firmware does not know (layout from a newer editor).
  */
@@ -217,15 +223,16 @@ void App::build_shell() {
                           LV_EVENT_ALL, this);
   }
 
-  // Page indicator: dots, the active one stretched into a pill
-  dots_ = lv_obj_create(screen);
-  lv_obj_remove_style_all(dots_);
-  lv_obj_set_size(dots_, theme::SCREEN_W, theme::FOOTER_H);
-  lv_obj_align(dots_, LV_ALIGN_BOTTOM_MID, 0, -4);
-  lv_obj_set_flex_flow(dots_, LV_FLEX_FLOW_ROW);
-  lv_obj_set_flex_align(dots_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(dots_, 6, 0);
-  lv_obj_remove_flag(dots_, LV_OBJ_FLAG_CLICKABLE);
+  // Page dock: a floating pill at the bottom, one button per page (filled in by build_pages)
+  dock_ = theme::make_card(screen);
+  lv_obj_remove_flag(dock_, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_size(dock_, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+  lv_obj_set_style_radius(dock_, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_pad_all(dock_, DOCK_PAD, 0);
+  lv_obj_set_style_pad_column(dock_, DOCK_GAP, 0);
+  lv_obj_set_flex_flow(dock_, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(dock_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_align(dock_, LV_ALIGN_BOTTOM_MID, 0, -6);
 }
 
 void App::bind_visibility(lv_obj_t *root, const WidgetSpec &spec) {
@@ -256,7 +263,7 @@ void App::build_pages() {
   bus_.clear_subscriptions();
   widgets_.clear();
   lv_obj_clean(tileview_);
-  lv_obj_clean(dots_);
+  lv_obj_clean(dock_);
 
   const int count = static_cast<int>(layout_->pages.size());
   for (int i = 0; i < count; i++) {
@@ -281,19 +288,15 @@ void App::build_pages() {
       widgets_.push_back(std::move(widget));
     }
 
-    lv_obj_t *dot = lv_obj_create(dots_);
-    lv_obj_remove_style_all(dot);
-    lv_obj_set_size(dot, 6, 6);
-    lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_color(dot, lv_color_white(), 0);
-    lv_obj_set_style_bg_opa(dot, LV_OPA_40, 0);
+    add_dock_button(page, count);
   }
-  if (count < 2) lv_obj_add_flag(dots_, LV_OBJ_FLAG_HIDDEN);
-  else lv_obj_remove_flag(dots_, LV_OBJ_FLAG_HIDDEN);
+  if (count < 2) lv_obj_add_flag(dock_, LV_OBJ_FLAG_HIDDEN);
+  else lv_obj_remove_flag(dock_, LV_OBJ_FLAG_HIDDEN);
 
   // The tileview has no active tile until one is set explicitly
   if (count > 0) lv_tileview_set_tile_by_index(tileview_, 0, 0, LV_ANIM_OFF);
   theme::finish_cards(tileview_);
+  theme::finish_cards(dock_);
   build_header_status();
   update_page_indicator();
 }
@@ -525,13 +528,50 @@ void App::update_page_indicator() {
   lv_obj_t *active = lv_tileview_get_tile_active(tileview_);
   const int index = active ? static_cast<int>(lv_obj_get_index(active)) : 0;
   if (index < page_count()) lv_label_set_text(title_, layout_->pages[index].title.c_str());
-  for (uint32_t i = 0; i < lv_obj_get_child_count(dots_); i++) {
-    lv_obj_t *dot = lv_obj_get_child(dots_, i);
-    const bool on = static_cast<int>(i) == index;
-    lv_obj_set_width(dot, on ? 18 : 6);
-    lv_obj_set_style_bg_color(dot, on ? theme::accent() : lv_color_white(), 0);
-    lv_obj_set_style_bg_opa(dot, on ? LV_OPA_COVER : LV_OPA_40, 0);
+  for (uint32_t i = 0; i < lv_obj_get_child_count(dock_); i++) {
+    lv_obj_t *button = lv_obj_get_child(dock_, static_cast<int32_t>(i));
+    if (static_cast<int>(i) == index) lv_obj_add_state(button, LV_STATE_CHECKED);
+    else lv_obj_remove_state(button, LV_STATE_CHECKED);
   }
+}
+
+void App::add_dock_button(const PageSpec &page, int count) {
+  // Up to 8 pages get roomy buttons; past that they shrink so that 12 still fit on the screen
+  const int room = theme::SCREEN_W - 2 * theme::GRID_PAD - 2 * (DOCK_PAD + 1);
+  const int width = count <= 8 ? DOCK_BUTTON_W : std::min(DOCK_BUTTON_W, (room - (count - 1) * DOCK_GAP) / count);
+
+  lv_obj_t *button = lv_obj_create(dock_);
+  lv_obj_remove_style_all(button);
+  lv_obj_set_size(button, width, DOCK_BUTTON_H);
+  lv_obj_set_style_radius(button, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_text_color(button, theme::text2(), 0);
+  lv_obj_set_style_text_color(button, theme::text(), LV_STATE_CHECKED);
+  lv_obj_set_style_bg_color(button, theme::accent(), LV_STATE_CHECKED);
+  lv_obj_set_style_bg_opa(button, LV_OPA_COVER, LV_STATE_CHECKED);
+  lv_obj_set_style_bg_color(button, lv_color_white(), LV_STATE_PRESSED);
+  lv_obj_set_style_bg_opa(button, 40, LV_STATE_PRESSED);
+  lv_obj_remove_flag(button, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(
+      button,
+      [](lv_event_t *e) {
+        auto *app = static_cast<App *>(lv_event_get_user_data(e));
+        auto *target = static_cast<lv_obj_t *>(lv_event_get_current_target(e));
+        app->show_page(static_cast<int>(lv_obj_get_index(target)), true);
+      },
+      LV_EVENT_CLICKED, this);
+
+  // The page's icon, else the first letter of its title (one UTF-8 character)
+  lv_obj_t *label = lv_label_create(button);
+  if (!page.icon.empty()) {
+    lv_obj_set_style_text_font(label, &dm_icons_24, 0);
+    lv_label_set_text(label, theme::icon(page.icon.c_str()));
+  } else {
+    size_t length = page.title.empty() ? 0 : 1;
+    while (length < page.title.size() && (static_cast<unsigned char>(page.title[length]) & 0xC0) == 0x80) length++;
+    lv_obj_set_style_text_font(label, &dm_font_20, 0);
+    lv_label_set_text(label, page.title.substr(0, length).c_str());
+  }
+  lv_obj_center(label);
 }
 
 void App::on_pointer(lv_event_t *e) {

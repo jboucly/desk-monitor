@@ -95,17 +95,31 @@ export function EntityPicker(props: {
 
 /**
  * @description Icon button opening a searchable grid of the icons compiled into the firmware.
+ * `compact` shows only the icon (or `fallback`, a short text, when no icon is set) and opens the grid
+ * to the right, for narrow places such as the page list.
  */
-export function IconPicker(props: { value: string; placeholder?: string; onChange: (value: string) => void }) {
+export function IconPicker(props: {
+  value: string;
+  placeholder?: string;
+  compact?: boolean;
+  fallback?: string;
+  onChange: (value: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const shown = ICON_NAMES.filter((n) => n.includes(query.toLowerCase()));
   return (
-    <div class="icon-picker">
-      <button type="button" class="icon-current" onClick={() => setOpen(!open)}>
-        <Icon name={props.value || props.placeholder || 'alert-circle-outline'} size={22} />
-        <span>{props.value || `${props.placeholder ?? ''} (auto)`}</span>
-      </button>
+    <div class={props.compact ? 'icon-picker compact' : 'icon-picker'} onClick={(e) => e.stopPropagation()}>
+      {props.compact ? (
+        <button type="button" class="icon-current" title={props.value || 'Icône (automatique)'} onClick={() => setOpen(!open)}>
+          {props.value ? <Icon name={props.value} size={18} /> : <span class="icon-fallback">{props.fallback}</span>}
+        </button>
+      ) : (
+        <button type="button" class="icon-current" onClick={() => setOpen(!open)}>
+          <Icon name={props.value || props.placeholder || 'alert-circle-outline'} size={22} />
+          <span>{props.value || `${props.placeholder ?? ''} (auto)`}</span>
+        </button>
+      )}
       {open && (
         <div class="icon-pop">
           <input autoFocus placeholder="Rechercher…" value={query} onInput={(e) => setQuery(e.currentTarget.value)} />

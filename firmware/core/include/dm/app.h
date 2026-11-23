@@ -120,6 +120,12 @@ class App {
   void build_header_status();
   void apply_pending_layout();
   void update_page_indicator();
+
+  /**
+   * @description Adds the dock button of `page` (its icon, else the first letter of its title). A tap
+   * shows the page. `count` is the number of pages, which sets the button width.
+   */
+  void add_dock_button(const PageSpec &page, int count);
   void update_setup_banner(const cJSON *wifi);
   void show_pairing_code(const char *code, const char *pc_name);
   void update_claude_asks(const cJSON *value);
@@ -151,7 +157,7 @@ class App {
   lv_obj_t *status_wifi_ = nullptr;
   lv_obj_t *status_ha_ = nullptr;
   lv_obj_t *status_pc_ = nullptr;
-  lv_obj_t *dots_ = nullptr;
+  lv_obj_t *dock_ = nullptr;  // page dock: one button per page
   lv_obj_t *sheet_ = nullptr;
   std::function<void()> sheet_on_close_;
   bool pairing_sheet_ = false;

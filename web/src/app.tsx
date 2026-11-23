@@ -155,6 +155,9 @@ export function App() {
           <section class="stage">
             <Preview
               page={page}
+              pages={layout.pages}
+              current={Math.min(pageIndex, layout.pages.length - 1)}
+              onPage={(i) => (setPageIndex(i), setSelected(null))}
               theme={layout.theme}
               selected={selected}
               onSelect={setSelected}

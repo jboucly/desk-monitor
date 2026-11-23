@@ -292,8 +292,9 @@ code {
 }
 
 /* Screen preview: same geometry as the device (header 44, grid padding 12, gap 10, footer 18) */
+/* 480 px of screen plus the 10 px bezel on each side (border-box), so that the preview is 1:1 */
 .screen {
-  width: min(480px, 90vw);
+  width: min(500px, 90vw);
   aspect-ratio: 1;
   border-radius: 24px;
   border: 10px solid #111522;
@@ -328,7 +329,6 @@ code {
 .grid {
   flex: 1;
   min-height: 0;
-  margin-bottom: 18px;
   padding: 12px;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -360,6 +360,46 @@ code {
   padding: 10px;
   cursor: grab;
   overflow: hidden;
+}
+
+/* Page dock of the screen (FOOTER_H = 58 px in firmware/core/include/dm/theme.h) */
+.screen-footer {
+  height: 58px;
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.dock {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid #ffffff2e;
+  background: #ffffff1a;
+}
+
+.screen-flat .dock {
+  background: #1a1e2b;
+  border-color: #262b3a;
+}
+
+.dock button {
+  width: 52px;
+  height: 40px;
+  padding: 0;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #b4bcd6;
+  font-size: 18px;
+}
+
+/* The active button's background is the layout's accent, set inline */
+.dock button.active {
+  color: #f4f6ff;
 }
 
 /* Flat style: opaque dark cards, as drawn by the device */
@@ -411,6 +451,11 @@ code {
   gap: 6px;
   pointer-events: none;
   font-size: 14px;
+}
+
+/* Centered faces: a 40 px badge and a label must fit the 81 px cells of the screen */
+.face-center {
+  gap: 4px;
 }
 
 .face-center,
@@ -541,6 +586,26 @@ code {
   border: 1px solid var(--panel-border);
   background: #121829;
   box-shadow: 0 20px 50px #000a;
+}
+
+/* Compact picker of the page list: a square button, the grid opens to the right of the sidebar */
+.icon-picker.compact .icon-current {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.icon-picker.compact .icon-pop {
+  top: 0;
+  right: auto;
+  left: 38px;
+}
+
+.icon-fallback {
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .icon-grid {

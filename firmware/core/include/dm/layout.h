@@ -31,6 +31,7 @@ struct WidgetSpec {
 struct PageSpec {
   std::string id;
   std::string title;
+  std::string icon;  // MDI name shown in the page dock; empty = first letter of the title
   std::vector<WidgetSpec> widgets;
 };
 

@@ -110,6 +110,10 @@ export interface Widget {
 export interface Page {
   id: string;
   title: string;
+  /**
+   * @description MDI icon of the page in the screen's dock; without it the dock shows the first letter of the title.
+   */
+  icon?: string;
   widgets: Widget[];
 }
 

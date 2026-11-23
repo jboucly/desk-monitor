@@ -1,14 +1,24 @@
-// Left column of the editor: pages (add, rename, reorder, delete) and theme.
+// Left column of the editor: pages (add, rename, choose the dock icon, reorder, delete) and theme.
 import { STYLES, WALLPAPERS, newId } from '../catalog';
 import type { Layout, Page, Theme, ThemeStyle, Wallpaper } from '../types';
 import { ask } from './Dialog';
 import { Icon } from './Icon';
+import { IconPicker } from './Pickers';
 
 interface SidebarProps {
   layout: Layout;
   current: number;
   onSelect: (index: number) => void;
   onChange: (layout: Layout) => void;
+}
+
+/**
+ * @description Copy of `page` with its dock icon set, or removed when `icon` is empty (the screen then
+ * shows the first letter of the title).
+ */
+function withIcon(page: Page, icon: string): Page {
+  const { icon: _old, ...rest } = page;
+  return icon ? { ...rest, icon } : rest;
 }
 
 /**
@@ -45,6 +55,13 @@ export function Sidebar({ layout, current, onSelect, onChange }: SidebarProps) {
       <ul class="pages">
         {layout.pages.map((page, i) => (
           <li key={page.id} class={i === current ? 'active' : ''} onClick={() => onSelect(i)}>
+            <IconPicker
+              compact
+              value={page.icon ?? ''}
+              placeholder=""
+              fallback={[...page.title][0] ?? '?'}
+              onChange={(icon) => setPages(layout.pages.map((p, j) => (j === i ? withIcon(p, icon) : p)))}
+            />
             <input
               value={page.title}
               maxLength={32}

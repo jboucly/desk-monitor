@@ -19,6 +19,9 @@ interface Drag {
 
 interface PreviewProps {
   page: Page;
+  pages: Page[];
+  current: number;
+  onPage: (index: number) => void;
   theme: Theme;
   selected: string | null;
   onSelect: (id: string | null) => void;
@@ -279,7 +282,7 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
 /**
  * @description The page as it will look on the screen, at 1:1 scale on wide windows.
  */
-export function Preview({ page, theme, selected, onSelect, onChange, onAddAt }: PreviewProps) {
+export function Preview({ page, pages, current, onPage, theme, selected, onSelect, onChange, onAddAt }: PreviewProps) {
   const gridRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [ghost, setGhost] = useState<Widget | null>(null);
@@ -365,6 +368,27 @@ export function Preview({ page, theme, selected, onSelect, onChange, onAddAt }: 
             </div>
           );
         })}
+      </div>
+      <div class="screen-footer">
+        {pages.length > 1 && (
+          <div class="dock">
+            {pages.map((p, i) => (
+              <button
+                key={p.id}
+                class={i === current ? 'active' : ''}
+                title={p.title}
+                style={{
+                  // Past 8 pages the buttons shrink, like on the screen, so that 12 still fit
+                  width: pages.length > 8 ? `${Math.floor((448 - (pages.length - 1) * 4) / pages.length)}px` : undefined,
+                  background: i === current ? theme.accent : undefined,
+                }}
+                onClick={() => onPage(i)}
+              >
+                {p.icon ? <Icon name={p.icon} size={22} /> : <span>{[...p.title][0] ?? '?'}</span>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
