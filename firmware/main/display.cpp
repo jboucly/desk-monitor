@@ -14,6 +14,7 @@
 #include "esp_lvgl_port.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "nvs.h"
 
 namespace dm::esp32 {
 
@@ -121,6 +122,55 @@ lv_indev_t *g_touch = nullptr;
 esp_lcd_touch_handle_t g_touch_handle = nullptr;
 std::atomic<bool> g_shown{false};  // the backlight stays off until the first frame is drawn
 
+// Wake-up trace, kept in NVS so that it survives a power loss (a power-on reset clears the RTC memory)
+constexpr const char *TRACE_NAMESPACE = "dm_display";
+constexpr const char *TRACE_KEY = "state";
+constexpr uint8_t TRACE_AWAKE = 1, TRACE_ASLEEP = 2, TRACE_WAKING = 3;
+constexpr int AWAKE_AFTER_TICKS = 20;  // sleep task ticks (500 ms) after a wake-up before it counts as done
+constexpr uint32_t WAKE_FADE_MS = 800;
+uint8_t g_trace = 0;                  // last value written, to write only on changes
+const char *g_previous_state = "unknown";
+
+/**
+ * @description Name of a trace value, as GET /api/status shows it.
+ */
+const char *trace_name(uint8_t value) {
+  switch (value) {
+    case TRACE_AWAKE: return "awake";
+    case TRACE_ASLEEP: return "asleep";
+    case TRACE_WAKING: return "waking";
+    default: return "unknown";
+  }
+}
+
+/**
+ * @description Stores the display state in NVS when it changes. Only called on sleep and wake-up
+ * transitions, never periodically, so that it does not wear the flash. Runs in the sleep task (or at init).
+ */
+void trace_display(uint8_t value) {
+  if (value == g_trace) return;
+  nvs_handle_t handle;
+  if (nvs_open(TRACE_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK) return;
+  if (nvs_set_u8(handle, TRACE_KEY, value) == ESP_OK && nvs_commit(handle) == ESP_OK) g_trace = value;
+  nvs_close(handle);
+}
+
+/**
+ * @description Reads the state the display was in when the chip last stopped, then marks it awake.
+ */
+void trace_init() {
+  nvs_handle_t handle;
+  uint8_t value = 0;
+  if (nvs_open(TRACE_NAMESPACE, NVS_READONLY, &handle) == ESP_OK) {
+    nvs_get_u8(handle, TRACE_KEY, &value);
+    nvs_close(handle);
+  }
+  g_trace = value;
+  g_previous_state = trace_name(value);
+  ESP_LOGI(TAG, "display state before this boot: %s", g_previous_state);
+  trace_display(TRACE_AWAKE);
+}
+
 /**
  * @description Asks the LVGL task to redraw the whole screen and waits for it, so that the backlight
  * never reveals an empty or stale frame. The drawing itself must stay in the LVGL task: rendering
@@ -153,8 +203,8 @@ void backlight_set(int pct) {
  * is a current spike on the 5 V rail, and on wake-up it adds to the Wi-Fi peaks and the full redraw: a
  * voltage dip there resets the chip (brownout).
  */
-void backlight_fade_in(int pct) {
-  ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, backlight_duty(pct), 250, LEDC_FADE_NO_WAIT);
+void backlight_fade_in(int pct, uint32_t ms = 250) {
+  ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, backlight_duty(pct), ms, LEDC_FADE_NO_WAIT);
 }
 
 void backlight_init() {
@@ -218,18 +268,25 @@ void filter_touch(esp_lcd_touch_handle_t, uint16_t *, uint16_t *, uint16_t *, ui
  * @description Turns the backlight off after the inactivity delay and back on when touched.
  */
 void sleep_task(void *) {
+  int awake_countdown = 0;  // ticks left before a wake-up is traced as done
   while (true) {
     vTaskDelay(pdMS_TO_TICKS(500));
     if (g_wake_request.exchange(false) && g_asleep) {
+      trace_display(TRACE_WAKING);
       g_asleep = false;
       if (lvgl_port_lock(100)) {
         lv_display_trigger_activity(nullptr);
         lvgl_port_unlock();
       }
       redraw_and_wait();
-      backlight_fade_in(g_brightness);
+      // Let the redraw and its flash reads settle before the backlight draws its current, then ramp it
+      // up slowly: the load step at wake-up is what cuts the power on a weak supply
+      vTaskDelay(pdMS_TO_TICKS(100));
+      backlight_fade_in(g_brightness, WAKE_FADE_MS);
+      awake_countdown = AWAKE_AFTER_TICKS;
       continue;
     }
+    if (awake_countdown > 0 && --awake_countdown == 0 && !g_asleep) trace_display(TRACE_AWAKE);
     const int minutes = g_sleep_minutes;
     if (minutes <= 0 || g_asleep) continue;
     uint32_t inactive = 0;
@@ -239,7 +296,9 @@ void sleep_task(void *) {
     }
     if (inactive > static_cast<uint32_t>(minutes) * 60000u) {
       g_asleep = true;
+      awake_countdown = 0;
       backlight_set(0);
+      trace_display(TRACE_ASLEEP);
     }
   }
 }
@@ -247,6 +306,7 @@ void sleep_task(void *) {
 }  // namespace
 
 void display_init() {
+  trace_init();
   backlight_init();
 
   // 3-wire SPI used only to send the ST7701S init sequence
@@ -393,7 +453,8 @@ void display_init() {
     ESP_LOGE(TAG, "GT911 not found, the screen will not react to touch");
   }
 
-  xTaskCreate(sleep_task, "dm_sleep", 3072, nullptr, 2, nullptr);
+  // NVS writes of the wake-up trace need more stack than the sleep loop alone
+  xTaskCreate(sleep_task, "dm_sleep", 4096, nullptr, 2, nullptr);
   ESP_LOGI(TAG, "display ready");
 }
 
@@ -408,6 +469,8 @@ void display_show() {
   g_shown = true;
   if (!g_asleep) backlight_fade_in(g_brightness);
 }
+
+const char *display_previous_state() { return g_previous_state; }
 
 void display_wake() {
   // The sleep task redraws, then turns the backlight on (within half a second)
