@@ -398,25 +398,29 @@ class ClaudeLimits : public Widget {
     root = theme::make_card(parent);
     bind_event<ClaudeLimits, &ClaudeLimits::on_click>(root, LV_EVENT_CLICKED, this);
     lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(root, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(root, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(root, 2, 0);
 
-    make_header(root, "timer-sand", json::str(spec.props, "name", "Limites"), &icon_);
+    lv_obj_t *header = make_header(root, "timer-sand", json::str(spec.props, "name", "Limites"), &icon_);
+    // Where the reading comes from, at the right of the title: at the bottom it took height from the arcs
+    note_ = theme::make_label(header, &dm_font_14, theme::text3());
+    lv_obj_set_style_max_width(note_, lv_pct(45), 0);
+    theme::single_line(note_);
 
-    // Two arcs side by side, sized to the card
+    // Two arcs side by side. Their row takes all the height under the header and centers them in it,
+    // with a margin, so that they never ride up on the title.
     lv_obj_t *arcs = make_row(root, 6);
+    lv_obj_set_flex_grow(arcs, 1);
     lv_obj_set_flex_align(arcs, LV_FLEX_ALIGN_SPACE_AROUND, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     const int inner_w = (theme::span_width(spec.w) - 2 * theme::CARD_PAD - 6) / 2;
-    // Height left once the header (24), the reset time and the note (2 x 17) and the gaps are taken
-    const int inner_h = theme::span_height(spec.h) - 2 * theme::CARD_PAD - 24 - 2 * 17 - 8;
+    lv_obj_set_style_pad_top(arcs, 8, 0);
+    // Height left once the header (about 34 with its icon line), the reset time (17), the gap and the
+    // margin under the title are taken (measured in the simulator: less clips the reset times)
+    const int inner_h = theme::span_height(spec.h) - 2 * theme::CARD_PAD - 34 - 17 - 2 - 8;
     const int size = std::max(56, std::min(inner_w, inner_h));
     meters_[0] = make_meter(arcs, size, "5 h");
     meters_[1] = make_meter(arcs, size, "7 j");
 
-    note_ = theme::make_label(root, &dm_font_14, theme::text3());
-    lv_obj_set_width(note_, lv_pct(100));
-    lv_obj_set_style_text_align(note_, LV_TEXT_ALIGN_CENTER, 0);
-    theme::single_line(note_);
     pass_clicks(root);
 
     ctx.bus.subscribe("pc/claude", [this](const cJSON *claude) { render(claude); });
