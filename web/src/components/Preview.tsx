@@ -35,6 +35,8 @@ interface PreviewProps {
 function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
   const p = widget.props;
   const big = widget.w >= 2 && widget.h >= 2;
+  // Like the screen: one row is too short to stack the bubble over the name, so a wide tile puts them side by side
+  const entityFace = widget.w >= 2 && widget.h === 1 ? 'face face-row-start' : 'face face-entity';
   switch (widget.type) {
     case 'clock':
       return (
@@ -201,7 +203,7 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
       );
     case 'ha_climate':
       return (
-        <div class="face face-entity">
+        <div class={entityFace}>
           <span class="bubble">
             <Icon name={p.icon || entityIcon(p.entity || 'climate.x')} size={big ? 28 : 20} />
           </span>
@@ -250,7 +252,7 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
     case 'ha_select':
     case 'ha_alarm':
       return (
-        <div class="face face-entity">
+        <div class={entityFace}>
           <span class="bubble">
             <Icon name={p.icon || entityIcon(p.entity || (widget.type === 'ha_cover' ? 'cover.x' : widget.type === 'ha_alarm' ? 'alarm_control_panel.x' : 'select.x'))} size={big ? 28 : 20} />
           </span>
@@ -261,7 +263,7 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
     case 'ha_light':
     case 'ha_toggle':
       return (
-        <div class="face face-entity">
+        <div class={entityFace}>
           <span class="bubble">
             <Icon name={p.icon || entityIcon(p.entity || 'light.x')} size={big ? 28 : 20} />
           </span>

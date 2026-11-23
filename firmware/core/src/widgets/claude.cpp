@@ -159,14 +159,7 @@ class ClaudeSessions : public Widget {
     lv_obj_set_flex_grow(list_, 1);
     lv_obj_set_flex_flow(list_, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(list_, ROW_GAP, 0);
-    lv_obj_set_style_pad_right(list_, 6, 0);  // room for the scroll bar
-    lv_obj_set_scroll_dir(list_, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(list_, LV_SCROLLBAR_MODE_AUTO);
-    lv_obj_set_style_width(list_, 3, LV_PART_SCROLLBAR);
-    lv_obj_set_style_radius(list_, 2, LV_PART_SCROLLBAR);
-    lv_obj_set_style_bg_color(list_, lv_color_white(), LV_PART_SCROLLBAR);
-    lv_obj_set_style_bg_opa(list_, 90, LV_PART_SCROLLBAR);
-    lv_obj_set_style_pad_right(list_, 0, LV_PART_SCROLLBAR);
+    scroll_vertically(list_);
     lv_obj_remove_flag(list_, LV_OBJ_FLAG_CLICKABLE);
     for (int i = 0; i < MAX_ROWS; i++) rows_[i] = make_session_row();
 

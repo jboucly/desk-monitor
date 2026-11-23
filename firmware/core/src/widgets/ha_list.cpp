@@ -119,9 +119,7 @@ class ListTile : public Widget {
     lv_obj_set_style_pad_row(list_, badges_ ? 8 : 2, 0);
     lv_obj_set_style_pad_column(list_, 8, 0);
     // More items than the tile shows: they scroll vertically (pages still swipe sideways)
-    lv_obj_add_flag(list_, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_scroll_dir(list_, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(list_, LV_SCROLLBAR_MODE_OFF);
+    scroll_vertically(list_);
 
     const cJSON *item = nullptr;
     cJSON_ArrayForEach(item, json::get(spec.props, "items")) items_.push_back(build_item(item));

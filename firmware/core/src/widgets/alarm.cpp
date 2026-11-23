@@ -293,16 +293,28 @@ class AlarmTile : public Widget {
     bubble_ = lv_obj_create(root);
     lv_obj_remove_style_all(bubble_);
     lv_obj_add_style(bubble_, theme::bubble(), 0);
-    lv_obj_set_size(bubble_, tall ? 56 : 40, tall ? 56 : 40);
+    // 1x1: a smaller bubble, so that it and the state fit the ~57 px inside the card
+    const int bubble = tall ? 56 : spec.w >= 2 ? 40 : 34;
+    lv_obj_set_size(bubble_, bubble, bubble);
     lv_obj_remove_flag(bubble_, LV_OBJ_FLAG_CLICKABLE);
     icon_ = theme::make_icon(bubble_, tall ? &dm_icons_32 : &dm_icons_24, "shield-off", theme::text());
     lv_obj_center(icon_);
     state_ = theme::make_label(root, spec.w >= 2 ? &dm_font_16 : &dm_font_14, theme::text2());
-    lv_obj_align(state_, spec.w >= 2 ? LV_ALIGN_TOP_RIGHT : LV_ALIGN_BOTTOM_LEFT, 0, spec.w >= 2 ? 2 : -22);
     name_ = theme::make_label(root, spec.w >= 2 ? &dm_font_20 : &dm_font_16, theme::text());
-    lv_obj_set_width(name_, lv_pct(100));
     theme::single_line(name_);
-    lv_obj_align(name_, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+    place_tile_name(bubble_, name_, spec);
+    if (spec.w >= 2) {
+      lv_obj_align(state_, LV_ALIGN_TOP_RIGHT, 0, 2);
+    } else if (tall) {
+      lv_obj_align(state_, LV_ALIGN_BOTTOM_LEFT, 0, -22);
+    } else {
+      // A 1x1 tile only has room for the bubble and one line: the state, more useful than the name
+      // (the popup shows the name)
+      lv_obj_set_width(state_, lv_pct(100));
+      theme::single_line(state_);
+      lv_obj_align(state_, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+      set_hidden(name_, true);
+    }
     bind_event<AlarmTile, &AlarmTile::on_gesture>(root, LV_EVENT_SHORT_CLICKED, this);
     bind_event<AlarmTile, &AlarmTile::on_gesture>(root, LV_EVENT_LONG_PRESSED, this);
   }

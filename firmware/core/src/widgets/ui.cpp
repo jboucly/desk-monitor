@@ -17,6 +17,33 @@ void style_slider(lv_obj_t *slider) {
   lv_obj_set_style_shadow_opa(slider, LV_OPA_40, LV_PART_KNOB);
 }
 
+void place_tile_name(lv_obj_t *bubble, lv_obj_t *name, const WidgetSpec &spec) {
+  if (spec.h >= 2 || spec.w < 2) {
+    lv_obj_align(bubble, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_obj_set_width(name, lv_pct(100));
+    lv_obj_align(name, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+    return;
+  }
+  constexpr int GAP = 10;
+  const int size = lv_obj_get_style_width(bubble, LV_PART_MAIN);
+  const int line = lv_font_get_line_height(lv_obj_get_style_text_font(name, LV_PART_MAIN));
+  lv_obj_align(bubble, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+  lv_obj_set_width(name, theme::span_width(spec.w) - 2 * theme::CARD_PAD - size - GAP);
+  lv_obj_align(name, LV_ALIGN_BOTTOM_LEFT, size + GAP, -(size - line) / 2);
+}
+
+void scroll_vertically(lv_obj_t *list) {
+  lv_obj_add_flag(list, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scroll_dir(list, LV_DIR_VER);
+  lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_AUTO);
+  lv_obj_set_style_pad_right(list, 6, 0);
+  lv_obj_set_style_width(list, 3, LV_PART_SCROLLBAR);
+  lv_obj_set_style_radius(list, 2, LV_PART_SCROLLBAR);
+  lv_obj_set_style_bg_color(list, lv_color_white(), LV_PART_SCROLLBAR);
+  lv_obj_set_style_bg_opa(list, 90, LV_PART_SCROLLBAR);
+  lv_obj_set_style_pad_right(list, 0, LV_PART_SCROLLBAR);
+}
+
 lv_obj_t *make_box(lv_obj_t *parent, lv_flex_flow_t flow) {
   lv_obj_t *box = lv_obj_create(parent);
   lv_obj_remove_style_all(box);

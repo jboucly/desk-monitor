@@ -176,6 +176,21 @@ void open_keypad_sheet(WidgetContext &ctx, const std::string &entity_id, const s
 void style_slider(lv_obj_t *slider);
 
 /**
+ * @description Places the icon bubble and the name label of an entity tile. A tile of one row and two
+ * columns or more is too short to stack them (cells are ~81 px high): the name goes beside the bubble,
+ * centered on it, and the bubble sits at the bottom left, under the state at the top right. Otherwise
+ * the bubble is at the top left and the name at the bottom, full width. Call after setting the
+ * bubble size and the name font.
+ */
+void place_tile_name(lv_obj_t *bubble, lv_obj_t *name, const WidgetSpec &spec);
+
+/**
+ * @description Makes `list` scroll vertically with a thin scroll bar shown only when its content
+ * overflows. Horizontal drags still go to the page tileview. Leaves 6 px on the right for the bar.
+ */
+void scroll_vertically(lv_obj_t *list);
+
+/**
  * @description Transparent, non-clickable flex container sized to its content.
  */
 lv_obj_t *make_box(lv_obj_t *parent, lv_flex_flow_t flow);
