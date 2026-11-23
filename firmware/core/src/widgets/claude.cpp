@@ -151,10 +151,24 @@ class ClaudeSessions : public Widget {
     lv_obj_set_width(empty_, lv_pct(100));
     lv_label_set_long_mode(empty_, LV_LABEL_LONG_WRAP);
 
-    // As many rows as the card height allows
-    const int inner = theme::span_height(spec.h) - 2 * theme::CARD_PAD - 22;
-    rows_count_ = std::clamp(inner / (ROW_H + ROW_GAP), 1, MAX_ROWS);
-    for (int i = 0; i < rows_count_; i++) rows_[i] = make_session_row();
+    // Every session gets a row; the list scrolls vertically when they do not fit the card. Horizontal
+    // drags still go to the page tileview (swipe between pages).
+    list_ = lv_obj_create(root);
+    lv_obj_remove_style_all(list_);
+    lv_obj_set_width(list_, lv_pct(100));
+    lv_obj_set_flex_grow(list_, 1);
+    lv_obj_set_flex_flow(list_, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(list_, ROW_GAP, 0);
+    lv_obj_set_style_pad_right(list_, 6, 0);  // room for the scroll bar
+    lv_obj_set_scroll_dir(list_, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(list_, LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_set_style_width(list_, 3, LV_PART_SCROLLBAR);
+    lv_obj_set_style_radius(list_, 2, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_color(list_, lv_color_white(), LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(list_, 90, LV_PART_SCROLLBAR);
+    lv_obj_set_style_pad_right(list_, 0, LV_PART_SCROLLBAR);
+    lv_obj_remove_flag(list_, LV_OBJ_FLAG_CLICKABLE);
+    for (int i = 0; i < MAX_ROWS; i++) rows_[i] = make_session_row();
 
     ctx.bus.subscribe("pc/claude", [this](const cJSON *) { render(); });
   }
@@ -171,7 +185,7 @@ class ClaudeSessions : public Widget {
 
   Row make_session_row() {
     Row row;
-    row.box = make_row(root, 10);
+    row.box = make_row(list_, 10);
     lv_obj_set_height(row.box, ROW_H);
     lv_obj_set_style_radius(row.box, 14, 0);
     lv_obj_set_style_pad_hor(row.box, 8, 0);
@@ -212,7 +226,7 @@ class ClaudeSessions : public Widget {
       ctx_.app.show_claude_asks();
       return;
     }
-    for (int i = 0; i < rows_count_; i++) {
+    for (int i = 0; i < MAX_ROWS; i++) {
       if (rows_[i].box == box && !rows_[i].id.empty()) ctx_.app.show_claude_detail("session", rows_[i].id);
     }
   }
@@ -229,7 +243,7 @@ class ClaudeSessions : public Widget {
     set_hidden(empty_, total > 0);
     lv_label_set_text(empty_, online ? "Aucune session en cours" : "PC déconnecté");
 
-    for (int i = 0; i < rows_count_; i++) {
+    for (int i = 0; i < MAX_ROWS; i++) {
       Row &row = rows_[i];
       const cJSON *session = i < total ? cJSON_GetArrayItem(sessions, i) : nullptr;
       set_hidden(row.box, !session);
@@ -275,7 +289,7 @@ class ClaudeSessions : public Widget {
   WidgetContext &ctx_;
   lv_obj_t *icon_ = nullptr, *desktop_ = nullptr, *count_ = nullptr, *empty_ = nullptr;
   Row rows_[MAX_ROWS] = {};
-  int rows_count_ = 0;
+  lv_obj_t *list_ = nullptr;  // scrollable column of the session rows
 };
 
 // ── claude_usage ─────────────────────────────────────────────────────────────
