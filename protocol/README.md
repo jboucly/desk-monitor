@@ -9,7 +9,7 @@ Contracts shared by the firmware (`firmware/`), the web editor (`web/`) and the 
 
 ## Layout
 
-A layout is a list of pages (1 to 12). Each page is a **4×4 grid**. Every widget sets its top-left cell (`x`, `y`, 0 to 3) and its span (`w`, `h`, 1 to 4).
+A layout is a list of pages (1 to 12). A page has an `id`, a `title` (shown in the header) and an optional `icon` (an MDI name of `icons.json`, shown in the page dock at the bottom of the screen; without it the dock shows the first letter of the title). Each page is a **4×4 grid**. Every widget sets its top-left cell (`x`, `y`, 0 to 3) and its span (`w`, `h`, 1 to 4).
 Widgets cannot overlap or leave the grid. The firmware validates every layout again (`firmware/core/src/layout.cpp`). When a layout is rejected, the previous one stays on screen and the API returns the reason in French.
 
 | Type | Main props | Data source |
@@ -90,7 +90,7 @@ When a PIN is set, every write (`PUT`, `POST`) needs the `X-DM-Pin` header.
 | `PUT` | `/api/layout` | new layout. It is validated, saved, and the screen rebuilds without rebooting (`400` when invalid) |
 | `GET` | `/api/settings` | settings. Secrets are replaced by `has_password`, `has_token` and `has_pin` |
 | `PUT` | `/api/settings` | partial settings. An empty secret keeps the stored one. `security.clear_pin: true` removes the PIN |
-| `GET` | `/api/status` | `version`, `platform`, `ip`, `rssi`, `uptime`, `heap_internal`, `heap_psram`, `reset_reason` (device only: `power_on`, `panic`, `brownout`, `task_wdt`…) |
+| `GET` | `/api/status` | `version`, `platform`, `ip`, `rssi`, `uptime`, `heap_internal`, `heap_psram`, `reset_reason` (device only: `power_on`, `panic`, `brownout`, `task_wdt`…), `last_display_state` (device only: the display state when the chip last stopped, `awake`, `asleep`, `waking` or `unknown`; `power_on` with `waking` means the supply collapsed during a wake-up) |
 | `GET` | `/api/printer` | the `printer` bus value (see "3D printer"), `{"state": "off"}` without a printer |
 | `GET` | `/api/ha/entities` | `[{"id", "name"}]` from the HA entity registry (`503` when HA is not connected) |
 | `POST` | `/api/ha/template` | `{"template"}` → `{"result"}`, or `422 {"error"}` with Home Assistant's message (`503` when HA is not connected) |

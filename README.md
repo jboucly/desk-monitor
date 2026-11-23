@@ -4,7 +4,7 @@
 
 A 480×480 desk touch screen (Guition ESP32-S3-4848S040) that acts as an **extension of your computer**. It works on its own over Wi-Fi: Home Assistant, weather, clock, and your 3D printer. A companion app on the computer connects to it over the local network: it sends PC metrics, the music currently playing and a Claude Code dashboard (sessions, subagents, tokens, plan limits; the screen wakes up to approve a tool call), and runs Stream Deck-style shortcuts.
 
-Pages are configured **on the fly** from a web editor served by the screen itself (`http://desk-monitor.local`), with no rebuild and no reflash.
+Pages are configured **on the fly** from a web editor served by the screen itself (`http://desk-monitor.local`), with no rebuild and no reflash. A dock at the bottom of the screen jumps straight to any page (each page picks its icon in the editor); swiping still works.
 
 > The on-screen UI and the web editor are in French.
 
