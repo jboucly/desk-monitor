@@ -19,6 +19,9 @@ interface Drag {
 
 interface PreviewProps {
   page: Page;
+  pages: Page[];
+  current: number;
+  onPage: (index: number) => void;
   theme: Theme;
   selected: string | null;
   onSelect: (id: string | null) => void;
@@ -32,6 +35,8 @@ interface PreviewProps {
 function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
   const p = widget.props;
   const big = widget.w >= 2 && widget.h >= 2;
+  // Like the screen: one row is too short to stack the bubble over the name, so a wide tile puts them side by side
+  const entityFace = widget.w >= 2 && widget.h === 1 ? 'face face-row-start' : 'face face-entity';
   switch (widget.type) {
     case 'clock':
       return (
@@ -198,7 +203,7 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
       );
     case 'ha_climate':
       return (
-        <div class="face face-entity">
+        <div class={entityFace}>
           <span class="bubble">
             <Icon name={p.icon || entityIcon(p.entity || 'climate.x')} size={big ? 28 : 20} />
           </span>
@@ -247,7 +252,7 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
     case 'ha_select':
     case 'ha_alarm':
       return (
-        <div class="face face-entity">
+        <div class={entityFace}>
           <span class="bubble">
             <Icon name={p.icon || entityIcon(p.entity || (widget.type === 'ha_cover' ? 'cover.x' : widget.type === 'ha_alarm' ? 'alarm_control_panel.x' : 'select.x'))} size={big ? 28 : 20} />
           </span>
@@ -258,7 +263,7 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
     case 'ha_light':
     case 'ha_toggle':
       return (
-        <div class="face face-entity">
+        <div class={entityFace}>
           <span class="bubble">
             <Icon name={p.icon || entityIcon(p.entity || 'light.x')} size={big ? 28 : 20} />
           </span>
@@ -279,7 +284,7 @@ function WidgetFace({ widget, theme }: { widget: Widget; theme: Theme }) {
 /**
  * @description The page as it will look on the screen, at 1:1 scale on wide windows.
  */
-export function Preview({ page, theme, selected, onSelect, onChange, onAddAt }: PreviewProps) {
+export function Preview({ page, pages, current, onPage, theme, selected, onSelect, onChange, onAddAt }: PreviewProps) {
   const gridRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [ghost, setGhost] = useState<Widget | null>(null);
@@ -365,6 +370,27 @@ export function Preview({ page, theme, selected, onSelect, onChange, onAddAt }: 
             </div>
           );
         })}
+      </div>
+      <div class="screen-footer">
+        {pages.length > 1 && (
+          <div class="dock">
+            {pages.map((p, i) => (
+              <button
+                key={p.id}
+                class={i === current ? 'active' : ''}
+                title={p.title}
+                style={{
+                  // Past 8 pages the buttons shrink, like on the screen, so that 12 still fit
+                  width: pages.length > 8 ? `${Math.floor((448 - (pages.length - 1) * 4) / pages.length)}px` : undefined,
+                  background: i === current ? theme.accent : undefined,
+                }}
+                onClick={() => onPage(i)}
+              >
+                {p.icon ? <Icon name={p.icon} size={22} /> : <span>{[...p.title][0] ?? '?'}</span>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

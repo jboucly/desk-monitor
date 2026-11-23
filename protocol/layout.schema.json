@@ -45,6 +45,7 @@
       "properties": {
         "id": { "type": "string", "pattern": "^[a-z0-9_-]{1,24}$" },
         "title": { "type": "string", "maxLength": 32 },
+        "icon": { "$ref": "#/$defs/icon", "description": "Icon of the page in the screen's dock. Without it the dock shows the first letter of the title." },
         "widgets": {
           "type": "array",
           "maxItems": 16,

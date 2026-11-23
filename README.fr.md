@@ -4,7 +4,7 @@
 
 Écran tactile de bureau 480×480 (Guition ESP32-S3-4848S040) qui sert d'**extension de l'ordinateur**. Il fonctionne seul en Wi-Fi : Home Assistant, météo, horloge, et ton imprimante 3D. Une application compagnon sur l'ordinateur s'y connecte par le réseau local : elle envoie les métriques du PC, la musique en cours de lecture et un tableau de bord Claude Code (sessions, sous-agents, tokens, limites du forfait ; l'écran se réveille pour autoriser un outil), et exécute les raccourcis façon Stream Deck.
 
-Les pages se configurent **à la volée** depuis un éditeur web servi par l'écran lui-même (`http://desk-monitor.local`), sans recompiler ni reflasher.
+Les pages se configurent **à la volée** depuis un éditeur web servi par l'écran lui-même (`http://desk-monitor.local`), sans recompiler ni reflasher. Un dock en bas de l'écran mène directement à n'importe quelle page (chaque page choisit son icône dans l'éditeur) ; le glissement marche toujours.
 
 | | | |
 | --- | --- | --- |

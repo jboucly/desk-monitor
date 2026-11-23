@@ -23,6 +23,12 @@ void display_configure(int brightness_pct, int sleep_minutes);
 void display_show();
 
 /**
+ * @description State of the display when the chip last stopped: "awake", "asleep", "waking" (reset during
+ * a wake-up) or "unknown". Read from NVS by display_init(), shown in GET /api/status.
+ */
+const char *display_previous_state();
+
+/**
  * @description Wakes the screen up when it sleeps, without a touch (e.g. a Claude Code approval).
  * Safe from any task.
  */

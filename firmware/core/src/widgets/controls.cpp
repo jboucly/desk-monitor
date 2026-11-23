@@ -601,15 +601,20 @@ class CoverTile : public ControlTile {
  public:
   CoverTile(lv_obj_t *parent, const WidgetSpec &spec, WidgetContext &ctx) : ControlTile(parent, spec, ctx) {
     const bool tall = spec.h >= 2;
-    make_bubble(root, tall ? 56 : 40);
-    lv_obj_align(bubble_, LV_ALIGN_TOP_LEFT, 0, 0);
+    // One row is too short to stack the bubble over the name: a wide tile puts the name beside the
+    // bubble, a 1x1 tile gets a smaller bubble
+    const bool beside = !tall && spec.w >= 2;
+    const int bubble = tall ? 56 : spec.w >= 2 ? 40 : 34;
+    make_bubble(root, bubble);
+    lv_obj_align(bubble_, beside ? LV_ALIGN_BOTTOM_LEFT : LV_ALIGN_TOP_LEFT, 0, 0);
     state_ = theme::make_label(root, &dm_font_14, theme::text2());
     lv_obj_align(state_, LV_ALIGN_TOP_RIGHT, 0, 2);
 
     lv_obj_t *bottom = make_box(root, LV_FLEX_FLOW_ROW);
     lv_obj_set_width(bottom, lv_pct(100));
-    lv_obj_set_flex_align(bottom, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
+    lv_obj_set_flex_align(bottom, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(bottom, 6, 0);
+    if (beside) lv_obj_set_style_pad_left(bottom, bubble + 10, 0);
     lv_obj_align(bottom, LV_ALIGN_BOTTOM_LEFT, 0, 0);
     name_ = theme::make_label(bottom, spec.w >= 2 ? &dm_font_20 : &dm_font_16, theme::text());
     lv_obj_set_flex_grow(name_, 1);

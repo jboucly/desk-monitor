@@ -5,6 +5,7 @@
     {
       "id": "home",
       "title": "Accueil",
+      "icon": "home",
       "widgets": [
         { "id": "clock", "type": "clock", "x": 0, "y": 0, "w": 4, "h": 2, "props": { "show_date": true } },
         { "id": "weather", "type": "weather", "x": 0, "y": 2, "w": 2, "h": 2, "props": { "mode": "current" } },
@@ -17,6 +18,7 @@
     {
       "id": "pc",
       "title": "Ordinateur",
+      "icon": "monitor",
       "widgets": [
         { "id": "pc_dash", "type": "pc_metrics", "x": 0, "y": 0, "w": 4, "h": 2, "props": {} },
         { "id": "pc_cpu", "type": "pc_gauge", "x": 0, "y": 2, "w": 2, "h": 2, "props": { "metric": "cpu" } },
@@ -26,6 +28,7 @@
     {
       "id": "claude",
       "title": "Claude",
+      "icon": "creation",
       "widgets": [
         { "id": "claude_sessions", "type": "claude_sessions", "x": 0, "y": 0, "w": 4, "h": 2, "props": {} },
         { "id": "claude_usage", "type": "claude_usage", "x": 0, "y": 2, "w": 2, "h": 2, "props": {} },
@@ -35,6 +38,7 @@
     {
       "id": "music",
       "title": "Musique",
+      "icon": "music",
       "widgets": [
         { "id": "now_playing", "type": "media", "x": 0, "y": 0, "w": 4, "h": 3, "props": {} },
         { "id": "m_spotify", "type": "shortcut", "x": 0, "y": 3, "w": 1, "h": 1, "props": { "name": "Spotify", "icon": "spotify", "color": "#1DB954", "action": { "kind": "launch", "target": "Spotify" } } },
@@ -46,6 +50,7 @@
     {
       "id": "server",
       "title": "Serveur",
+      "icon": "server",
       "widgets": [
         { "id": "cpu", "type": "ha_gauge", "x": 0, "y": 0, "w": 2, "h": 2, "props": { "entity": "sensor.server_cpu", "name": "Processeur", "unit": "%", "warn": 75, "crit": 90 } },
         { "id": "ram", "type": "ha_gauge", "x": 2, "y": 0, "w": 2, "h": 2, "props": { "entity": "sensor.server_memory", "name": "Mémoire", "unit": "%", "warn": 75, "crit": 90 } },
@@ -56,6 +61,7 @@
     {
       "id": "lights",
       "title": "Lumières",
+      "icon": "lightbulb-group",
       "widgets": [
         { "id": "bureau", "type": "ha_light", "x": 0, "y": 0, "w": 2, "h": 2, "props": { "entity": "light.ampoule_bureau", "name": "Bureau", "icon": "ceiling-light" } },
         { "id": "desk", "type": "ha_light", "x": 2, "y": 0, "w": 2, "h": 2, "props": { "entity": "light.lumiere_bureau", "name": "Lampes du bureau", "icon": "desk-lamp" } },
@@ -67,6 +73,7 @@
     {
       "id": "weather",
       "title": "Météo",
+      "icon": "weather-partly-cloudy",
       "widgets": [
         { "id": "now", "type": "weather", "x": 0, "y": 0, "w": 4, "h": 2, "props": { "mode": "current" } },
         { "id": "forecast", "type": "weather", "x": 0, "y": 2, "w": 4, "h": 2, "props": { "mode": "forecast", "days": 5 } }
@@ -75,6 +82,7 @@
     {
       "id": "deck",
       "title": "Raccourcis",
+      "icon": "keyboard",
       "widgets": [
         { "id": "s1", "type": "shortcut", "x": 0, "y": 0, "w": 1, "h": 1, "props": { "name": "VS Code", "icon": "microsoft-visual-studio-code", "color": "#2F80ED", "action": { "kind": "launch", "target": "Visual Studio Code" } } },
         { "id": "s2", "type": "shortcut", "x": 1, "y": 0, "w": 1, "h": 1, "props": { "name": "Terminal", "icon": "console", "color": "#334155", "action": { "kind": "launch", "target": "Terminal" } } },

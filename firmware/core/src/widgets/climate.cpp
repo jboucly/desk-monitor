@@ -532,7 +532,8 @@ class ClimateTile : public Widget {
 
     if (narrow_) {
       // Same arrangement as the toggle tiles: bubble, value top right, name at the bottom
-      bubble_ = make_bubble(root, tall ? 56 : 40, tall);
+      // 1x1: a smaller bubble, so that it and the name fit the ~57 px inside the card
+      bubble_ = make_bubble(root, tall ? 56 : 34, tall);
       lv_obj_align(bubble_, LV_ALIGN_TOP_LEFT, 0, 0);
       temp_ = theme::make_label(root, tall ? &dm_font_28 : &dm_font_16, theme::text());
       lv_obj_align(temp_, tall ? LV_ALIGN_LEFT_MID : LV_ALIGN_TOP_RIGHT, 0, tall ? 10 : 2);

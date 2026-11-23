@@ -69,6 +69,7 @@ std::string status_json() {
   cJSON_AddNumberToObject(status, "rssi", dm::esp32::network_rssi());
   cJSON_AddNumberToObject(status, "uptime", static_cast<double>(esp_timer_get_time() / 1000000));
   cJSON_AddStringToObject(status, "reset_reason", reset_reason());
+  cJSON_AddStringToObject(status, "last_display_state", dm::esp32::display_previous_state());
   cJSON_AddNumberToObject(status, "heap_internal", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
   cJSON_AddNumberToObject(status, "heap_psram", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
   std::string out = dm::json::print(status);

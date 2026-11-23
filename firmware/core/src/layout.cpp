@@ -199,6 +199,7 @@ std::unique_ptr<Layout> Layout::parse(const std::string &text, std::string &erro
     PageSpec page;
     page.id = json::str(page_json, "id");
     page.title = json::str(page_json, "title");
+    page.icon = json::str(page_json, "icon");
     if (page.id.empty() || !page_ids.insert(page.id).second) {
       error = "page sans id ou id en double : \"" + page.id + "\"";
       return nullptr;

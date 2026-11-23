@@ -28,7 +28,7 @@ namespace dm::theme {
 constexpr int SCREEN_W = 480;
 constexpr int SCREEN_H = 480;
 constexpr int HEADER_H = 44;
-constexpr int FOOTER_H = 18;
+constexpr int FOOTER_H = 58;  // page dock (48 px) and its bottom margin
 constexpr int GRID_PAD = 12;
 constexpr int GRID_GAP = 10;
 constexpr int RADIUS = 22;

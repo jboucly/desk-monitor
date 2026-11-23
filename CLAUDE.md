@@ -71,6 +71,7 @@ Anything that is not hardware or transport goes in `core/`: HA protocol logic, w
 
 - `Layout::parse` validates the JSON (4×4 grid, no overlap, required props) and returns French error messages.
 - `App` builds one `lv_tileview` tile per page, with a grid layout, and asks `find_widget_factory(type)` (`core/src/widgets/registry.cpp`) for each widget.
+- Pages are reached by swiping or through the page dock (`App::add_dock_button`): a floating pill in the `FOOTER_H` band, one button per page with the page's `icon` (else the first letter of its title). It stays a child of the screen, so popups (top layer) cover it.
 - A type without a factory (layout from a newer editor) renders a "Non pris en charge" placeholder.
 - Rebuild order matters: `close_sheet()`, then `bus.clear_subscriptions()`, then `widgets_.clear()`, then delete the LVGL objects.
 
@@ -138,6 +139,7 @@ Anything that is not hardware or transport goes in `core/`: HA protocol logic, w
 - **`lv_tileview_get_tile_active()` is NULL** until a tile is set explicitly. `build_pages()` sets tile 0.
 - **Labels** that must stay on one line use `theme::single_line()`, because `LV_LABEL_LONG_DOT` alone wraps when the height is `LV_SIZE_CONTENT`.
 - **C++ and IDF macros.** Several IDF/component config macros use designated initializers in an order that fails in C++ (e.g. `ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG`). Fill the structs field by field.
+- **Reboot when waking up** (wall charger, after a long sleep). `/api/status` reported `power_on`, a real power loss, not a crash. The wake-up now fades the backlight in over 800 ms after the redraw, and a trace kept in NVS (`dm_display/state`, written only on sleep/wake transitions) shows in `last_display_state`. Cause not confirmed yet.
 - **Backlight (GPIO38).** It floats after reset and lights the uninitialized panel (white flash). `bootloader_components/backlight_off` drives it low in the bootloader, and `display_show()` turns it on only after the first frame is drawn (wake from sleep redraws first too). After adding a bootloader component, delete `build/bootloader` once: the bootloader subproject does not rescan.
 - **Touch filter (`filter_touch`).** Never change `point_num` in the GT911 `process_coordinates` callback: a count of 0 makes `esp_lcd_touch_get_data` fail and esp_lvgl_port aborts. The wake-up touch is ignored with `lv_indev_wait_release()` instead. `touch_read` (`main/display.cpp`) replaces esp_lvgl_port's read callback, which aborted on any GT911 I2C error (`ESP_ERROR_CHECK`): errors only drop the sample now.
 - **TJpgDec pixel order.** LVGL's copy outputs 24-bit pixels as B, G, R (`cover.cpp`).
