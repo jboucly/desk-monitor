@@ -407,7 +407,8 @@ class ClaudeLimits : public Widget {
     lv_obj_t *arcs = make_row(root, 6);
     lv_obj_set_flex_align(arcs, LV_FLEX_ALIGN_SPACE_AROUND, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     const int inner_w = (theme::span_width(spec.w) - 2 * theme::CARD_PAD - 6) / 2;
-    const int inner_h = theme::span_height(spec.h) - 2 * theme::CARD_PAD - 22 - 36;
+    // Height left once the header (24), the reset time and the note (2 x 17) and the gaps are taken
+    const int inner_h = theme::span_height(spec.h) - 2 * theme::CARD_PAD - 24 - 2 * 17 - 8;
     const int size = std::max(56, std::min(inner_w, inner_h));
     meters_[0] = make_meter(arcs, size, "5 h");
     meters_[1] = make_meter(arcs, size, "7 j");
@@ -496,6 +497,7 @@ class ClaudeLimits : public Widget {
       if (!strcmp(json::str(limits, "source"), "desktop")) note = note.empty() ? "App Claude" : "App Claude · " + note;
     }
     lv_label_set_text(note_, note.c_str());
+    set_hidden(note_, note.empty());
   }
 
   lv_obj_t *icon_ = nullptr, *note_ = nullptr;
